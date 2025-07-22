@@ -1,2 +1,3 @@
-Processo;Parte;CPF;Pagamento;Observação pagamento;Órgão Judicial;Banco;Honorários Sucumbenciais;Observação Honorários;Status
-202473001518;JOSE PEDRO DOS SANTOS;557.720.805-04;30932,61;R$ 5.903,61 referente aos honorários sucumbenciais;1ª Vara Cível e Criminal de Laranjeiras;Banese;;;Cadastrado
+Processo;Parte;CPF;Pagamento;ObservaÃ§Ã£o pagamento;Ã“rgÃ£o Judicial;Banco;HonorÃ¡rios Sucumbenciais;ObservaÃ§Ã£o HonorÃ¡rios;Status;ID;Data Cadastro;Cadastrado Por;Comprovante Conta;PDF AlvarÃ¡;Data Envio Financeiro;Enviado Financeiro Por;Data Envio Rodrigo;Enviado Rodrigo Por;Comprovante Recebimento;Data FinalizaÃ§Ã£o;Finalizado Por
+202473001518;JOSE PEDRO DOS SANTOS;557.720.805-04;30932,61;R$ 5.903,61 referente aos honorÃ¡rios sucumbenciais;1Âª Vara CÃ­vel e Criminal de Laranjeiras;Banese;;;Cadastrado;1;;;;;;;;;;;
+123456789;JOÃƒO;12345678900;R$ 1000;;TRF 5Âª REGIÃƒO;BRADESCO;Sim;;Cadastrado;2;22/07/2025 18:14;victor;;;;;;;;;
