@@ -194,7 +194,7 @@ def get_github_api_info(filename):
     repo_owner = st.secrets["github"]["repo_owner"]
     repo_name = st.secrets["github"]["repo_name"]
     branch = "main"
-    api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/bases/processos/{filename}"
+    api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/bases/{filename}"
     return api_url, branch
 
 def load_data_from_github(filename):

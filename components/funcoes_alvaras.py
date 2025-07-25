@@ -304,20 +304,52 @@ def interface_anexar_documentos(df, processo):
         st.success("✅ Ambos os documentos foram anexados!")
         
         if st.button("📤 Enviar para Financeiro", type="primary"):
-            # Salvar arquivos (implementar upload para GitHub ou storage)
-            from components.functions_controle import salvar_arquivo
-            comprovante_path = salvar_arquivo(comprovante_conta, processo, "comprovante")
-            pdf_path = salvar_arquivo(pdf_alvara, processo, "alvara")
-            
-            # Atualizar status
-            idx = df[df["Processo"] == processo].index[0]
-            st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Enviado para o Financeiro"
-            st.session_state.df_editado_alvaras.loc[idx, "Comprovante Conta"] = comprovante_path
-            st.session_state.df_editado_alvaras.loc[idx, "PDF Alvará"] = pdf_path
-            st.session_state.df_editado_alvaras.loc[idx, "Data Envio Financeiro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-            st.session_state.df_editado_alvaras.loc[idx, "Enviado Financeiro Por"] = st.session_state.get("usuario", "Sistema")
-            
-            st.success("✅ Processo enviado para o Financeiro!")
+            with st.spinner("📤 Enviando documentos para o Google Drive..."):
+                try:
+                    # Upload para Google Drive
+                    from components.google_drive_integration import upload_to_google_drive
+                    
+                    success, result = upload_to_google_drive(processo, comprovante_conta, pdf_alvara)
+                    
+                    if success:
+                        st.success("✅ Documentos enviados para o Google Drive com sucesso!")
+                        
+                        # Atualizar status
+                        idx = df[df["Processo"] == processo].index[0]
+                        st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Enviado para o Financeiro"
+                        st.session_state.df_editado_alvaras.loc[idx, "Comprovante Conta"] = f"Drive: {result['comprovante_name']}"
+                        st.session_state.df_editado_alvaras.loc[idx, "PDF Alvará"] = f"Drive: {result['pdf_name']}"
+                        st.session_state.df_editado_alvaras.loc[idx, "Data Envio Financeiro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                        st.session_state.df_editado_alvaras.loc[idx, "Enviado Financeiro Por"] = st.session_state.get("usuario", "Sistema")
+                        
+                        st.success("✅ Processo enviado para o Financeiro! Arquivos salvos no Google Drive.")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Erro no upload: {result}")
+                        # Fallback para sistema local
+                        st.warning("⚠️ Tentando salvar localmente...")
+                        from components.functions_controle import salvar_arquivo
+                        comprovante_path = salvar_arquivo(comprovante_conta, processo, "comprovante")
+                        pdf_path = salvar_arquivo(pdf_alvara, processo, "alvara")
+                        
+                        # Atualizar status com paths locais
+                        idx = df[df["Processo"] == processo].index[0]
+                        st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Enviado para o Financeiro"
+                        st.session_state.df_editado_alvaras.loc[idx, "Comprovante Conta"] = comprovante_path
+                        st.session_state.df_editado_alvaras.loc[idx, "PDF Alvará"] = pdf_path
+                        st.session_state.df_editado_alvaras.loc[idx, "Data Envio Financeiro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                        st.session_state.df_editado_alvaras.loc[idx, "Enviado Financeiro Por"] = st.session_state.get("usuario", "Sistema")
+                        
+                        st.info("✅ Processo salvo localmente e enviado para o Financeiro!")
+                        st.rerun()
+                        
+                except Exception as e:
+                    st.error(f"❌ Erro inesperado: {str(e)}")
+                    # Fallback para sistema local
+                    st.warning("⚠️ Salvando localmente...")
+                    from components.functions_controle import salvar_arquivo
+                    comprovante_path = salvar_arquivo(comprovante_conta, processo, "comprovante")
+                    pdf_path = salvar_arquivo(pdf_alvara, processo, "alvara")
             st.rerun()
     
     elif comprovante_conta or pdf_alvara:
