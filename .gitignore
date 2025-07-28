@@ -1,2 +1,15 @@
 .streamlit/*
 .streamlit/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.venv/
+
+# VS Code
+.vscode/
