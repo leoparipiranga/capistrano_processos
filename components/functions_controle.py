@@ -10,9 +10,11 @@ from datetime import datetime
 # =====================================
 
 PERFIS_ALVARAS = {
+    "Admin": ["Cadastrado", "Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"],
     "Cadastrador": ["Cadastrado", "Enviado para o Financeiro"],
     "Financeiro": ["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"]
 }
+
 
 STATUS_ETAPAS_ALVARAS = {
     1: "Cadastrado",
@@ -23,6 +25,7 @@ STATUS_ETAPAS_ALVARAS = {
 
 
 PERFIS_RPV = {
+    "Admin": ["Enviado", "Certidão anexa", "Enviado para Rodrigo", "Finalizado"],
     "Cadastrador": ["Enviado"],  
     "Jurídico": ["Enviado", "Certidão anexa"],
     "Financeiro": ["Enviado", "Certidão anexa", "Enviado para Rodrigo", "Finalizado"]
@@ -36,6 +39,7 @@ STATUS_ETAPAS_RPV = {
 }
 
 PERFIS_BENEFICIOS = {
+    "Admin": ["Cadastrado", "Enviado para administrativo", "Implantado", "Enviado para o financeiro", "Finalizado"],
     "Cadastrador": ["Cadastrado", "Enviado para administrativo", "Implantado", "Enviado para o financeiro"],
     "Administrativo": ["Enviado para administrativo", "Implantado"],
     "Financeiro": ["Enviado para o financeiro", "Finalizado"],
@@ -53,40 +57,51 @@ STATUS_ETAPAS_BENEFICIOS = {
 # FUNÇÕES DE PERFIL E CONTROLE
 # =====================================
 
+def obter_perfil_usuario():
+    """Obtém o perfil do usuário logado da sessão"""
+    return st.session_state.get("perfil_usuario", "Cadastrador")
+
 def verificar_perfil_usuario_alvaras():
-    """Verifica o perfil do usuário logado"""
-    usuario_atual = st.session_state.get("usuario", "")
+    """Verifica o perfil do usuário logado para Alvarás"""
+    perfil = obter_perfil_usuario()
     
-    perfis_usuarios = {
-        "admin": "Cadastrador",
-        "leonardo": "Cadastrador", 
-        "victor": "Cadastrador",
-        "claudia": "Financeiro",
-        "secretaria": "Cadastrador"
+    # Mapear perfis para os fluxos de Alvarás
+    perfis_validos_alvaras = {
+        "Admin": "Admin",
+        "Cadastrador": "Cadastrador", 
+        "Financeiro": "Financeiro"
     }
     
-    return perfis_usuarios.get(usuario_atual, "Cadastrador")
+    return perfis_validos_alvaras.get(perfil, "Cadastrador")
 
 def pode_editar_status_alvaras(status_atual, perfil_usuario):
     """Verifica se o usuário pode editar determinado status"""
+    # Admin pode tudo
+    if perfil_usuario == "Admin":
+        return True
+    
     return status_atual in PERFIS_ALVARAS.get(perfil_usuario, [])
 
 def verificar_perfil_usuario_rpv():
     """Verifica o perfil do usuário logado para RPV"""
-    usuario_atual = st.session_state.get("usuario", "")
+    perfil = obter_perfil_usuario()
     
-    # USUÁRIOS LOCAIS TEMPORÁRIOS PARA TESTE RPV
-    perfis_usuarios_rpv = {
-        "cadastrador": "Cadastrador",
-        "juridico": "Jurídico",
-        "financeiro": "Financeiro", 
-        "admin": "Cadastrador"
+    # Mapear perfis para os fluxos de RPV
+    perfis_validos_rpv = {
+        "Admin": "Admin",
+        "Cadastrador": "Cadastrador",
+        "Jurídico": "Jurídico",
+        "Financeiro": "Financeiro"
     }
     
-    return perfis_usuarios_rpv.get(usuario_atual, "Cadastrador")
+    return perfis_validos_rpv.get(perfil, "Cadastrador")
 
 def pode_editar_status_rpv(status_atual, perfil_usuario):
     """Verifica se o usuário pode editar determinado status RPV"""
+    # Admin pode tudo
+    if perfil_usuario == "Admin":
+        return True
+    
     return status_atual in PERFIS_RPV.get(perfil_usuario, [])
 
 def obter_colunas_controle_rpv():
@@ -112,21 +127,25 @@ def inicializar_linha_vazia_rpv():
 
 def verificar_perfil_usuario_beneficios():
     """Verifica o perfil do usuário logado para Benefícios"""
-    usuario_atual = st.session_state.get("usuario", "")
+    perfil = obter_perfil_usuario()
     
-    # USUÁRIOS LOCAIS TEMPORÁRIOS PARA TESTE BENEFÍCIOS
-    perfis_usuarios_beneficios = {
-        "cadastrador": "Cadastrador",
-        "administrativo": "Administrativo",
-        "financeiro": "Financeiro",
-        "sac": "SAC",
-        "admin": "Cadastrador"
+    # Mapear perfis para os fluxos de Benefícios
+    perfis_validos_beneficios = {
+        "Admin": "Admin",
+        "Cadastrador": "Cadastrador",
+        "Administrativo": "Administrativo",
+        "Financeiro": "Financeiro",
+        "SAC": "SAC"
     }
     
-    return perfis_usuarios_beneficios.get(usuario_atual, "Cadastrador")
+    return perfis_validos_beneficios.get(perfil, "Cadastrador")
 
 def pode_editar_status_beneficios(status_atual, perfil_usuario):
     """Verifica se o usuário pode editar determinado status Benefícios"""
+    # Admin pode tudo
+    if perfil_usuario == "Admin":
+        return True
+    
     return status_atual in PERFIS_BENEFICIOS.get(perfil_usuario, [])
 
 def obter_colunas_controle_beneficios():
@@ -194,7 +213,7 @@ def get_github_api_info(filename):
     repo_owner = st.secrets["github"]["repo_owner"]
     repo_name = st.secrets["github"]["repo_name"]
     branch = "main"
-    api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/bases/processos/{filename}"
+    api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/bases/{filename}"
     return api_url, branch
 
 def load_data_from_github(filename):
@@ -275,7 +294,6 @@ def save_data_to_github_seguro(df, filename, session_state_key):
     """Salva DataFrame no GitHub com recarga automática do SHA"""
     try:
         # SEMPRE RECARREGAR SHA ANTES DE SALVAR
-        st.info("🔄 Sincronizando com GitHub...")
         df_atual, sha_atual = load_data_from_github(filename)
         
         if not sha_atual:

@@ -20,9 +20,8 @@ from components.funcoes_alvaras import (
     
     # Funções de interface
     interface_lista_alvaras, interface_anexar_documentos, 
-    interface_acoes_financeiro, interface_fluxo_trabalho, 
-    interface_cadastrador_fluxo, interface_financeiro_fluxo, 
-    interface_edicao_processo, interface_cadastro_alvara,
+    interface_acoes_financeiro, interface_edicao_processo, 
+    interface_cadastro_alvara,
     interface_visualizar_dados, interface_visualizar_alvara
 )
 
@@ -92,7 +91,7 @@ def show():
     # Limpar colunas sem nome
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
-    aba = st.tabs(["📝 Cadastrar Alvará", "📊 Lista de Alvarás", "🔄 Fluxo de Trabalho", "📁 Visualizar Dados"])
+    aba = st.tabs(["📝 Cadastrar Alvará", "📊 Gerenciar Alvarás", "📁 Visualizar Dados"])
 
     with aba[0]:
         interface_cadastro_alvara(df, perfil_usuario)
@@ -101,8 +100,5 @@ def show():
         interface_lista_alvaras(df, perfil_usuario)
     
     with aba[2]:
-        interface_fluxo_trabalho(df, perfil_usuario)
-    
-    with aba[3]:
         interface_visualizar_dados(df)
 
