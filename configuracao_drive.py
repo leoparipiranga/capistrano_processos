@@ -22,138 +22,121 @@ def extrair_codigo_da_url(url):
         return None
 
 def configurar_google_drive():
-    st.title("🔧 Teste Google Drive")
-    
-    # Verificar arquivo client_secret.json
-    client_secret_path = ".streamlit/client_secret.json"
-    
-    if not os.path.exists(client_secret_path):
-        st.error(f"❌ Arquivo {client_secret_path} não encontrado!")
+    st.title("🔧 Configuração do Google Drive")
+    st.info(
+        "Esta página ajuda a gerar as credenciais de `refresh_token` necessárias para o app. "
+        "Ela usa a configuração `[web]` que você já deve ter adicionado aos segredos do Streamlit."
+    )
+
+    # ETAPA 1: Verificar se a configuração inicial [web] existe nos segredos
+    st.markdown("---")
+    st.subheader("Passo 1: Verificação da Configuração Inicial")
+
+    if "web" not in st.secrets or "client_id" not in st.secrets.web:
+        st.error("❌ Configuração `[web]` não encontrada nos segredos do Streamlit.")
+        st.warning(
+            "Adicione o conteúdo do seu `client_secret.json` como uma seção `[web]` "
+            "nos segredos do seu app no Streamlit Cloud antes de continuar."
+        )
         return
-    
-    st.success("✅ Arquivo client_secret.json encontrado!")
-    
-    # Ler credenciais
-    try:
-        with open(client_secret_path, 'r') as f:
-            credentials_data = json.load(f)
-        
-        client_config = st.secrets["web"]
-        
-        if not client_config:
-            st.error("❌ Arquivo de credenciais inválido")
+
+    client_config = st.secrets.web
+    st.success("✅ Configuração `[web]` encontrada nos segredos!")
+    st.write(f"**Client ID:** `{client_config.get('client_id', 'N/A')}`")
+
+    # ETAPA 2: Verificar se o refresh_token já foi gerado e configurado
+    st.markdown("---")
+    st.subheader("Passo 2: Verificação do Token de Acesso")
+
+    if "google_drive" in st.secrets and "refresh_token" in st.secrets.google_drive:
+        st.success("✅ O app já está configurado com um `refresh_token` na seção `[google_drive]`!")
+        st.info("Você pode testar a conexão abaixo ou gerar um novo token se necessário.")
+        if not st.checkbox("Quero gerar um novo token mesmo assim"):
+            # Teste de conexão
+            st.markdown("---")
+            st.subheader("🧪 Teste de Conexão")
+            if st.button("🧪 Testar Google Drive", type="primary"):
+                from components.google_drive_integration import test_google_drive_connection
+                test_google_drive_connection()
             return
-        
-        st.info(f"**Client ID:** {client_config.get('client_id', 'N/A')}")
-        
-        # Verificar se já temos refresh_token
-        existing_creds = st.secrets.get("google_drive", {})
-        if existing_creds.get('refresh_token') and not str(existing_creds.get('refresh_token')).startswith('seu_'):
-            st.success("✅ Já possui refresh_token configurado!")
-            return
-        
-        st.warning("⚠️ Refresh token não configurado.")
-        
-        # Formulário OAuth usando expander
-        with st.expander("🔐 Configurar OAuth", expanded=True):
-            
-            # Etapa 1: Gerar link
-            st.markdown("**Etapa 1: Gerar Link de Autorização**")
-            if st.button("📝 Gerar Link"):
+
+    st.warning("⚠️ `Refresh token` ainda não configurado na seção `[google_drive]` dos segredos.")
+
+    # ETAPA 3: Gerar o token
+    st.markdown("---")
+    st.subheader("Passo 3: Gerar Novo Token de Acesso")
+
+    redirect_uris = client_config.get("redirect_uris", [])
+    if not redirect_uris:
+        st.error("❌ Nenhuma `redirect_uris` encontrada na sua configuração `[web]` nos segredos.")
+        return
+
+    # Permite ao usuário escolher qual URI usar, crucial para funcionar local e remotamente
+    selected_redirect_uri = st.selectbox(
+        "Selecione a URI de Redirecionamento para usar:",
+        options=redirect_uris,
+        help="Use 'localhost' para rodar localmente e a URL do Streamlit Cloud para rodar no deploy."
+    )
+
+    if st.button("📝 Gerar Link de Autorização", type="primary"):
+        try:
+            flow = Flow.from_client_config(
+                client_config.to_dict(),  # Converte para dict para a biblioteca
+                scopes=['https://www.googleapis.com/auth/drive'], # Escopo de escrita/leitura
+                redirect_uri=selected_redirect_uri
+            )
+            auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+            st.session_state.oauth_flow = flow
+            st.session_state.auth_url = auth_url
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Erro ao gerar link: {e}")
+
+    if "auth_url" in st.session_state:
+        st.success("✅ Link gerado! Clique abaixo para autorizar o acesso.")
+        st.markdown(f"### [🔗 CLIQUE AQUI PARA AUTORIZAR]({st.session_state.auth_url})")
+        st.markdown("---")
+
+        response_url = st.text_area(
+            "Após autorizar, cole a URL completa que aparecer no seu navegador aqui:",
+            height=100
+        )
+
+        if st.button("🔄 Obter Token a partir da URL", disabled=not response_url):
+            with st.spinner("Processando..."):
                 try:
-                    flow = Flow.from_client_config(
-                        client_config,
-                        scopes=['https://www.googleapis.com/auth/drive.readonly'],
-                        redirect_uri=st.secrets["web"]["redirect_uris"][1] # Use a URL de produção
-                    )
-                    auth_url, _ = flow.authorization_url(prompt='consent')
-                    
-                    # Salvar no session state
-                    st.session_state.oauth_flow = flow
-                    st.session_state.auth_url = auth_url
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"❌ Erro: {str(e)}")
-            
-            # Mostrar link se existe
-            if hasattr(st.session_state, 'auth_url'):
-                st.success("✅ Link gerado!")
-                st.markdown(f"[**🔗 Clique aqui para autorizar**]({st.session_state.auth_url})")
-                
-                st.markdown("**Etapa 2: Processar Código**")
-                
-                # Formulário para URL
-                with st.form("oauth_form"):
-                    response_url = st.text_area(
-                        "Cole a URL de resposta aqui:",
-                        placeholder="http://localhost:8501/?code=...",
-                        height=100
-                    )
-                    
-                    submitted = st.form_submit_button("🔄 Processar")
-                
-                if submitted and response_url:
-                    with st.spinner("Processando..."):
-                        try:
-                            # Extrair código
-                            codigo = extrair_codigo_da_url(response_url.strip())
-                            if not codigo:
-                                st.error("❌ URL inválida")
-                                st.stop()
-                            
-                            st.write(f"✅ Código: {codigo[:20]}...")
-                            
-                            # Processar
-                            flow = st.session_state.oauth_flow
-                            flow.fetch_token(authorization_response=response_url.strip())
-                            credentials = flow.credentials
-                            
-                            if not credentials.refresh_token:
-                                st.error("❌ Refresh token não recebido")
-                                st.info("💡 Revogue o acesso em https://myaccount.google.com/permissions e tente novamente")
-                                st.stop()
-                            
-                            # Mostrar resultado
-                            st.success("✅ Sucesso!")
-                            
-                            credentials_toml = f"""[google_drive]
+                    flow = st.session_state.oauth_flow
+                    flow.fetch_token(authorization_response=response_url)
+                    credentials = flow.credentials
+
+                    if not credentials.refresh_token:
+                        st.error("❌ Falha ao obter o `refresh_token`.")
+                        st.info("Isso pode acontecer se você já autorizou este app antes. Revogue o acesso em 'myaccount.google.com/permissions' e tente gerar um novo link.")
+                        st.stop()
+
+                    st.success("✅ Sucesso! Token de acesso gerado.")
+                    st.info("Copie o bloco abaixo e cole nos segredos do seu app no Streamlit Cloud.")
+
+                    # Monta o TOML para o usuário copiar
+                    credentials_toml = f"""[google_drive]
 client_id = "{credentials.client_id}"
 client_secret = "{credentials.client_secret}"
 refresh_token = "{credentials.refresh_token}"
-token = "{credentials.token}"
 token_uri = "{credentials.token_uri}"
-type = "authorized_user"
-alvaras_folder_id = "1eky76L8XF6G2uKxsSh0KmfRg-XEOmnN0\""""
-                            
-                            st.code(credentials_toml, language="toml")
-                            st.success("📋 Copie o código acima e substitua no secrets.toml")
-                            
-                            # Limpar session state
-                            if hasattr(st.session_state, 'oauth_flow'):
-                                del st.session_state.oauth_flow
-                            if hasattr(st.session_state, 'auth_url'):
-                                del st.session_state.auth_url
-                            
-                        except Exception as e:
-                            st.error(f"❌ Erro: {str(e)}")
-                            if "invalid_grant" in str(e):
-                                st.info("💡 Código expirado. Gere um novo link.")
-                
-                elif submitted and not response_url:
-                    st.warning("⚠️ Cole a URL de resposta antes de processar")
-    
-    except Exception as e:
-        st.error(f"❌ Erro ao ler credenciais: {str(e)}")
-    
-    # Teste de conexão
-    st.markdown("---")
-    st.subheader("🧪 Teste de Conexão")
-    
-    if st.button("🧪 Testar Google Drive", type="primary"):
-        from components.google_drive_integration import test_google_drive_connection
-        test_google_drive_connection()
+# Adicione outras chaves necessárias, como o folder_id
+alvaras_folder_id = "COLOQUE_O_ID_DA_PASTA_AQUI"
+"""
+                    st.code(credentials_toml, language="toml")
 
+                    # Limpa o estado da sessão
+                    del st.session_state.oauth_flow
+                    del st.session_state.auth_url
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Erro ao processar o token: {e}")
+                    if "invalid_grant" in str(e).lower():
+                        st.warning("O código de autorização expirou ou é inválido. Por favor, gere um novo link de autorização.")
 
 if __name__ == "__main__":
     configurar_google_drive()
