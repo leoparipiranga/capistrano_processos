@@ -38,7 +38,7 @@ def configurar_google_drive():
         with open(client_secret_path, 'r') as f:
             credentials_data = json.load(f)
         
-        client_config = credentials_data.get('web', credentials_data.get('installed', {}))
+        client_config = st.secrets["web"]
         
         if not client_config:
             st.error("❌ Arquivo de credenciais inválido")
@@ -62,9 +62,9 @@ def configurar_google_drive():
             if st.button("📝 Gerar Link"):
                 try:
                     flow = Flow.from_client_config(
-                        credentials_data,
-                        scopes=['https://www.googleapis.com/auth/drive.file'],
-                        redirect_uri='http://localhost:8501'
+                        client_config,
+                        scopes=['https://www.googleapis.com/auth/drive.readonly'],
+                        redirect_uri=st.secrets["web"]["redirect_uris"][1] # Use a URL de produção
                     )
                     auth_url, _ = flow.authorization_url(prompt='consent')
                     
