@@ -1,12 +1,2 @@
-Processo;Beneficiário;CPF;Valor RPV;Observações;Solicitar Certidão;Status
-0510501-53.2021.4.05.8500;Andreza Ferreira Santos ;798.310.955-53;R$ 22.641,51;;Sim;Enviado
-0510501-53.2021.4.05.8500;Andreza Ferreira Santos ;798.310.955-53;R$ 22.641,51;;Sim;Enviado
-0002002-06.2022.4.05.8500;JOSE DA CRUZ -;241.730.885-15;39.384,26;;Sim;Enviado
-0008172-23.2024.4.05.8500;MIRELLE ANDRADE MELO CARVALHO -;019.864.745-00;5.500,00;;Sim;Enviado
-0007608-78.2023.4.05.8500;EDIVANIA MOTA CAVALCANTE -;556.870.835-53;14.370,32;;Sim;Enviado
-0000834-03.2021.4.05.8500;MARIA ISAURA BISPO -;372.011.235-72;84.720,00;;Sim;Enviado
-0007170-23.2021.4.05.8500;JOOMILSON CORREIA SANTOS -;693.764.095-15;19.046,19;;Sim;Enviado
-0002117-56.2024.4.05.8500;MARIA GILDETE COSTA PINHEIRO -;417.229.815-04;10.598,21;;Sim;Enviado
-0015055-54.2022.4.05.8500;LARISSA ANDRADE DE JESUS -;057.956.845-89;12.272,04;;Não;Enviado
-0019335-34.2023.4.05.8500;JOSE ANTONIO DOS SANTOS -;189.706.805-00;20.692,67;;Não;Enviado
-0009305-71.2022.4.05.8500;RAIMUNDO CORREIA DE ANDRADE -;256.461.925-87;64.317,23;;Sim;Enviado
+Processo;Beneficiário;CPF;Valor RPV;Observações;Solicitar Certidão;Status;ID;Data Cadastro;Cadastrado Por;PDF RPV;Data Envio;Enviado Por;Certidão Anexada;Data Certidão;Anexado Certidão Por;Data Envio Rodrigo;Enviado Rodrigo Por;Comprovante Saque;Comprovante Pagamento;Valor Final Escritório;Data Finalização;Finalizado Por;Certidão no Korbil;Documentação Cliente OK;Observações Valor
+11111111111111111;JOSE LEONARDO;96963824568;1000;;Sim;Finalizado;1;22/07/2025 22:18;victor;https://raw.githubusercontent.com/leoparipiranga/capistrano_processos/main/anexos/11111111111111111_rpv_20250722_221801_assembleia.pdf;;;;;;;;https://raw.githubusercontent.com/leoparipiranga/capistrano_processos/main/anexos/11111111111111111_saque_rpv_20250722_222554_assembleia.pdf;https://raw.githubusercontent.com/leoparipiranga/capistrano_processos/main/anexos/11111111111111111_pagamento_rpv_20250722_222555_assembleia.pdf;1500,00;;;Sim;Sim;Valor pago em dinheiro.

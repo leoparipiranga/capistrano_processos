@@ -139,6 +139,10 @@ else:
             st.session_state.pagina_atual = "processo_rpv"
         if st.button("📋 Benefícios", key='processo_beneficios'):
             st.session_state.pagina_atual = "processo_beneficios"
+    
+    with st.sidebar.expander("⚙️ Configurações", expanded=False):
+        if st.button("☁️ Google Drive", key='config_drive'):
+            st.session_state.pagina_atual = "config_drive"
 
     # CONTEÚDO DAS PÁGINAS
     if st.session_state.pagina_atual == "processo_alvaras":
@@ -150,4 +154,7 @@ else:
     elif st.session_state.pagina_atual == "processo_beneficios":
         from processos import lista_beneficios
         lista_beneficios.show()
+    elif st.session_state.pagina_atual == "config_drive":
+        from configuracao_drive import configurar_google_drive
+        configurar_google_drive()
     
