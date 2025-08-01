@@ -11,7 +11,7 @@ from components.functions_controle import (
     save_data_local, save_data_to_github_seguro,
     
     # Funções de arquivo
-    salvar_arquivo, baixar_arquivo_github,
+    salvar_arquivo, baixar_arquivo_drive,
     gerar_id_unico, garantir_coluna_id,
     
     # Funções de análise
@@ -305,12 +305,12 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
         with col_final1:
             if linha_rpv.get("Comprovante Saque"):
                 st.markdown("**📄 Comprovante de Saque:**")
-                baixar_arquivo_github(linha_rpv["Comprovante Saque"], "📎 Baixar Comprovante")
+                baixar_arquivo_drive(linha_rpv["Comprovante Saque"], "📎 Baixar Comprovante")
         
         with col_final2:
             if linha_rpv.get("Comprovante Pagamento"):
                 st.markdown("**📄 Comprovante de Pagamento:**")
-                baixar_arquivo_github(linha_rpv["Comprovante Pagamento"], "📎 Baixar Comprovante")
+                baixar_arquivo_drive(linha_rpv["Comprovante Pagamento"], "📎 Baixar Comprovante")
         
         # Valor final
         if linha_rpv.get("Valor Final Escritório"):

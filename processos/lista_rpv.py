@@ -34,7 +34,7 @@ from components.functions_controle import (
     save_data_local, save_data_to_github_seguro,
     
     # Funções de arquivo
-    salvar_arquivo, baixar_arquivo_github,
+    salvar_arquivo, baixar_arquivo_drive,
     gerar_id_unico, garantir_coluna_id,
     
     # Funções de análise

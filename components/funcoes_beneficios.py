@@ -9,7 +9,7 @@ import math
 from components.functions_controle import (
     gerar_id_unico, garantir_coluna_id,
     get_github_api_info, save_data_to_github_seguro, 
-    load_data_from_github, baixar_arquivo_github
+    load_data_from_github, baixar_arquivo_drive
 )
 
 # =====================================
@@ -360,7 +360,7 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
     """
     Interface de edição com o fluxo de trabalho corrigido e adaptada para st.dialog.
     """
-    from components.functions_controle import salvar_arquivo, baixar_arquivo_github
+    from components.functions_controle import salvar_arquivo, baixar_arquivo_drive
 
     linha_beneficio = df[df["ID"] == beneficio_id].iloc[0]
     status_atual = linha_beneficio.get("Status", "N/A")
@@ -457,7 +457,7 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
             
             if linha_beneficio.get("Comprovante Pagamento"):
                 st.markdown("**📎 Comprovante:**")
-                baixar_arquivo_github(linha_beneficio["Comprovante Pagamento"], "📎 Baixar Comprovante")
+                baixar_arquivo_drive(linha_beneficio["Comprovante Pagamento"], "📎 Baixar Comprovante")
         
             
             with col_final2:

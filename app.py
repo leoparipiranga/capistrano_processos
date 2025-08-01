@@ -155,6 +155,6 @@ else:
         from processos import lista_beneficios
         lista_beneficios.show()
     elif st.session_state.pagina_atual == "config_drive":
-        from configuracao_drive import configurar_google_drive
-        configurar_google_drive()
+        from configuracao_drive import interface_configuracao_drive
+        interface_configuracao_drive()
     

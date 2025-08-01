@@ -512,16 +512,16 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
         with col_doc1:
             st.markdown("**📄 Comprovante da Conta**")
             if linha_processo.get("Comprovante Conta"):
-                from components.functions_controle import baixar_arquivo_github
-                baixar_arquivo_github(linha_processo["Comprovante Conta"], "📎 Baixar Comprovante")
+                from components.functions_controle import baixar_arquivo_drive
+                baixar_arquivo_drive(linha_processo["Comprovante Conta"], "📎 Baixar Comprovante")
             else:
                 st.warning("❌ Comprovante não anexado")
         
         with col_doc2:
             st.markdown("**📄 PDF do Alvará**")
             if linha_processo.get("PDF Alvará"):
-                from components.functions_controle import baixar_arquivo_github
-                baixar_arquivo_github(linha_processo["PDF Alvará"], "📎 Baixar PDF")
+                from components.functions_controle import baixar_arquivo_drive
+                baixar_arquivo_drive(linha_processo["PDF Alvará"], "📎 Baixar PDF")
             else:
                 st.warning("❌ PDF não anexado")
         
@@ -561,8 +561,8 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
         # Mostrar comprovante de recebimento se já existe
         if linha_processo.get("Comprovante Recebimento"):
             st.success("✅ Comprovante de recebimento já anexado")
-            from components.functions_controle import baixar_arquivo_github
-            baixar_arquivo_github(linha_processo["Comprovante Recebimento"], "📎 Ver Comprovante")
+            from components.functions_controle import baixar_arquivo_drive
+            baixar_arquivo_drive(linha_processo["Comprovante Recebimento"], "📎 Ver Comprovante")
         
         st.markdown("**📎 Anexar Comprovante de Recebimento:**")
         comprovante_recebimento = st.file_uploader(
@@ -627,18 +627,18 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
         
         with col_docs1:
             if linha_processo.get("Comprovante Conta"):
-                from components.functions_controle import baixar_arquivo_github
-                baixar_arquivo_github(linha_processo["Comprovante Conta"], "📄 Comprovante Conta")
+                from components.functions_controle import baixar_arquivo_drive
+                baixar_arquivo_drive(linha_processo["Comprovante Conta"], "📄 Comprovante Conta")
         
         with col_docs2:
             if linha_processo.get("PDF Alvará"):
-                from components.functions_controle import baixar_arquivo_github
-                baixar_arquivo_github(linha_processo["PDF Alvará"], "📄 PDF Alvará")
+                from components.functions_controle import baixar_arquivo_drive
+                baixar_arquivo_drive(linha_processo["PDF Alvará"], "📄 PDF Alvará")
         
         with col_docs3:
             if linha_processo.get("Comprovante Recebimento"):
-                from components.functions_controle import baixar_arquivo_github
-                baixar_arquivo_github(linha_processo["Comprovante Recebimento"], "📄 Comprovante Recebimento")
+                from components.functions_controle import baixar_arquivo_drive
+                baixar_arquivo_drive(linha_processo["Comprovante Recebimento"], "📄 Comprovante Recebimento")
     
     # ACESSO NEGADO
     else:

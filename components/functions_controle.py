@@ -353,55 +353,75 @@ def save_data_local(df, filename):
 # =====================================
 
 def salvar_arquivo(arquivo, processo, tipo):
-    """Salva arquivo binário (PDF, imagem) no GitHub"""
+    """Salva arquivo binário (PDF, imagem) exclusivamente no Google Drive"""
     try:
+        from components.google_drive_integration import GoogleDriveIntegration
+        
+        # Inicializar integração com Google Drive
+        drive = GoogleDriveIntegration()
+        
+        if not drive.initialize_service():
+            st.error("❌ Erro na inicialização do Google Drive")
+            return None
+        
         # Gerar nome único para o arquivo
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        nome_arquivo = f"anexos/{processo}_{tipo}_{timestamp}_{arquivo.name}"
+        nome_arquivo = f"{processo}_{tipo}_{timestamp}_{arquivo.name}"
         
-        # Preparar dados para GitHub API
-        repo_owner = st.secrets["github"]["repo_owner"]
-        repo_name = st.secrets["github"]["repo_name"]
-        branch = "main"
+        # Obter pasta principal de alvarás
+        main_folder_id = st.secrets.get("google_drive", {}).get("alvaras_folder_id")
+        if not main_folder_id:
+            st.error("❌ Pasta de alvarás não configurada no secrets.toml")
+            return None
         
-        api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{nome_arquivo}"
+        # Criar ou encontrar pasta do processo
+        processo_folder_name = f"Processo_{processo}"
+        processo_folder_id = drive.find_folder(processo_folder_name, main_folder_id)
         
-        headers = {
-            "Authorization": f'token {st.secrets["github"]["token"]}',
-            "Accept": "application/vnd.github+json"
-        }
+        if not processo_folder_id:
+            processo_folder_id = drive.create_folder(processo_folder_name, main_folder_id)
+            if not processo_folder_id:
+                st.error("❌ Erro ao criar pasta do processo no Google Drive")
+                return None
         
-        # Converter arquivo para base64
-        arquivo_bytes = arquivo.read()
-        content_b64 = base64.b64encode(arquivo_bytes).decode("utf-8")
+        # Fazer upload do arquivo
+        file_id, file_name = drive.upload_file(
+            arquivo.getvalue(),
+            nome_arquivo,
+            processo_folder_id,
+            arquivo.type
+        )
         
-        data = {
-            "message": f"Upload anexo: {nome_arquivo}",
-            "content": content_b64,
-            "branch": branch
-        }
-        
-        # Enviar para GitHub
-        response = requests.put(api_url, headers=headers, json=data)
-        
-        if response.status_code in [200, 201]:
-            # Retornar URL de download do arquivo
-            download_url = response.json()["content"]["download_url"]
-            st.success(f"✅ Arquivo {arquivo.name} salvo com sucesso!")
-            return download_url
+        if file_id:
+            # Retornar identificador único do Google Drive
+            drive_url = f"https://drive.google.com/file/d/{file_id}/view"
+            st.success(f"✅ Arquivo {arquivo.name} salvo no Google Drive!")
+            return f"Drive: {file_name} (ID: {file_id})"
         else:
-            st.error(f"❌ Erro ao salvar arquivo: {response.status_code}")
+            st.error("❌ Erro ao fazer upload para o Google Drive")
             return None
             
     except Exception as e:
         st.error(f"❌ Erro ao processar arquivo: {e}")
         return None
 
-def baixar_arquivo_github(url_arquivo, nome_display):
-    """Cria link para download de arquivo do GitHub"""
+def baixar_arquivo_drive(url_arquivo, nome_display):
+    """Cria link para visualização de arquivo do Google Drive ou GitHub"""
     if url_arquivo and str(url_arquivo).strip():
-        st.markdown(f"📎 **[{nome_display}]({url_arquivo})**")
-        return True
+        # Verifica se é um arquivo do Google Drive
+        if "Drive:" in str(url_arquivo):
+            # Extrair ID do arquivo do formato "Drive: nome_arquivo (ID: file_id)"
+            if "(ID:" in str(url_arquivo):
+                file_id = str(url_arquivo).split("(ID:")[1].split(")")[0].strip()
+                drive_url = f"https://drive.google.com/file/d/{file_id}/view"
+                st.markdown(f"📎 **[{nome_display} - Visualizar no Drive]({drive_url})**")
+            else:
+                st.markdown(f"📎 **{nome_display}** - {url_arquivo}")
+            return True
+        else:
+            # Link tradicional (GitHub ou outro)
+            st.markdown(f"📎 **[{nome_display}]({url_arquivo})**")
+            return True
     return False
 
 # =====================================
@@ -758,58 +778,6 @@ def interface_acoes_financeiro(df_filtrado):
                         st.success("✅ Processo finalizado!")
                         st.rerun()
 
-def salvar_arquivo(arquivo, processo, tipo):
-    """Salva arquivo binário (PDF, imagem) no GitHub"""
-    try:
-        # Gerar nome único para o arquivo
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        nome_arquivo = f"anexos/{processo}_{tipo}_{timestamp}_{arquivo.name}"
-        
-        # Preparar dados para GitHub API
-        repo_owner = st.secrets["github"]["repo_owner"]
-        repo_name = st.secrets["github"]["repo_name"]
-        branch = "main"
-        
-        api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{nome_arquivo}"
-        
-        headers = {
-            "Authorization": f'token {st.secrets["github"]["token"]}',
-            "Accept": "application/vnd.github+json"
-        }
-        
-        # Converter arquivo para base64
-        arquivo_bytes = arquivo.read()
-        content_b64 = base64.b64encode(arquivo_bytes).decode("utf-8")
-        
-        data = {
-            "message": f"Upload anexo: {nome_arquivo}",
-            "content": content_b64,
-            "branch": branch
-        }
-        
-        # Enviar para GitHub
-        response = requests.put(api_url, headers=headers, json=data)
-        
-        if response.status_code in [200, 201]:
-            # Retornar URL de download do arquivo
-            download_url = response.json()["content"]["download_url"]
-            st.success(f"✅ Arquivo {arquivo.name} salvo com sucesso!")
-            return download_url
-        else:
-            st.error(f"❌ Erro ao salvar arquivo: {response.status_code}")
-            return None
-            
-    except Exception as e:
-        st.error(f"❌ Erro ao processar arquivo: {e}")
-        return None
-
-def baixar_arquivo_github(url_arquivo, nome_display):
-    """Cria link para download de arquivo do GitHub"""
-    if url_arquivo:
-        st.markdown(f"📎 **[{nome_display}]({url_arquivo})**")
-        return True
-    return False
-
 def interface_fluxo_trabalho(df, perfil_usuario):
     """Interface do fluxo de trabalho com dashboards por perfil"""
     st.subheader("🔄 Fluxo de Trabalho - Alvarás")
@@ -919,9 +887,9 @@ def interface_financeiro_fluxo(df):
                 with col_docs:
                     st.markdown("**📎 Documentos:**")
                     if processo.get("Comprovante Conta"):
-                        baixar_arquivo_github(processo["Comprovante Conta"], "Comprovante")
+                        baixar_arquivo_drive(processo["Comprovante Conta"], "Comprovante")
                     if processo.get("PDF Alvará"):
-                        baixar_arquivo_github(processo["PDF Alvará"], "PDF Alvará")
+                        baixar_arquivo_drive(processo["PDF Alvará"], "PDF Alvará")
                 
                 with col_acao:
                     if st.button(f"📤 Enviar para Rodrigo", key=f"enviar_Rodrigo_{processo['Processo']}"):
@@ -932,7 +900,7 @@ def interface_financeiro_fluxo(df):
                         st.session_state.df_editado_alvaras.loc[idx, "Enviado Rodrigo Por"] = st.session_state.get("usuario", "Sistema")
                         
                         # Salvar no GitHub
-                        novo_sha = save_data_to_github(
+                        novo_sha = save_data_to_github_seguro(
                             st.session_state.df_editado_alvaras,
                             "lista_alvaras.csv",
                             st.session_state.file_sha_alvaras
@@ -958,7 +926,7 @@ def interface_financeiro_fluxo(df):
                     # Mostrar comprovante de recebimento se já existe
                     if processo.get("Comprovante Recebimento"):
                         st.success("✅ Comprovante de recebimento já anexado")
-                        baixar_arquivo_github(processo["Comprovante Recebimento"], "Comprovante Recebimento")
+                        baixar_arquivo_drive(processo["Comprovante Recebimento"], "Comprovante Recebimento")
                 
                 with col_anexo:
                     st.markdown("**📎 Anexar Comprovante de Recebimento:**")
@@ -982,7 +950,7 @@ def interface_financeiro_fluxo(df):
                                 st.session_state.df_editado_alvaras.loc[idx, "Finalizado Por"] = st.session_state.get("usuario", "Sistema")
                                 
                                 # Salvar no GitHub
-                                novo_sha = save_data_to_github(
+                                novo_sha = save_data_to_github_seguro(
                                     st.session_state.df_editado_alvaras,
                                     "lista_alvaras.csv",
                                     st.session_state.file_sha_alvaras
@@ -1126,14 +1094,14 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
         with col_doc1:
             st.markdown("**📄 Comprovante da Conta**")
             if linha_processo.get("Comprovante Conta"):
-                baixar_arquivo_github(linha_processo["Comprovante Conta"], "📎 Baixar Comprovante")
+                baixar_arquivo_drive(linha_processo["Comprovante Conta"], "📎 Baixar Comprovante")
             else:
                 st.warning("❌ Comprovante não anexado")
         
         with col_doc2:
             st.markdown("**📄 PDF do Alvará**")
             if linha_processo.get("PDF Alvará"):
-                baixar_arquivo_github(linha_processo["PDF Alvará"], "📎 Baixar PDF")
+                baixar_arquivo_drive(linha_processo["PDF Alvará"], "📎 Baixar PDF")
             else:
                 st.warning("❌ PDF não anexado")
         
@@ -1172,7 +1140,7 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
         # Mostrar comprovante de recebimento se já existe
         if linha_processo.get("Comprovante Recebimento"):
             st.success("✅ Comprovante de recebimento já anexado")
-            baixar_arquivo_github(linha_processo["Comprovante Recebimento"], "📎 Ver Comprovante")
+            baixar_arquivo_drive(linha_processo["Comprovante Recebimento"], "📎 Ver Comprovante")
         
         st.markdown("**📎 Anexar Comprovante de Recebimento:**")
         comprovante_recebimento = st.file_uploader(
@@ -1236,15 +1204,15 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
         
         with col_docs1:
             if linha_processo.get("Comprovante Conta"):
-                baixar_arquivo_github(linha_processo["Comprovante Conta"], "📄 Comprovante Conta")
+                baixar_arquivo_drive(linha_processo["Comprovante Conta"], "📄 Comprovante Conta")
         
         with col_docs2:
             if linha_processo.get("PDF Alvará"):
-                baixar_arquivo_github(linha_processo["PDF Alvará"], "📄 PDF Alvará")
+                baixar_arquivo_drive(linha_processo["PDF Alvará"], "📄 PDF Alvará")
         
         with col_docs3:
             if linha_processo.get("Comprovante Recebimento"):
-                baixar_arquivo_github(linha_processo["Comprovante Recebimento"], "📄 Comprovante Recebimento")
+                baixar_arquivo_drive(linha_processo["Comprovante Recebimento"], "📄 Comprovante Recebimento")
     
     # ACESSO NEGADO
     else:
