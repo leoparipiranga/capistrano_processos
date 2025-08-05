@@ -675,31 +675,75 @@ def interface_anexar_documentos(df, processo):
         st.warning("⚠️ Este processo não está na etapa de anexação de documentos")
         return
     
+    # Checkbox para anexar múltiplos documentos
+    anexar_multiplos = st.checkbox("📎 Anexar múltiplos documentos", key=f"multiplos_{processo}")
+    
     col_doc1, col_doc2 = st.columns(2)
     
     with col_doc1:
         st.markdown("**📄 Comprovante da Conta**")
-        comprovante_conta = st.file_uploader(
-            "Anexar comprovante da conta:",
-            type=["pdf", "jpg", "jpeg", "png"],
-            key=f"comprovante_{processo}"
-        )
+        if anexar_multiplos:
+            comprovante_conta = st.file_uploader(
+                "Anexar comprovantes da conta:",
+                type=["pdf", "jpg", "jpeg", "png"],
+                key=f"comprovante_{processo}",
+                accept_multiple_files=True
+            )
+        else:
+            comprovante_conta = st.file_uploader(
+                "Anexar comprovante da conta:",
+                type=["pdf", "jpg", "jpeg", "png"],
+                key=f"comprovante_{processo}"
+            )
     
     with col_doc2:
         st.markdown("**📄 PDF do Alvará**")
-        pdf_alvara = st.file_uploader(
-            "Anexar PDF do alvará:",
-            type=["pdf"],
-            key=f"pdf_{processo}"
-        )
+        if anexar_multiplos:
+            pdf_alvara = st.file_uploader(
+                "Anexar PDFs do alvará:",
+                type=["pdf"],
+                key=f"pdf_{processo}",
+                accept_multiple_files=True
+            )
+        else:
+            pdf_alvara = st.file_uploader(
+                "Anexar PDF do alvará:",
+                type=["pdf"],
+                key=f"pdf_{processo}"
+            )
     
-    if comprovante_conta and pdf_alvara:
-        st.success("✅ Ambos os documentos foram anexados!")
+    # Verificar se documentos foram anexados (considerando múltiplos ou únicos)
+    documentos_anexados = False
+    if anexar_multiplos:
+        documentos_anexados = (comprovante_conta and len(comprovante_conta) > 0) and (pdf_alvara and len(pdf_alvara) > 0)
+    else:
+        documentos_anexados = comprovante_conta and pdf_alvara
+    
+    if documentos_anexados:
+        if anexar_multiplos:
+            st.success(f"✅ {len(comprovante_conta)} comprovante(s) e {len(pdf_alvara)} PDF(s) anexados!")
+        else:
+            st.success("✅ Ambos os documentos foram anexados!")
         
         if st.button("📤 Enviar para Financeiro", type="primary"):
             # Salvar arquivos (implementar upload para GitHub ou storage)
-            comprovante_path = salvar_arquivo(comprovante_conta, processo, "comprovante")
-            pdf_path = salvar_arquivo(pdf_alvara, processo, "alvara")
+            if anexar_multiplos:
+                comprovante_paths = []
+                pdf_paths = []
+                
+                for i, arquivo in enumerate(comprovante_conta):
+                    path = salvar_arquivo(arquivo, processo, f"comprovante_{i+1}")
+                    comprovante_paths.append(path)
+                
+                for i, arquivo in enumerate(pdf_alvara):
+                    path = salvar_arquivo(arquivo, processo, f"alvara_{i+1}")
+                    pdf_paths.append(path)
+                
+                comprovante_path = "; ".join(comprovante_paths)
+                pdf_path = "; ".join(pdf_paths)
+            else:
+                comprovante_path = salvar_arquivo(comprovante_conta, processo, "comprovante")
+                pdf_path = salvar_arquivo(pdf_alvara, processo, "alvara")
             
             # Atualizar status
             idx = df[df["Processo"] == processo].index[0]
@@ -713,9 +757,15 @@ def interface_anexar_documentos(df, processo):
             st.rerun()
     
     elif comprovante_conta or pdf_alvara:
-        st.warning("⚠️ Anexe ambos os documentos para prosseguir")
+        if anexar_multiplos:
+            st.warning("⚠️ Anexe pelo menos um arquivo em cada categoria para prosseguir")
+        else:
+            st.warning("⚠️ Anexe ambos os documentos para prosseguir")
     else:
-        st.info("📋 Anexe o comprovante da conta e o PDF do alvará")
+        if anexar_multiplos:
+            st.info("📋 Anexe os comprovantes da conta e os PDFs dos alvarás")
+        else:
+            st.info("📋 Anexe o comprovante da conta e o PDF do alvará")
 
 def interface_acoes_financeiro(df_filtrado):
     """Ações específicas do perfil Financeiro"""
@@ -757,11 +807,25 @@ def interface_acoes_financeiro(df_filtrado):
         
         for _, processo in enviados_Rodrigo.iterrows():
             with st.expander(f"Finalizar: {processo['Processo']} - {processo['Parte']}"):
-                comprovante_recebimento = st.file_uploader(
-                    "Anexar comprovante de recebimento:",
-                    type=["pdf", "jpg", "jpeg", "png"],
-                    key=f"recebimento_{processo['Processo']}"
+                # Checkbox para múltiplos comprovantes
+                anexar_multiplos_rec = st.checkbox(
+                    "📎 Anexar múltiplos comprovantes", 
+                    key=f"multiplos_recebimento_{processo['Processo']}"
                 )
+                
+                if anexar_multiplos_rec:
+                    comprovante_recebimento = st.file_uploader(
+                        "Anexar comprovantes de recebimento:",
+                        type=["pdf", "jpg", "jpeg", "png"],
+                        accept_multiple_files=True,
+                        key=f"recebimento_{processo['Processo']}"
+                    )
+                else:
+                    comprovante_recebimento = st.file_uploader(
+                        "Anexar comprovante de recebimento:",
+                        type=["pdf", "jpg", "jpeg", "png"],
+                        key=f"recebimento_{processo['Processo']}"
+                    )
                 
                 if comprovante_recebimento:
                     if st.button(f"✅ Finalizar Processo", key=f"finalizar_{processo['Processo']}"):
@@ -929,12 +993,26 @@ def interface_financeiro_fluxo(df):
                         baixar_arquivo_drive(processo["Comprovante Recebimento"], "Comprovante Recebimento")
                 
                 with col_anexo:
-                    st.markdown("**📎 Anexar Comprovante de Recebimento:**")
-                    comprovante_recebimento = st.file_uploader(
-                        "Comprovante do Rodrigo:",
-                        type=["pdf", "jpg", "jpeg", "png"],
-                        key=f"recebimento_{processo['Processo']}"
+                    # Checkbox para múltiplos comprovantes
+                    anexar_multiplos_final = st.checkbox(
+                        "📎 Anexar múltiplos comprovantes", 
+                        key=f"multiplos_final_{processo['Processo']}"
                     )
+                    
+                    st.markdown("**📎 Anexar Comprovante de Recebimento:**")
+                    if anexar_multiplos_final:
+                        comprovante_recebimento = st.file_uploader(
+                            "Comprovantes do Rodrigo:",
+                            type=["pdf", "jpg", "jpeg", "png"],
+                            accept_multiple_files=True,
+                            key=f"recebimento_{processo['Processo']}"
+                        )
+                    else:
+                        comprovante_recebimento = st.file_uploader(
+                            "Comprovante do Rodrigo:",
+                            type=["pdf", "jpg", "jpeg", "png"],
+                            key=f"recebimento_{processo['Processo']}"
+                        )
                     
                     if comprovante_recebimento:
                         if st.button(f"✅ Finalizar", key=f"finalizar_{processo['Processo']}", type="primary"):
@@ -1142,12 +1220,26 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
             st.success("✅ Comprovante de recebimento já anexado")
             baixar_arquivo_drive(linha_processo["Comprovante Recebimento"], "📎 Ver Comprovante")
         
-        st.markdown("**📎 Anexar Comprovante de Recebimento:**")
-        comprovante_recebimento = st.file_uploader(
-            "Comprovante enviado pelo Rodrigo:",
-            type=["pdf", "jpg", "jpeg", "png"],
-            key=f"recebimento_{processo}"
+        # Checkbox para múltiplos comprovantes
+        anexar_multiplos_ult = st.checkbox(
+            "📎 Anexar múltiplos comprovantes", 
+            key=f"multiplos_ultimo_{processo}"
         )
+        
+        st.markdown("**📎 Anexar Comprovante de Recebimento:**")
+        if anexar_multiplos_ult:
+            comprovante_recebimento = st.file_uploader(
+                "Comprovantes enviados pelo Rodrigo:",
+                type=["pdf", "jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+                key=f"recebimento_{processo}"
+            )
+        else:
+            comprovante_recebimento = st.file_uploader(
+                "Comprovante enviado pelo Rodrigo:",
+                type=["pdf", "jpg", "jpeg", "png"],
+                key=f"recebimento_{processo}"
+            )
         
         if comprovante_recebimento:
             if st.button("✅ Finalizar Processo", key=f"enviar_fin_id_{alvara_id}", type="primary"):

@@ -7,20 +7,46 @@ import base64
 from datetime import datetime
 import math
 from components.functions_controle import (
+    # Funções GitHub
+    get_github_api_info, load_data_from_github, 
+    save_data_local, save_data_to_github_seguro,
+    
+    # Funções de arquivo
+    salvar_arquivo, baixar_arquivo_drive,
     gerar_id_unico, garantir_coluna_id,
-    get_github_api_info, save_data_to_github_seguro, 
-    load_data_from_github, baixar_arquivo_drive
+    
+    # Funções de análise
+    mostrar_diferencas, validar_cpf, formatar_processo,
+    
+    # Funções de limpeza comuns
+    limpar_campos_formulario
 )
 
 # =====================================
 # CONFIGURAÇÕES DE PERFIS - BENEFÍCIOS
 # =====================================
 
+# STATUS POSSÍVEIS
+STATUS_ETAPAS_BENEFICIO = {
+    1: "Enviado para administrativo",
+    2: "Administrativo - Aprovado",
+    3: "Administrativo - Reprovado",
+    4: "Envio para procuração",
+    5: "Protocolado",
+    6: "Aguardando implantação",
+    7: "Implantado",
+    8: "Solicitação de cessação",
+    9: "Cessado",
+    10: "Finalizado"
+}
+
+# PERFIS E PERMISSÕES
 PERFIS_BENEFICIOS = {
     "Cadastrador": ["Implantado"],
     "Administrativo": ["Enviado para administrativo"],
     "Financeiro": ["Enviado para o financeiro"],
-    "SAC": ["Enviado para administrativo", "Implantado", "Enviado para o financeiro"]  # SAC pode intervir em qualquer etapa
+    "SAC": ["Enviado para administrativo", "Implantado", "Enviado para o financeiro"],  # SAC pode intervir em qualquer etapa
+    "Admin": ["Enviado para administrativo", "Implantado", "Enviado para o financeiro", "Finalizado"]  # Admin tem acesso total
 }
 
 STATUS_ETAPAS_BENEFICIOS = {
@@ -29,6 +55,64 @@ STATUS_ETAPAS_BENEFICIOS = {
     3: "Enviado para o financeiro",
     4: "Finalizado"
 }
+
+def pode_editar_status_beneficios(status_atual, perfil_usuario):
+    """Verifica se o usuário pode editar determinado status de benefício"""
+    return status_atual in PERFIS_BENEFICIOS.get(perfil_usuario, [])
+
+def obter_colunas_controle_beneficios():
+    """Retorna lista das colunas de controle do fluxo de benefícios"""
+    return [
+        "Status", "Data Cadastro", "Cadastrado Por", 
+        "PDF Benefício", "Data Envio", "Enviado Por",
+        "Protocolado Em", "Data Protocolo", "Protocolado Por",
+        "Data Implantação", "Implantado Por",
+        "Data Cessação", "Cessado Por", 
+        "Data Finalização", "Finalizado Por"
+    ]
+
+def inicializar_linha_vazia_beneficios():
+    """Retorna dicionário com campos vazios para nova linha de benefícios"""
+    linha_vazia = {}
+    
+    for campo in obter_colunas_controle_beneficios():
+        linha_vazia[campo] = ""
+    
+    return linha_vazia
+
+# =====================================
+# FUNÇÕES DE INTERFACE E AÇÕES - BENEFÍCIOS
+# =====================================
+
+def toggle_beneficio_selection(beneficio_id):
+    """Função callback para alternar seleção de Benefício"""
+    # Garantir que a lista existe
+    if "processos_selecionados_beneficios" not in st.session_state:
+        st.session_state.processos_selecionados_beneficios = []
+    
+    # Converter para string para consistência
+    beneficio_id_str = str(beneficio_id)
+    
+    # Remover qualquer versão duplicada (int ou str)
+    st.session_state.processos_selecionados_beneficios = [
+        pid for pid in st.session_state.processos_selecionados_beneficios 
+        if str(pid) != beneficio_id_str
+    ]
+    
+    # Se o checkbox está marcado, adicionar à lista
+    checkbox_key = f"check_beneficio_{beneficio_id}"
+    if st.session_state.get(checkbox_key, False):
+        st.session_state.processos_selecionados_beneficios.append(beneficio_id_str)
+
+def interface_lista_beneficios(df, perfil_usuario):
+    """Lista de benefícios com paginação e diálogo para ações"""
+    
+    # Importar funções necessárias localmente
+    from components.functions_controle import (
+        gerar_id_unico, garantir_coluna_id,
+        get_github_api_info, save_data_to_github_seguro, 
+        load_data_from_github, baixar_arquivo_drive
+    )
 
 # =====================================
 # FUNÇÕES DE PERFIL E CONTROLE - BENEFÍCIOS
@@ -77,6 +161,50 @@ def interface_lista_beneficios(df, perfil_usuario):
         ).drop(columns=["_data_cadastro_dt"])
 
     # Inicializar estado do diálogo e paginação
+    if "show_beneficio_dialog" not in st.session_state:
+        st.session_state.show_beneficio_dialog = False
+        st.session_state.beneficio_aberto_id = None
+    if "current_page_beneficios" not in st.session_state:
+        st.session_state.current_page_beneficios = 1
+    
+    # Inicializar estado de exclusão em massa
+    if "modo_exclusao_beneficios" not in st.session_state:
+        st.session_state.modo_exclusao_beneficios = False
+    if "processos_selecionados_beneficios" not in st.session_state:
+        st.session_state.processos_selecionados_beneficios = []
+    
+    # Validar consistência da lista de selecionados
+    if st.session_state.processos_selecionados_beneficios:
+        ids_existentes = set(df["ID"].astype(str).tolist())
+        st.session_state.processos_selecionados_beneficios = [
+            pid for pid in st.session_state.processos_selecionados_beneficios 
+            if str(pid) in ids_existentes
+        ]
+
+    # Botão para habilitar exclusão (apenas para Admin e Cadastrador)
+    usuario_atual = st.session_state.get("usuario", "")
+    perfil_atual = st.session_state.get("perfil_usuario", "")
+    pode_excluir = (perfil_atual in ["Admin", "Cadastrador"] or usuario_atual == "admin")
+    
+    if pode_excluir:
+        col_btn1, col_btn2, col_rest = st.columns([2, 2, 6])
+        with col_btn1:
+            if not st.session_state.modo_exclusao_beneficios:
+                if st.button("🗑️ Habilitar Exclusão", key="habilitar_exclusao_beneficios"):
+                    st.session_state.modo_exclusao_beneficios = True
+                    st.session_state.processos_selecionados_beneficios = []
+                    st.rerun()
+            else:
+                if st.button("❌ Cancelar Exclusão", key="cancelar_exclusao_beneficios"):
+                    st.session_state.modo_exclusao_beneficios = False
+                    st.session_state.processos_selecionados_beneficios = []
+                    st.rerun()
+        
+        with col_btn2:
+            if st.session_state.modo_exclusao_beneficios and st.session_state.processos_selecionados_beneficios:
+                if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_beneficios)})", 
+                           key="confirmar_exclusao_beneficios", type="primary"):
+                    confirmar_exclusao_massa_beneficios(df, st.session_state.processos_selecionados_beneficios)
     if "show_beneficio_dialog" not in st.session_state:
         st.session_state.show_beneficio_dialog = False
         st.session_state.beneficio_aberto_id = None
@@ -136,37 +264,78 @@ def interface_lista_beneficios(df, perfil_usuario):
     if not df_paginado.empty:
         st.markdown(f'<p style="font-size: small; color: steelblue;">Mostrando {start_idx+1} a {min(end_idx, total_registros)} de {total_registros} benefícios</p>', unsafe_allow_html=True)
         
-        col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([1, 3, 2, 2, 2, 2])
-        with col_h1: st.markdown("**Ação**")
-        with col_h2: st.markdown("**Parte**")
-        with col_h3: st.markdown("**Processo**")
-        with col_h4: st.markdown("**Tipo**")
-        with col_h5: st.markdown("**Status**")
-        with col_h6: st.markdown("**Data Cadastro**")
+        # Cabeçalhos dinâmicos baseados no modo de exclusão
+        if st.session_state.modo_exclusao_beneficios:
+            col_check, col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([0.5, 1, 3, 2, 2, 2, 2])
+            with col_check: st.markdown("**☑️**")
+            with col_h1: st.markdown("**Ação**")
+            with col_h2: st.markdown("**Parte**")
+            with col_h3: st.markdown("**Processo**")
+            with col_h4: st.markdown("**Tipo**")
+            with col_h5: st.markdown("**Status**")
+            with col_h6: st.markdown("**Data Cadastro**")
+        else:
+            col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([1, 3, 2, 2, 2, 2])
+            with col_h1: st.markdown("**Ação**")
+            with col_h2: st.markdown("**Parte**")
+            with col_h3: st.markdown("**Processo**")
+            with col_h4: st.markdown("**Tipo**")
+            with col_h5: st.markdown("**Status**")
+            with col_h6: st.markdown("**Data Cadastro**")
+        
         st.markdown('<hr style="margin-top: 0.1rem; margin-bottom: 0.5rem;" />', unsafe_allow_html=True)
 
         for _, row in df_paginado.iterrows():
-            col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([1, 3, 2, 2, 2, 2])
             beneficio_id = row.get("ID")
             
-            with col_b1:
-                if st.button("🔓 Abrir", key=f"abrir_beneficio_id_{beneficio_id}"):
-                    st.session_state.show_beneficio_dialog = True
-                    st.session_state.beneficio_aberto_id = beneficio_id
-                    st.rerun()
-            
-            with col_b2: st.write(f"**{row.get('PARTE', 'N/A')}**")
-            with col_b3: st.write(row.get('Nº DO PROCESSO', 'N/A'))
-            with col_b4: st.write(row.get('TIPO DE PROCESSO', 'N/A'))
-            with col_b5: st.write(row.get('Status', 'N/A'))
-            with col_b6:
-                data_cadastro = row.get('Data Cadastro')
-                # Verifica se o valor é NaN (float) ou None antes de tentar o split
-                if pd.isna(data_cadastro):
-                    st.write("N/A")
-                else:
-                    # Converte para string para garantir que o split funcione
-                    st.write(str(data_cadastro).split(' ')[0])
+            if st.session_state.modo_exclusao_beneficios:
+                col_check, col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([0.5, 1, 3, 2, 2, 2, 2])
+                
+                with col_check:
+                    current_value = beneficio_id in st.session_state.processos_selecionados_beneficios
+                    
+                    is_selected = st.checkbox(
+                        "",
+                        value=current_value,
+                        key=f"check_beneficio_{beneficio_id}",
+                        on_change=lambda bid=beneficio_id: toggle_beneficio_selection(bid)
+                    )
+                
+                with col_b1:
+                    if st.button("🔓 Abrir", key=f"abrir_beneficio_id_{beneficio_id}"):
+                        st.session_state.show_beneficio_dialog = True
+                        st.session_state.beneficio_aberto_id = beneficio_id
+                        st.rerun()
+                
+                with col_b2: st.write(f"**{row.get('PARTE', 'N/A')}**")
+                with col_b3: st.write(row.get('Nº DO PROCESSO', 'N/A'))
+                with col_b4: st.write(row.get('TIPO DE PROCESSO', 'N/A'))
+                with col_b5: st.write(row.get('Status', 'N/A'))
+                with col_b6:
+                    data_cadastro = row.get('Data Cadastro')
+                    if pd.isna(data_cadastro):
+                        st.write("N/A")
+                    else:
+                        st.write(str(data_cadastro).split(' ')[0])
+            else:
+                col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([1, 3, 2, 2, 2, 2])
+                
+                with col_b1:
+                    if st.button("🔓 Abrir", key=f"abrir_beneficio_id_{beneficio_id}"):
+                        st.session_state.show_beneficio_dialog = True
+                        st.session_state.beneficio_aberto_id = beneficio_id
+                        st.rerun()
+                
+                with col_b2: st.write(f"**{row.get('PARTE', 'N/A')}**")
+                with col_b3: st.write(row.get('Nº DO PROCESSO', 'N/A'))
+                with col_b4: st.write(row.get('TIPO DE PROCESSO', 'N/A'))
+                with col_b5: st.write(row.get('Status', 'N/A'))
+                with col_b6:
+                    data_cadastro = row.get('Data Cadastro')
+                    if pd.isna(data_cadastro):
+                        st.write("N/A")
+                    else:
+                        st.write(str(data_cadastro).split(' ')[0])
     else:
         st.info("Nenhum benefício encontrado com os filtros aplicados.")
 
@@ -368,12 +537,13 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
 
     st.markdown(f"**ID:** `{beneficio_id}` | **Beneficiário:** {linha_beneficio.get('PARTE', 'N/A')}")
     st.markdown(f"**Status atual:** {status_atual}")
+    
     st.markdown("---")
 
     # ETAPA 1: Cadastrador cria -> Status 'Enviado para administrativo' (Tratado no cadastro)
 
     # ETAPA 2: Administrativo recebe, analisa e marca como implantado.
-    if status_atual == "Enviado para administrativo" and perfil_usuario == "Administrativo":
+    if status_atual == "Enviado para administrativo" and perfil_usuario in ["Administrativo", "Admin"]:
         st.markdown("#### 🔧 Análise Administrativa")
         st.info("Após inserir os documentos no Korbil, marque a caixa abaixo e salve.")
         
@@ -383,7 +553,7 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
             atualizar_status_beneficio(beneficio_id, "Implantado", df)
 
     # ETAPA 3: Cadastrador recebe, verifica e envia para o financeiro.
-    elif status_atual == "Implantado" and perfil_usuario == "Cadastrador":
+    elif status_atual == "Implantado" and perfil_usuario in ["Cadastrador", "Admin"]:
         st.markdown("#### 🔍 Verificação e Definição de Valores")
         st.info("Confira os dados, informe os valores e confirme a verificação para prosseguir.")
 
@@ -406,7 +576,7 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
                 st.error("❌ Preencha o Valor do Benefício e o Percentual a ser Cobrado.")
 
     # ETAPA 4: Financeiro recebe e finaliza o pagamento.
-    elif status_atual == "Enviado para o financeiro" and perfil_usuario == "Financeiro":
+    elif status_atual == "Enviado para o financeiro" and perfil_usuario in ["Financeiro", "Admin"]:
         st.markdown("#### 💰 Finalização Financeira")
         st.info("Anexe o comprovante de pagamento ou marque como pago em dinheiro para finalizar.")
 
@@ -414,18 +584,41 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
         
         comprovante = None
         if not pago_em_dinheiro:
-            comprovante = st.file_uploader("Comprovante de Pagamento ou Boleto *", type=["pdf", "jpg", "png"])
+            # Checkbox para anexar múltiplos documentos
+            anexar_multiplos = st.checkbox("📎 Anexar múltiplos comprovantes", key=f"multiplos_beneficio_{beneficio_id}")
+            
+            if anexar_multiplos:
+                comprovante = st.file_uploader("Comprovantes de Pagamento ou Boletos *", 
+                                             type=["pdf", "jpg", "png"],
+                                             accept_multiple_files=True)
+            else:
+                comprovante = st.file_uploader("Comprovante de Pagamento ou Boleto *", type=["pdf", "jpg", "png"])
 
         # Lógica de habilitação do botão
-        pode_finalizar = (pago_em_dinheiro) or (not pago_em_dinheiro and comprovante is not None)
+        if pago_em_dinheiro:
+            pode_finalizar = True
+        else:
+            if anexar_multiplos:
+                pode_finalizar = comprovante and len(comprovante) > 0
+            else:
+                pode_finalizar = comprovante is not None
 
         if st.button("✅ Finalizar Benefício", type="primary", disabled=not pode_finalizar):
             comprovante_url = ""
             tipo_pagamento = "Dinheiro" if pago_em_dinheiro else "Anexo"
             
             if comprovante:
-                with st.spinner("Enviando anexo..."):
-                    comprovante_url = salvar_arquivo(comprovante, processo, "pagamento_beneficio")
+                with st.spinner("Enviando anexo(s)..."):
+                    if anexar_multiplos:
+                        # Salvar múltiplos arquivos
+                        urls_comprovantes = []
+                        for i, arquivo in enumerate(comprovante):
+                            url = salvar_arquivo(arquivo, processo, f"pagamento_beneficio_{i+1}")
+                            urls_comprovantes.append(url)
+                        comprovante_url = "; ".join(urls_comprovantes)
+                    else:
+                        # Salvar arquivo único
+                        comprovante_url = salvar_arquivo(comprovante, processo, "pagamento_beneficio")
             
             atualizar_dados_finalizacao(
                 beneficio_id, "Finalizado", df,
@@ -687,6 +880,74 @@ def interface_visualizar_dados_beneficios(df):
             if st.session_state.current_page_vis_beneficios < total_pages:
                 if st.button("Próxima >", key="vis_ben_proxima"): st.session_state.current_page_vis_beneficios += 1; st.rerun()
                 if st.button("Última >>", key="vis_ben_ultima"): st.session_state.current_page_vis_beneficios = total_pages; st.rerun()
+
+def confirmar_exclusao_massa_beneficios(df, processos_selecionados):
+    """Função para confirmar exclusão em massa de benefícios"""
+    
+    @st.dialog("🗑️ Confirmar Exclusão em Massa", width="large")
+    def dialog_confirmacao():
+        st.error("⚠️ **ATENÇÃO:** Esta ação não pode ser desfeita!")
+        
+        # Mostrar processos que serão excluídos
+        st.markdown(f"### Você está prestes a excluir **{len(processos_selecionados)}** processo(s):")
+        
+        processos_para_excluir = df[df["ID"].isin(processos_selecionados)]
+        
+        for _, processo in processos_para_excluir.iterrows():
+            st.markdown(f"- **{processo.get('Nº DO PROCESSO', 'N/A')}** - {processo.get('PARTE', 'N/A')}")
+        
+        st.markdown("---")
+        
+        col_conf, col_canc = st.columns(2)
+        
+        with col_conf:
+            if st.button("✅ Confirmar Exclusão", type="primary", use_container_width=True):
+                # Importar sistema de log
+                from components.log_exclusoes import registrar_exclusao
+                
+                usuario_atual = st.session_state.get("usuario", "Sistema")
+                
+                # Registrar cada exclusão no log
+                for _, processo in processos_para_excluir.iterrows():
+                    registrar_exclusao(
+                        tipo_processo="Benefício",
+                        processo_numero=processo.get('Nº DO PROCESSO', 'N/A'),
+                        dados_excluidos=processo,
+                        usuario=usuario_atual
+                    )
+                
+                # Remover processos do DataFrame
+                st.session_state.df_editado_beneficios = st.session_state.df_editado_beneficios[
+                    ~st.session_state.df_editado_beneficios["ID"].isin(processos_selecionados)
+                ].reset_index(drop=True)
+                
+                # Salvar no GitHub
+                from components.functions_controle import save_data_to_github_seguro
+                
+                with st.spinner("Salvando alterações..."):
+                    novo_sha = save_data_to_github_seguro(
+                        st.session_state.df_editado_beneficios,
+                        "lista_beneficios.csv",
+                        "file_sha_beneficios"
+                    )
+                
+                if novo_sha:
+                    st.session_state.file_sha_beneficios = novo_sha
+                    st.success(f"✅ {len(processos_selecionados)} processo(s) excluído(s) com sucesso!")
+                    
+                    # Resetar estado de exclusão
+                    st.session_state.modo_exclusao_beneficios = False
+                    st.session_state.processos_selecionados_beneficios = []
+                    
+                    st.rerun()
+                else:
+                    st.error("❌ Erro ao salvar. Exclusão cancelada.")
+        
+        with col_canc:
+            if st.button("❌ Cancelar", use_container_width=True):
+                st.rerun()
+    
+    dialog_confirmacao()
 
 # =====================================
 # FUNÇÕES DE EXPORTAÇÃO E IMPORTAÇÃO - BENEFÍCIOS

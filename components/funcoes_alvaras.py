@@ -5,7 +5,6 @@ import requests
 import base64
 from datetime import datetime
 import math
-from streamlit_modal import Modal
 from streamlit_js_eval import streamlit_js_eval # 1. ADICIONE ESTE IMPORT
 
 # =====================================
@@ -14,7 +13,8 @@ from streamlit_js_eval import streamlit_js_eval # 1. ADICIONE ESTE IMPORT
 
 PERFIS_ALVARAS = {
     "Cadastrador": ["Cadastrado", "Enviado para o Financeiro"],
-    "Financeiro": ["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"]
+    "Financeiro": ["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"],
+    "Admin": ["Cadastrado", "Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"]  # Admin tem acesso total
 }
 
 STATUS_ETAPAS_ALVARAS = {
@@ -33,7 +33,7 @@ def verificar_perfil_usuario_alvaras():
     usuario_atual = st.session_state.get("usuario", "")
     
     perfis_usuarios = {
-        "admin": "Cadastrador",
+        "admin": "Admin",  # Admin tem privilégios totais
         "leonardo": "Cadastrador", 
         "victor": "Cadastrador",
         "claudia": "Financeiro",
@@ -69,6 +69,26 @@ def inicializar_linha_vazia():
 # FUNÇÕES DE INTERFACE E AÇÕES - ALVARÁS
 # =====================================
 
+def toggle_alvara_selection(alvara_id):
+    """Função callback para alternar seleção de Alvará"""
+    # Garantir que a lista existe
+    if "processos_selecionados_alvaras" not in st.session_state:
+        st.session_state.processos_selecionados_alvaras = []
+    
+    # Converter para string para consistência
+    alvara_id_str = str(alvara_id)
+    
+    # Remover qualquer versão duplicada (int ou str)
+    st.session_state.processos_selecionados_alvaras = [
+        pid for pid in st.session_state.processos_selecionados_alvaras 
+        if str(pid) != alvara_id_str
+    ]
+    
+    # Se o checkbox está marcado, adicionar à lista
+    checkbox_key = f"check_alvara_{alvara_id}"
+    if st.session_state.get(checkbox_key, False):
+        st.session_state.processos_selecionados_alvaras.append(alvara_id_str)
+
 def interface_lista_alvaras(df, perfil_usuario):
     """Lista de alvarás com paginação e modal para ações"""
     
@@ -76,6 +96,45 @@ def interface_lista_alvaras(df, perfil_usuario):
     if "show_alvara_dialog" not in st.session_state:
         st.session_state.show_alvara_dialog = False
         st.session_state.processo_aberto_id = None
+    
+    # Inicializar estado de exclusão em massa
+    if "modo_exclusao_alvaras" not in st.session_state:
+        st.session_state.modo_exclusao_alvaras = False
+    if "processos_selecionados_alvaras" not in st.session_state:
+        st.session_state.processos_selecionados_alvaras = []
+    
+    # Validar consistência da lista de selecionados
+    if st.session_state.processos_selecionados_alvaras:
+        ids_existentes = set(df["ID"].astype(str).tolist())
+        st.session_state.processos_selecionados_alvaras = [
+            pid for pid in st.session_state.processos_selecionados_alvaras 
+            if str(pid) in ids_existentes
+        ]
+
+    # Botão para habilitar exclusão (apenas para Admin e Cadastrador)
+    usuario_atual = st.session_state.get("usuario", "")
+    perfil_atual = st.session_state.get("perfil_usuario", "")
+    pode_excluir = (perfil_atual in ["Admin", "Cadastrador"] or usuario_atual == "admin")
+    
+    if pode_excluir:
+        col_btn1, col_btn2, col_rest = st.columns([2, 2, 6])
+        with col_btn1:
+            if not st.session_state.modo_exclusao_alvaras:
+                if st.button("🗑️ Habilitar Exclusão", key="habilitar_exclusao_alvaras"):
+                    st.session_state.modo_exclusao_alvaras = True
+                    st.session_state.processos_selecionados_alvaras = []
+                    st.rerun()
+            else:
+                if st.button("❌ Cancelar Exclusão", key="cancelar_exclusao_alvaras"):
+                    st.session_state.modo_exclusao_alvaras = False
+                    st.session_state.processos_selecionados_alvaras = []
+                    st.rerun()
+        
+        with col_btn2:
+            if st.session_state.modo_exclusao_alvaras and st.session_state.processos_selecionados_alvaras:
+                if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_alvaras)})", 
+                           key="confirmar_exclusao_alvaras", type="primary"):
+                    confirmar_exclusao_massa_alvaras(df, st.session_state.processos_selecionados_alvaras)
 
     # Filtros - agora em 4 colunas
     col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
@@ -159,33 +218,70 @@ def interface_lista_alvaras(df, perfil_usuario):
     if len(df_paginado) > 0:
         st.markdown(f'<p style="font-size: small; color: steelblue;">Mostrando {start_idx+1} a {min(end_idx, total_registros)} de {total_registros} alvarás</p>', unsafe_allow_html=True)
         
-        col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([1, 2, 2, 1.5, 2])
-        with col_abrir: st.markdown("**Ação**")
-        with col_processo: st.markdown("**Processo**")
-        with col_parte: st.markdown("**Parte**")
-        with col_valor: st.markdown("**Valor**")
-        with col_status: st.markdown("**Status**")
+        # Cabeçalhos dinâmicos baseados no modo de exclusão
+        if st.session_state.modo_exclusao_alvaras:
+            col_check, col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([0.5, 1, 2, 2, 1.5, 2])
+            with col_check: st.markdown("**☑️**")
+            with col_abrir: st.markdown("**Ação**")
+            with col_processo: st.markdown("**Processo**")
+            with col_parte: st.markdown("**Parte**")
+            with col_valor: st.markdown("**Valor**")
+            with col_status: st.markdown("**Status**")
+        else:
+            col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([1, 2, 2, 1.5, 2])
+            with col_abrir: st.markdown("**Ação**")
+            with col_processo: st.markdown("**Processo**")
+            with col_parte: st.markdown("**Parte**")
+            with col_valor: st.markdown("**Valor**")
+            with col_status: st.markdown("**Status**")
         
         st.markdown('<hr style="margin-top: 0.1rem; margin-bottom: 0.5rem;" />', unsafe_allow_html=True)
         
         for idx, processo in df_paginado.iterrows():
-            col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([1, 2, 2, 1.5, 2])
             alvara_id = processo.get("ID", f"temp_{idx}")
             
-            with col_abrir:
-                # --- MUDANÇA NO BOTÃO ---
-                if st.button(f"🔓 Abrir", key=f"abrir_alvara_id_{alvara_id}"):
-                    st.session_state.show_alvara_dialog = True
-                    st.session_state.processo_aberto_id = alvara_id
-                    st.rerun() # Força o rerun para o diálogo aparecer
-
-            with col_processo: st.write(f"**{processo.get('Processo', 'N/A')}**")
-            with col_parte: st.write(processo.get('Parte', 'N/A'))
-            with col_valor: st.write(processo.get('Pagamento', '-'))
-            with col_status:
-                status_atual = processo.get('Status', 'N/A')
-                cor = {"Cadastrado": "🟡", "Enviado para o Financeiro": "🟠", "Financeiro - Enviado para Rodrigo": "🔵", "Finalizado": "🟢"}.get(status_atual, "")
-                st.write(f"{cor} {status_atual}")
+            if st.session_state.modo_exclusao_alvaras:
+                col_check, col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([0.5, 1, 2, 2, 1.5, 2])
+                
+                with col_check:
+                    current_value = alvara_id in st.session_state.processos_selecionados_alvaras
+                    
+                    is_selected = st.checkbox(
+                        "",
+                        value=current_value,
+                        key=f"check_alvara_{alvara_id}",
+                        on_change=lambda aid=alvara_id: toggle_alvara_selection(aid)
+                    )
+                
+                with col_abrir:
+                    if st.button(f"🔓 Abrir", key=f"abrir_alvara_id_{alvara_id}"):
+                        st.session_state.show_alvara_dialog = True
+                        st.session_state.processo_aberto_id = alvara_id
+                        st.rerun()
+                
+                with col_processo: st.write(f"**{processo.get('Processo', 'N/A')}**")
+                with col_parte: st.write(processo.get('Parte', 'N/A'))
+                with col_valor: st.write(processo.get('Pagamento', '-'))
+                with col_status:
+                    status_atual = processo.get('Status', 'N/A')
+                    cor = {"Cadastrado": "🟡", "Enviado para o Financeiro": "🟠", "Financeiro - Enviado para Rodrigo": "🔵", "Finalizado": "🟢"}.get(status_atual, "")
+                    st.write(f"{cor} {status_atual}")
+            else:
+                col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([1, 2, 2, 1.5, 2])
+                
+                with col_abrir:
+                    if st.button(f"🔓 Abrir", key=f"abrir_alvara_id_{alvara_id}"):
+                        st.session_state.show_alvara_dialog = True
+                        st.session_state.processo_aberto_id = alvara_id
+                        st.rerun()
+                
+                with col_processo: st.write(f"**{processo.get('Processo', 'N/A')}**")
+                with col_parte: st.write(processo.get('Parte', 'N/A'))
+                with col_valor: st.write(processo.get('Pagamento', '-'))
+                with col_status:
+                    status_atual = processo.get('Status', 'N/A')
+                    cor = {"Cadastrado": "🟡", "Enviado para o Financeiro": "🟠", "Financeiro - Enviado para Rodrigo": "🔵", "Finalizado": "🟢"}.get(status_atual, "")
+                    st.write(f"{cor} {status_atual}")
 
        # --- IMPLEMENTAÇÃO COM st.dialog ---
     if st.session_state.show_alvara_dialog:
@@ -247,26 +343,55 @@ def interface_anexar_documentos(df, processo):
         st.warning("⚠️ Este processo não está na etapa de anexação de documentos")
         return
     
+    # Checkbox para múltiplos anexos
+    anexar_multiplos = st.checkbox("📎 Anexar múltiplos documentos", key=f"multiplos_alvara_{processo}")
+    
     col_doc1, col_doc2 = st.columns(2)
     
     with col_doc1:
         st.markdown("**📄 Comprovante da Conta**")
-        comprovante_conta = st.file_uploader(
-            "Anexar comprovante da conta:",
-            type=["pdf", "jpg", "jpeg", "png"],
-            key=f"comprovante_{processo}"
-        )
+        if anexar_multiplos:
+            comprovante_conta = st.file_uploader(
+                "Anexar comprovantes da conta:",
+                type=["pdf", "jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+                key=f"comprovante_{processo}"
+            )
+        else:
+            comprovante_conta = st.file_uploader(
+                "Anexar comprovante da conta:",
+                type=["pdf", "jpg", "jpeg", "png"],
+                key=f"comprovante_{processo}"
+            )
     
     with col_doc2:
         st.markdown("**📄 PDF do Alvará**")
-        pdf_alvara = st.file_uploader(
-            "Anexar PDF do alvará:",
-            type=["pdf"],
-            key=f"pdf_{processo}"
-        )
+        if anexar_multiplos:
+            pdf_alvara = st.file_uploader(
+                "Anexar PDFs do alvará:",
+                type=["pdf"],
+                accept_multiple_files=True,
+                key=f"pdf_{processo}"
+            )
+        else:
+            pdf_alvara = st.file_uploader(
+                "Anexar PDF do alvará:",
+                type=["pdf"],
+                key=f"pdf_{processo}"
+            )
     
-    if comprovante_conta and pdf_alvara:
-        st.success("✅ Ambos os documentos foram anexados!")
+    # Verificar se documentos foram anexados (considerando múltiplos)
+    docs_anexados = False
+    if anexar_multiplos:
+        docs_anexados = comprovante_conta and pdf_alvara and len(comprovante_conta) > 0 and len(pdf_alvara) > 0
+    else:
+        docs_anexados = comprovante_conta and pdf_alvara
+    
+    if docs_anexados:
+        if anexar_multiplos:
+            st.success(f"✅ {len(comprovante_conta)} comprovante(s) e {len(pdf_alvara)} PDF(s) anexados!")
+        else:
+            st.success("✅ Ambos os documentos foram anexados!")
         
         if st.button("📤 Enviar para Financeiro", type="primary"):
             with st.spinner("📤 Enviando documentos para o Google Drive..."):
@@ -338,7 +463,6 @@ def interface_acoes_financeiro(df_filtrado):
                 
                 with col_info:
                     st.write(f"**Pagamento:** {processo['Pagamento']}")
-                    st.write(f"**Banco:** {processo['Banco']}")
                     
                     # Mostrar documentos anexados
                     if processo["Comprovante Conta"]:
@@ -362,11 +486,25 @@ def interface_acoes_financeiro(df_filtrado):
         
         for _, processo in enviados_Rodrigo.iterrows():
             with st.expander(f"Finalizar: {processo['Processo']} - {processo['Parte']}"):
-                comprovante_recebimento = st.file_uploader(
-                    "Anexar comprovante de recebimento:",
-                    type=["pdf", "jpg", "jpeg", "png"],
-                    key=f"recebimento_{processo['Processo']}"
+                # Checkbox para múltiplos comprovantes
+                anexar_multiplos_comp = st.checkbox(
+                    "📎 Anexar múltiplos comprovantes", 
+                    key=f"multiplos_comprovante_{processo['Processo']}"
                 )
+                
+                if anexar_multiplos_comp:
+                    comprovante_recebimento = st.file_uploader(
+                        "Anexar comprovantes de recebimento:",
+                        type=["pdf", "jpg", "jpeg", "png"],
+                        accept_multiple_files=True,
+                        key=f"comprovante_recebimento_{processo['Processo']}"
+                    )
+                else:
+                    comprovante_recebimento = st.file_uploader(
+                        "Anexar comprovante de recebimento:",
+                        type=["pdf", "jpg", "jpeg", "png"],
+                        key=f"comprovante_recebimento_{processo['Processo']}"
+                    )
                 
                 if comprovante_recebimento:
                     if st.button(f"✅ Finalizar Processo", key=f"finalizar_{processo['Processo']}"):
@@ -408,7 +546,6 @@ def interface_visualizar_alvara(df, alvara_id, perfil_usuario):
         st.write(f"**Parte:** {linha_processo.get('Parte', 'N/A')}")
         st.write(f"**CPF/CNPJ:** {linha_processo.get('CPF/CNPJ', 'N/A')}")
     with col_info2:
-        st.write(f"**Banco:** {linha_processo.get('Banco', 'N/A')}")
         st.write(f"**Agência:** {linha_processo.get('Agência', 'N/A')}")
         st.write(f"**Conta:** {linha_processo.get('Conta', 'N/A')}")
     with col_info3:
@@ -438,7 +575,7 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
     with col_info1:
         st.write(f"**Pagamento:** {linha_processo.get('Pagamento', 'N/A')}")
     with col_info2:
-        st.write(f"**Banco:** {linha_processo.get('Banco', 'N/A')}")
+        st.write(f"**Órgão Judicial:** {linha_processo.get('Órgão Judicial', 'N/A')}")
     with col_info3:
         st.write(f"**Cadastrado em:** {linha_processo.get('Data Cadastro', 'N/A')}")
     with col_info4:
@@ -446,36 +583,81 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
     
     st.markdown("----")
     
-    # ETAPA 2: Cadastrado -> Anexar documentos (Cadastrador)
-    if status_atual == "Cadastrado" and perfil_usuario == "Cadastrador":
+    # ETAPA 2: Cadastrado -> Anexar documentos (Cadastrador ou Admin)
+    if status_atual == "Cadastrado" and perfil_usuario in ["Cadastrador", "Admin"]:
         st.markdown("#### 📎 Anexar Documentos")
+        
+        # Checkbox para anexar múltiplos documentos
+        anexar_multiplos = st.checkbox("📎 Anexar múltiplos documentos", key=f"multiplos_edicao_{alvara_id}")
         
         col_doc1, col_doc2 = st.columns(2)
         
         with col_doc1:
             st.markdown("**📄 Comprovante da Conta**")
-            comprovante_conta = st.file_uploader(
-                "Anexar comprovante da conta:",
-                type=["pdf", "jpg", "jpeg", "png"],
-                key=f"comprovante_{numero_processo}"
-            )
+            if anexar_multiplos:
+                comprovante_conta = st.file_uploader(
+                    "Anexar comprovantes da conta:",
+                    type=["pdf", "jpg", "jpeg", "png"],
+                    accept_multiple_files=True,
+                    key=f"comprovante_{numero_processo}"
+                )
+            else:
+                comprovante_conta = st.file_uploader(
+                    "Anexar comprovante da conta:",
+                    type=["pdf", "jpg", "jpeg", "png"],
+                    key=f"comprovante_{numero_processo}"
+                )
                     
         with col_doc2:
             st.markdown("**📄 PDF do Alvará**")
-            pdf_alvara = st.file_uploader(
-                "Anexar PDF do alvará:",
-                type=["pdf"],
-                key=f"pdf_{numero_processo}"
-            )
+            if anexar_multiplos:
+                pdf_alvara = st.file_uploader(
+                    "Anexar PDFs do alvará:",
+                    type=["pdf"],
+                    accept_multiple_files=True,
+                    key=f"pdf_{numero_processo}"
+                )
+            else:
+                pdf_alvara = st.file_uploader(
+                    "Anexar PDF do alvará:",
+                    type=["pdf"],
+                    key=f"pdf_{numero_processo}"
+                )
             
-        if comprovante_conta and pdf_alvara:
-            st.success("✅ Ambos os documentos foram anexados!")
+        # Verificar se documentos foram anexados (considerando múltiplos)
+        docs_anexados = False
+        if anexar_multiplos:
+            docs_anexados = comprovante_conta and pdf_alvara and len(comprovante_conta) > 0 and len(pdf_alvara) > 0
+        else:
+            docs_anexados = comprovante_conta and pdf_alvara
+            
+        if docs_anexados:
+            if anexar_multiplos:
+                st.success(f"✅ {len(comprovante_conta)} comprovante(s) e {len(pdf_alvara)} PDF(s) anexados!")
+            else:
+                st.success("✅ Ambos os documentos foram anexados!")
             
             if st.button("📤 Enviar para Financeiro", type="primary", key=f"enviar_fin_id_{alvara_id}"):
                 # Salvar arquivos
                 from components.functions_controle import salvar_arquivo, save_data_to_github_seguro
-                comprovante_url = salvar_arquivo(comprovante_conta, numero_processo, "comprovante")
-                pdf_url = salvar_arquivo(pdf_alvara, numero_processo, "alvara")
+                
+                if anexar_multiplos:
+                    # Salvar múltiplos arquivos
+                    comprovante_urls = []
+                    for i, arquivo in enumerate(comprovante_conta):
+                        url = salvar_arquivo(arquivo, numero_processo, f"comprovante_{i+1}")
+                        comprovante_urls.append(url)
+                    comprovante_url = "; ".join(comprovante_urls)
+                    
+                    pdf_urls = []
+                    for i, arquivo in enumerate(pdf_alvara):
+                        url = salvar_arquivo(arquivo, numero_processo, f"alvara_{i+1}")
+                        pdf_urls.append(url)
+                    pdf_url = "; ".join(pdf_urls)
+                else:
+                    # Salvar arquivos únicos
+                    comprovante_url = salvar_arquivo(comprovante_conta, numero_processo, "comprovante")
+                    pdf_url = salvar_arquivo(pdf_alvara, numero_processo, "alvara")
                 
                 if comprovante_url and pdf_url:
                     # Atualizar DataFrame
@@ -498,12 +680,15 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
                     st.session_state.show_alvara_dialog = False
                     st.rerun()
         elif comprovante_conta or pdf_alvara:
-            st.warning("⚠️ Anexe ambos os documentos para prosseguir")
+            if anexar_multiplos:
+                st.warning("⚠️ Anexe pelo menos um arquivo de cada tipo para prosseguir")
+            else:
+                st.warning("⚠️ Anexe ambos os documentos para prosseguir")
         else:
             st.info("📋 Anexe o comprovante da conta e o PDF do alvará")
     
-    # ETAPA 3: Enviado para Financeiro -> Enviar para Rodrigo (Financeiro)
-    elif status_atual == "Enviado para o Financeiro" and perfil_usuario == "Financeiro":
+    # ETAPA 3: Enviado para Financeiro -> Enviar para Rodrigo (Financeiro ou Admin)
+    elif status_atual == "Enviado para o Financeiro" and perfil_usuario in ["Financeiro", "Admin"]:
         st.markdown("#### 📤 Enviar para o Rodrigo")
         
         # Mostrar documentos anexados
@@ -550,8 +735,8 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
             st.session_state.show_alvara_dialog = False
             st.rerun()
     
-    # ETAPA 4: Financeiro - Enviado para Rodrigo -> Finalizar (Financeiro)
-    elif status_atual == "Financeiro - Enviado para Rodrigo" and perfil_usuario == "Financeiro":
+    # ETAPA 4: Financeiro - Enviado para Rodrigo -> Finalizar (Financeiro ou Admin)
+    elif status_atual == "Financeiro - Enviado para Rodrigo" and perfil_usuario in ["Financeiro", "Admin"]:
         st.markdown("#### ✅ Finalizar Processo")
         
         st.markdown("**📋 Informações do processo:**")
@@ -565,17 +750,49 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
             baixar_arquivo_drive(linha_processo["Comprovante Recebimento"], "📎 Ver Comprovante")
         
         st.markdown("**📎 Anexar Comprovante de Recebimento:**")
-        comprovante_recebimento = st.file_uploader(
-            "Comprovante enviado pelo Rodrigo:",
-            type=["pdf", "jpg", "jpeg", "png"],
-            key=f"recebimento_{numero_processo}"
-        )
         
-        if comprovante_recebimento:
+        # Checkbox para anexar múltiplos comprovantes
+        anexar_multiplos_recebimento = st.checkbox("📎 Anexar múltiplos comprovantes", key=f"multiplos_recebimento_{alvara_id}")
+        
+        if anexar_multiplos_recebimento:
+            comprovante_recebimento = st.file_uploader(
+                "Comprovantes enviados pelo Rodrigo:",
+                type=["pdf", "jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+                key=f"recebimento_{numero_processo}"
+            )
+        else:
+            comprovante_recebimento = st.file_uploader(
+                "Comprovante enviado pelo Rodrigo:",
+                type=["pdf", "jpg", "jpeg", "png"],
+                key=f"recebimento_{numero_processo}"
+            )
+        
+        # Verificar se há comprovante(s) anexado(s)
+        comprovante_ok = False
+        if anexar_multiplos_recebimento:
+            comprovante_ok = comprovante_recebimento and len(comprovante_recebimento) > 0
+        else:
+            comprovante_ok = comprovante_recebimento is not None
+        
+        if comprovante_ok:
+            if anexar_multiplos_recebimento:
+                st.success(f"✅ {len(comprovante_recebimento)} comprovante(s) anexado(s)!")
+            
             if st.button("✅ Finalizar Processo", key=f"enviar_fin_id_{alvara_id}", type="primary"):
                 # Salvar comprovante de recebimento
                 from components.functions_controle import salvar_arquivo, save_data_to_github_seguro
-                recebimento_url = salvar_arquivo(comprovante_recebimento, numero_processo, "recebimento")
+                
+                if anexar_multiplos_recebimento:
+                    # Salvar múltiplos arquivos
+                    recebimento_urls = []
+                    for i, arquivo in enumerate(comprovante_recebimento):
+                        url = salvar_arquivo(arquivo, numero_processo, f"recebimento_{i+1}")
+                        recebimento_urls.append(url)
+                    recebimento_url = "; ".join(recebimento_urls)
+                else:
+                    # Salvar arquivo único
+                    recebimento_url = salvar_arquivo(comprovante_recebimento, numero_processo, "recebimento")
                 
                 if recebimento_url:
                     # Atualizar status
@@ -651,8 +868,8 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
     
 def interface_cadastro_alvara(df, perfil_usuario):
     """Interface para cadastrar novos alvarás"""
-    if perfil_usuario != "Cadastrador":
-        st.warning("⚠️ Apenas Cadastradores podem criar novos alvarás")
+    if perfil_usuario not in ["Cadastrador", "Admin"]:
+        st.warning("⚠️ Apenas Cadastradores e Administradores podem criar novos alvarás")
         return
     
     # INICIALIZAR CONTADOR PARA RESET DO FORM
@@ -709,7 +926,6 @@ def interface_cadastro_alvara(df, perfil_usuario):
         "Pagamento": "Ex: 1500.50 (apenas números e pontos para decimais)",
         "Observação pagamento": "Ex: Recebido em 15/01/2025 via PIX",
         "Órgão Judicial": "Ex: TRF 5ª REGIÃO, JFSE, TJSE",
-        "Banco": "Ex: BRADESCO, CAIXA, BANCO DO BRASIL",
         "Honorários Sucumbenciais": "Marque se houver honorários sucumbenciais",
         "Observação Honorários": "Detalhes sobre os honorários sucumbenciais",
     }
@@ -719,7 +935,7 @@ def interface_cadastro_alvara(df, perfil_usuario):
         aviso_letras = False
         
         # DEFINIR COLUNAS PARA CADA LADO DO FORMULÁRIO
-        colunas_esquerda = ["Processo", "Parte", "CPF", "Órgão Judicial", "Banco"]
+        colunas_esquerda = ["Processo", "Parte", "CPF", "Órgão Judicial"]
         colunas_direita = ["Pagamento", "Observação pagamento", "Honorários Sucumbenciais", "Observação Honorários"]
 
         col_form_1, col_form_2 = st.columns(2)
@@ -778,28 +994,6 @@ def interface_cadastro_alvara(df, perfil_usuario):
                         )
                     else:
                         valor = orgao_selecionado
-                
-                elif col == "Banco":
-                    opcoes_banco = [
-                        "", "BRADESCO", "CAIXA", "BANCO DO BRASIL", "ITAU", 
-                        "SANTANDER", "BMG", "PAN", "INTER", "SAFRA", "Outro"
-                    ]
-                    banco_selecionado = st.selectbox(
-                        f"{col}",
-                        opcoes_banco,
-                        key=f"input_alvaras_{col}_select_{st.session_state.form_reset_counter_alvaras}",
-                        help=hints.get(col, "")
-                    )
-                    
-                    if banco_selecionado == "Outro":
-                        valor = st.text_input(
-                            "Especifique o banco:",
-                            key=f"input_alvaras_{col}_outro_{st.session_state.form_reset_counter_alvaras}",
-                            max_chars=50,
-                            placeholder="Digite o nome do banco"
-                        )
-                    else:
-                        valor = banco_selecionado
                 
                 nova_linha[col] = valor
 
@@ -1050,3 +1244,71 @@ def interface_visualizar_dados(df):
                 if st.button("Última >>", key="viz_ultima"): st.session_state.current_page_visualizar = total_pages; st.rerun()
     else:
         st.info("Nenhum registro encontrado com os filtros aplicados.")
+
+def confirmar_exclusao_massa_alvaras(df, processos_selecionados):
+    """Função para confirmar exclusão em massa de alvarás"""
+    
+    @st.dialog("🗑️ Confirmar Exclusão em Massa", width="large")
+    def dialog_confirmacao():
+        st.error("⚠️ **ATENÇÃO:** Esta ação não pode ser desfeita!")
+        
+        # Mostrar processos que serão excluídos
+        st.markdown(f"### Você está prestes a excluir **{len(processos_selecionados)}** processo(s):")
+        
+        processos_para_excluir = df[df["ID"].isin(processos_selecionados)]
+        
+        for _, processo in processos_para_excluir.iterrows():
+            st.markdown(f"- **{processo.get('Processo', 'N/A')}** - {processo.get('Parte', 'N/A')}")
+        
+        st.markdown("---")
+        
+        col_conf, col_canc = st.columns(2)
+        
+        with col_conf:
+            if st.button("✅ Confirmar Exclusão", type="primary", use_container_width=True):
+                # Importar sistema de log
+                from components.log_exclusoes import registrar_exclusao
+                
+                usuario_atual = st.session_state.get("usuario", "Sistema")
+                
+                # Registrar cada exclusão no log
+                for _, processo in processos_para_excluir.iterrows():
+                    registrar_exclusao(
+                        tipo_processo="Alvará",
+                        processo_numero=processo.get('Processo', 'N/A'),
+                        dados_excluidos=processo,
+                        usuario=usuario_atual
+                    )
+                
+                # Remover processos do DataFrame
+                st.session_state.df_editado_alvaras = st.session_state.df_editado_alvaras[
+                    ~st.session_state.df_editado_alvaras["ID"].isin(processos_selecionados)
+                ].reset_index(drop=True)
+                
+                # Salvar no GitHub
+                from components.functions_controle import save_data_to_github_seguro
+                
+                with st.spinner("Salvando alterações..."):
+                    novo_sha = save_data_to_github_seguro(
+                        st.session_state.df_editado_alvaras,
+                        "lista_alvaras.csv",
+                        "file_sha_alvaras"
+                    )
+                
+                if novo_sha:
+                    st.session_state.file_sha_alvaras = novo_sha
+                    st.success(f"✅ {len(processos_selecionados)} processo(s) excluído(s) com sucesso!")
+                    
+                    # Resetar estado de exclusão
+                    st.session_state.modo_exclusao_alvaras = False
+                    st.session_state.processos_selecionados_alvaras = []
+                    
+                    st.rerun()
+                else:
+                    st.error("❌ Erro ao salvar. Exclusão cancelada.")
+        
+        with col_canc:
+            if st.button("❌ Cancelar", use_container_width=True):
+                st.rerun()
+    
+    dialog_confirmacao()

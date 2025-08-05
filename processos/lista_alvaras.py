@@ -71,11 +71,9 @@ def show():
 
     # ADICIONAR verificação de perfil
     perfil_usuario = verificar_perfil_usuario_alvaras()
-    st.sidebar.info(f"👤 **Perfil:** {perfil_usuario}")
     
     # MODIFICAR o título
     st.title("📋 Gestão de Alvarás")
-    st.markdown(f"**Perfil ativo:** {perfil_usuario}")
 
     # Apenas o arquivo de alvarás
     selected_file_name = "lista_alvaras.csv"

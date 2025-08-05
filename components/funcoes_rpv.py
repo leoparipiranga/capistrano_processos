@@ -37,12 +37,23 @@ STATUS_ETAPAS_RPV = {
 PERFIS_RPV = {
     "Cadastrador": [], # Cadastrador apenas cria, não edita RPVs no fluxo.
     "Jurídico": ["Enviado ao Jurídico"],
-    "Financeiro": ["Enviado ao Financeiro", "Enviado para Rodrigo"]
+    "Financeiro": ["Enviado ao Financeiro", "Enviado para Rodrigo"],
+    "Admin": ["Enviado ao Jurídico", "Enviado ao Financeiro", "Enviado para Rodrigo", "Finalizado"]  # Admin tem acesso total
 }
 
 # =====================================
 # FUNÇÕES DE PERFIL E CONTROLE - RPV
 # =====================================
+
+def validar_mes_competencia(mes_competencia):
+    """Valida se o mês de competência está no formato mm/yyyy"""
+    if not mes_competencia:
+        return True  # Campo opcional
+    
+    import re
+    # Padrão: mm/yyyy (01-12/ano de 4 dígitos)
+    padrao = r'^(0[1-9]|1[0-2])\/\d{4}$'
+    return bool(re.match(padrao, mes_competencia))
 
 def verificar_perfil_usuario_rpv():
     """Verifica o perfil do usuário logado para RPV a partir do st.secrets."""
@@ -67,7 +78,7 @@ def obter_colunas_controle_rpv():
     """Retorna lista das colunas de controle do fluxo RPV"""
     return [
         "Solicitar Certidão", "Status", "Data Cadastro", "Cadastrado Por", 
-        "PDF RPV", "Data Envio", "Enviado Por",
+        "PDF RPV", "Data Envio", "Enviado Por", "Mês Competência",
         "Certidão Anexada", "Data Certidão", "Anexado Certidão Por",
         "Data Envio Rodrigo", "Enviado Rodrigo Por", 
         "Comprovante Saque", "Comprovante Pagamento", "Valor Final Escritório",
@@ -88,6 +99,26 @@ def inicializar_linha_vazia_rpv():
 # FUNÇÕES DE INTERFACE E AÇÕES - RPV
 # =====================================
 
+def toggle_rpv_selection(rpv_id):
+    """Função callback para alternar seleção de RPV"""
+    # Garantir que a lista existe
+    if "processos_selecionados_rpv" not in st.session_state:
+        st.session_state.processos_selecionados_rpv = []
+    
+    # Converter para string para consistência
+    rpv_id_str = str(rpv_id)
+    
+    # Remover qualquer versão duplicada (int ou str)
+    st.session_state.processos_selecionados_rpv = [
+        pid for pid in st.session_state.processos_selecionados_rpv 
+        if str(pid) != rpv_id_str
+    ]
+    
+    # Se o checkbox está marcado, adicionar à lista
+    checkbox_key = f"check_rpv_{rpv_id}"
+    if st.session_state.get(checkbox_key, False):
+        st.session_state.processos_selecionados_rpv.append(rpv_id_str)
+
 def interface_lista_rpv(df, perfil_usuario):
     """Lista de RPVs com paginação e diálogo para ações"""
     st.subheader("📊 Gerenciar RPVs")
@@ -96,9 +127,48 @@ def interface_lista_rpv(df, perfil_usuario):
     if "show_rpv_dialog" not in st.session_state:
         st.session_state.show_rpv_dialog = False
         st.session_state.rpv_aberto_id = None
+    
+    # Inicializar estado de exclusão em massa
+    if "modo_exclusao_rpv" not in st.session_state:
+        st.session_state.modo_exclusao_rpv = False
+    if "processos_selecionados_rpv" not in st.session_state:
+        st.session_state.processos_selecionados_rpv = []
+    
+    # Validar consistência da lista de selecionados
+    if st.session_state.processos_selecionados_rpv:
+        ids_existentes = set(df["ID"].astype(str).tolist())
+        st.session_state.processos_selecionados_rpv = [
+            pid for pid in st.session_state.processos_selecionados_rpv 
+            if str(pid) in ids_existentes
+        ]
+
+    # Botão para habilitar exclusão (apenas para Admin e Cadastrador)
+    usuario_atual = st.session_state.get("usuario", "")
+    perfil_atual = st.session_state.get("perfil_usuario", "")
+    pode_excluir = (perfil_atual in ["Admin", "Cadastrador"] or usuario_atual == "admin")
+    
+    if pode_excluir:
+        col_btn1, col_btn2, col_rest = st.columns([2, 2, 6])
+        with col_btn1:
+            if not st.session_state.modo_exclusao_rpv:
+                if st.button("🗑️ Habilitar Exclusão", key="habilitar_exclusao_rpv"):
+                    st.session_state.modo_exclusao_rpv = True
+                    st.session_state.processos_selecionados_rpv = []
+                    st.rerun()
+            else:
+                if st.button("❌ Cancelar Exclusão", key="cancelar_exclusao_rpv"):
+                    st.session_state.modo_exclusao_rpv = False
+                    st.session_state.processos_selecionados_rpv = []
+                    st.rerun()
+        
+        with col_btn2:
+            if st.session_state.modo_exclusao_rpv and st.session_state.processos_selecionados_rpv:
+                if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_rpv)})", 
+                           key="confirmar_exclusao_rpv", type="primary"):
+                    confirmar_exclusao_massa_rpv(df, st.session_state.processos_selecionados_rpv)
 
     # Filtros
-    col_filtro1, col_filtro2 = st.columns(2)
+    col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
     with col_filtro1:
         status_filtro = st.selectbox(
             "🔍 Filtrar por Status:",
@@ -106,6 +176,20 @@ def interface_lista_rpv(df, perfil_usuario):
             key="rpv_status_filter"
         )
     with col_filtro2:
+        # Filtro por mês de competência
+        meses_disponiveis = ["Todos"]
+        if "Mês Competência" in df.columns:
+            meses_unicos = df["Mês Competência"].dropna().unique()
+            meses_unicos = [m for m in meses_unicos if m and str(m) != 'nan']
+            meses_unicos = sorted(meses_unicos, reverse=True)  # Mais recentes primeiro
+            meses_disponiveis.extend(meses_unicos)
+        
+        mes_filtro = st.selectbox(
+            "📅 Filtrar por Mês:",
+            meses_disponiveis,
+            key="rpv_mes_filter"
+        )
+    with col_filtro3:
         mostrar_apenas_meus = False
         if perfil_usuario == "Jurídico":
             mostrar_apenas_meus = st.checkbox("Mostrar apenas RPVs que preciso de certidão")
@@ -116,6 +200,8 @@ def interface_lista_rpv(df, perfil_usuario):
     df_filtrado = df.copy()
     if status_filtro != "Todos":
         df_filtrado = df_filtrado[df_filtrado["Status"] == status_filtro]
+    if mes_filtro != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Mês Competência"] == mes_filtro]
     if mostrar_apenas_meus:
         if perfil_usuario == "Jurídico":
             df_filtrado = df_filtrado[
@@ -141,31 +227,72 @@ def interface_lista_rpv(df, perfil_usuario):
     if not df_paginado.empty:
         st.markdown(f'<p style="font-size: small; color: steelblue;">Mostrando {start_idx+1} a {min(end_idx, total_registros)} de {total_registros} RPVs</p>', unsafe_allow_html=True)
         
-        col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([1, 2, 2, 1.5, 2])
-        with col_h1: st.markdown("**Ação**")
-        with col_h2: st.markdown("**Processo**")
-        with col_h3: st.markdown("**Beneficiário**")
-        with col_h4: st.markdown("**Valor**")
-        with col_h5: st.markdown("**Status**")
+        # Cabeçalhos dinâmicos baseados no modo de exclusão
+        if st.session_state.modo_exclusao_rpv:
+            col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([0.5, 1, 2, 2, 1.5, 2])
+            with col_h1: st.markdown("**☑️**")
+            with col_h2: st.markdown("**Ação**")
+            with col_h3: st.markdown("**Processo**")
+            with col_h4: st.markdown("**Beneficiário**")
+            with col_h5: st.markdown("**Valor**")
+            with col_h6: st.markdown("**Status**")
+        else:
+            col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([1, 2, 2, 1.5, 2])
+            with col_h1: st.markdown("**Ação**")
+            with col_h2: st.markdown("**Processo**")
+            with col_h3: st.markdown("**Beneficiário**")
+            with col_h4: st.markdown("**Valor**")
+            with col_h5: st.markdown("**Status**")
+        
         st.markdown('<hr style="margin-top: 0.1rem; margin-bottom: 0.5rem;" />', unsafe_allow_html=True)
 
         for idx, rpv in df_paginado.iterrows():
-            col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns([1, 2, 2, 1.5, 2])
             rpv_id = rpv.get("ID", idx)
             
-            with col_b1:
-                if st.button("🔓 Abrir", key=f"abrir_rpv_id_{rpv_id}"):
-                    st.session_state.show_rpv_dialog = True
-                    st.session_state.rpv_aberto_id = rpv_id
-                    st.rerun()
-            
-            with col_b2: st.write(f"**{rpv.get('Processo', 'N/A')}**")
-            with col_b3: st.write(rpv.get('Beneficiário', 'N/A'))
-            with col_b4: st.write(rpv.get('Valor RPV', 'N/A'))
-            with col_b5:
-                status_atual = rpv.get('Status', 'N/A')
-                cor = {"Enviado": "🟠", "Certidão anexa": "🔵", "Enviado para Rodrigo": "🟣", "Finalizado": "🟢"}.get(status_atual, "⚫")
-                st.write(f"{cor} {status_atual}")
+            if st.session_state.modo_exclusao_rpv:
+                col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([0.5, 1, 2, 2, 1.5, 2])
+                
+                with col_b1:
+                    # Usar callback para atualizar imediatamente
+                    checkbox_key = f"checkbox_rpv_{rpv_id}"
+                    current_value = rpv_id in st.session_state.processos_selecionados_rpv
+                    
+                    is_selected = st.checkbox(
+                        "",
+                        value=current_value,
+                        key=checkbox_key,
+                        on_change=lambda rid=rpv_id: toggle_rpv_selection(rid)
+                    )
+                
+                with col_b2:
+                    if st.button("🔓 Abrir", key=f"abrir_rpv_id_{rpv_id}"):
+                        st.session_state.show_rpv_dialog = True
+                        st.session_state.rpv_aberto_id = rpv_id
+                        st.rerun()
+                
+                with col_b3: st.write(f"**{rpv.get('Processo', 'N/A')}**")
+                with col_b4: st.write(rpv.get('Beneficiário', 'N/A'))
+                with col_b5: st.write(rpv.get('Valor RPV', 'N/A'))
+                with col_b6:
+                    status_atual = rpv.get('Status', 'N/A')
+                    cor = {"Enviado": "🟠", "Certidão anexa": "🔵", "Enviado para Rodrigo": "🟣", "Finalizado": "🟢"}.get(status_atual, "⚫")
+                    st.write(f"{cor} {status_atual}")
+            else:
+                col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns([1, 2, 2, 1.5, 2])
+                
+                with col_b1:
+                    if st.button("🔓 Abrir", key=f"abrir_rpv_id_{rpv_id}"):
+                        st.session_state.show_rpv_dialog = True
+                        st.session_state.rpv_aberto_id = rpv_id
+                        st.rerun()
+                
+                with col_b2: st.write(f"**{rpv.get('Processo', 'N/A')}**")
+                with col_b3: st.write(rpv.get('Beneficiário', 'N/A'))
+                with col_b4: st.write(rpv.get('Valor RPV', 'N/A'))
+                with col_b5:
+                    status_atual = rpv.get('Status', 'N/A')
+                    cor = {"Enviado": "🟠", "Certidão anexa": "🔵", "Enviado para Rodrigo": "🟣", "Finalizado": "🟢"}.get(status_atual, "⚫")
+                    st.write(f"{cor} {status_atual}")
 
     else:
         st.info("Nenhum RPV encontrado com os filtros aplicados.")
@@ -221,9 +348,10 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
         return
 
     linha_rpv = df[df["ID"] == rpv_id].iloc[0]
+    numero_processo = linha_rpv.get("Processo", "N/A")
     
     # --- ETAPA 1: Ação do Jurídico ---
-    if status_atual == "Enviado ao Jurídico" and perfil_usuario == "Jurídico":
+    if status_atual == "Enviado ao Jurídico" and perfil_usuario in ["Jurídico", "Admin"]:
         st.markdown("#### Ação do Jurídico")
         st.info("Verifique a necessidade da certidão e confirme a inserção no sistema Korbil.")
         
@@ -241,7 +369,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                 st.rerun()
 
     # --- ETAPA 2: Ação do Financeiro (Pré-Rodrigo) ---
-    elif status_atual == "Enviado ao Financeiro" and perfil_usuario == "Financeiro":
+    elif status_atual == "Enviado ao Financeiro" and perfil_usuario in ["Financeiro", "Admin"]:
         st.markdown("#### Ação do Financeiro")
         st.info("Analise a documentação do cliente e confirme que está organizada.")
         
@@ -259,24 +387,68 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                 st.rerun()
 
     # --- ETAPA 3: Ação do Financeiro (Pós-Rodrigo) ---
-    elif status_atual == "Enviado para Rodrigo" and perfil_usuario == "Financeiro":
+    elif status_atual == "Enviado para Rodrigo" and perfil_usuario in ["Financeiro", "Admin"]:
         st.markdown("#### Ação do Financeiro (Finalização)")
         st.info("Anexe os comprovantes e preencha os valores para finalizar o processo.")
         
+        # Checkbox para anexar múltiplos documentos
+        anexar_multiplos = st.checkbox("📎 Anexar múltiplos documentos", key=f"multiplos_rpv_{rpv_id}")
+        
         col1, col2 = st.columns(2)
         with col1:
-            comp_saque = st.file_uploader("Comprovante de Saque (Rodrigo)", type=["pdf", "png", "jpg", "jpeg"])
+            if anexar_multiplos:
+                comp_saque = st.file_uploader("Comprovantes de Saque (Rodrigo)", 
+                                            type=["pdf", "png", "jpg", "jpeg"],
+                                            accept_multiple_files=True,
+                                            key=f"saque_multiplos_{rpv_id}")
+            else:
+                comp_saque = st.file_uploader("Comprovante de Saque (Rodrigo)", 
+                                            type=["pdf", "png", "jpg", "jpeg"],
+                                            key=f"saque_{rpv_id}")
         with col2:
-            comp_pagamento = st.file_uploader("Comprovante de Pagamento (Clientes)", type=["pdf", "png", "jpg", "jpeg"])
+            if anexar_multiplos:
+                comp_pagamento = st.file_uploader("Comprovantes de Pagamento (Clientes)", 
+                                                type=["pdf", "png", "jpg", "jpeg"],
+                                                accept_multiple_files=True,
+                                                key=f"pagamento_multiplos_{rpv_id}")
+            else:
+                comp_pagamento = st.file_uploader("Comprovante de Pagamento (Clientes)", 
+                                                type=["pdf", "png", "jpg", "jpeg"],
+                                                key=f"pagamento_{rpv_id}")
             
         valor_final = st.text_input("Valor Final para o Escritório (R$):")
         obs_valor = st.text_area("Observações sobre o Valor:")
         
-        if comp_saque and comp_pagamento and valor_final:
+        # Verificar se documentos foram anexados (considerando múltiplos ou únicos)
+        docs_anexados = False
+        if anexar_multiplos:
+            docs_anexados = (comp_saque and len(comp_saque) > 0) and (comp_pagamento and len(comp_pagamento) > 0) and valor_final
+        else:
+            docs_anexados = comp_saque and comp_pagamento and valor_final
+        
+        if docs_anexados:
             if st.button("🏁 Finalizar RPV", type="primary"):
                 processo_num = linha_rpv["Processo"]
-                url_saque = salvar_arquivo(comp_saque, processo_num, "saque_rpv")
-                url_pagamento = salvar_arquivo(comp_pagamento, processo_num, "pagamento_rpv")
+                
+                if anexar_multiplos:
+                    # Salvar múltiplos arquivos
+                    urls_saque = []
+                    urls_pagamento = []
+                    
+                    for i, arquivo in enumerate(comp_saque):
+                        url = salvar_arquivo(arquivo, processo_num, f"saque_rpv_{i+1}")
+                        urls_saque.append(url)
+                    
+                    for i, arquivo in enumerate(comp_pagamento):
+                        url = salvar_arquivo(arquivo, processo_num, f"pagamento_rpv_{i+1}")
+                        urls_pagamento.append(url)
+                    
+                    url_saque = "; ".join(urls_saque)
+                    url_pagamento = "; ".join(urls_pagamento)
+                else:
+                    # Salvar arquivo único
+                    url_saque = salvar_arquivo(comp_saque, processo_num, "saque_rpv")
+                    url_pagamento = salvar_arquivo(comp_pagamento, processo_num, "pagamento_rpv")
                 
                 if url_saque and url_pagamento:
                     idx = df[df["ID"] == rpv_id].index[0]
@@ -465,13 +637,9 @@ def interface_visualizar_dados_rpv(df):
 
 def interface_cadastro_rpv(df, perfil_usuario):
     """Interface para cadastrar novos RPVs"""
-    if perfil_usuario != "Cadastrador":
-        st.warning("⚠️ Apenas Cadastradores podem criar novos RPVs")
+    if perfil_usuario not in ["Cadastrador", "Admin"]:
+        st.warning("⚠️ Apenas Cadastradores e Administradores podem criar novos RPVs")
         return
-
-    # Inicializar contador para reset do formulário
-    if "form_reset_counter_rpv" not in st.session_state:
-        st.session_state.form_reset_counter_rpv = 0
 
     # Mostrar linhas temporárias primeiro (se existirem)
     if "preview_novas_linhas_rpv" in st.session_state and len(st.session_state["preview_novas_linhas_rpv"]) > 0:
@@ -513,32 +681,76 @@ def interface_cadastro_rpv(df, perfil_usuario):
 
     st.subheader("📝 Cadastrar Novo RPV")
 
-    # a) Reorganização do formulário
-    with st.form(f"adicionar_linha_form_rpv_{st.session_state.form_reset_counter_rpv}"):
-        col1, col2 = st.columns(2)
+    # Remover formulário para permitir que file_uploader funcione corretamente
+    # O problema é que st.form não funciona bem com accept_multiple_files=True
+    
+    col1, col2 = st.columns(2)
+    
+    # Usar chaves únicas para manter estado
+    processo_key = "new_rpv_processo"
+    beneficiario_key = "new_rpv_beneficiario"
+    cpf_key = "new_rpv_cpf"
+    certidao_key = "new_rpv_certidao"
+    valor_key = "new_rpv_valor"
+    obs_key = "new_rpv_observacoes"
+    multiplos_key = "new_rpv_multiplos"
+    competencia_key = "new_rpv_competencia"
+    
+    with col1:
+        processo = st.text_input("Número do Processo:", key=processo_key)
+        beneficiario = st.text_input("Beneficiário:", key=beneficiario_key)
+        cpf = st.text_input("CPF:", key=cpf_key)
+        solicitar_certidao = st.selectbox(
+            "Solicitar Certidão?",
+            options=["Sim", "Não"],
+            key=certidao_key
+        )
+        # Novo campo: Mês de Competência
+        mes_competencia = st.text_input(
+            "Mês de Competência (mm/yyyy):",
+            placeholder="Ex: 12/2024",
+            help="Formato: mm/yyyy (mês/ano)",
+            key=competencia_key
+        )
+    
+    with col2:
+        valor_rpv = st.text_input("Valor da RPV (R$):", key=valor_key)
+        observacoes = st.text_area("Observações:", height=125, key=obs_key)
         
-        with col1:
-            processo = st.text_input("Número do Processo:")
-            beneficiario = st.text_input("Beneficiário:")
-            cpf = st.text_input("CPF:")
-            solicitar_certidao = st.selectbox(
-                "Solicitar Certidão?",
-                options=["Sim", "Não"]
+        # Checkbox para anexar múltiplos PDFs
+        anexar_multiplos_pdf = st.checkbox("📎 Anexar múltiplos PDFs", key=multiplos_key)
+        
+        # Usar keys diferentes para múltiplos vs único para evitar conflitos
+        if anexar_multiplos_pdf:
+            pdf_rpv = st.file_uploader(
+                "PDFs do RPV:", 
+                type=["pdf"], 
+                accept_multiple_files=True,
+                key="pdf_rpv_multiplos"
             )
+        else:
+            pdf_rpv = st.file_uploader(
+                "PDF do RPV:", 
+                type=["pdf"],
+                key="pdf_rpv_unico"
+            )
+
+    # Botão de submissão fora do formulário
+    if st.button("📝 Adicionar Linha", type="primary", use_container_width=True):
+        # Validação principal considerando múltiplos ou único arquivo
+        pdf_valido = False
+        if anexar_multiplos_pdf:
+            pdf_valido = pdf_rpv and len(pdf_rpv) > 0
+        else:
+            pdf_valido = pdf_rpv is not None
         
-        with col2:
-            valor_rpv = st.text_input("Valor da RPV (R$):")
-            observacoes = st.text_area("Observações:", height=125)
-            pdf_rpv = st.file_uploader("PDF do RPV:", type=["pdf"])
-
-        # b) Remoção da validação em tempo real e botão de submissão
-        submitted = st.form_submit_button("📝 Adicionar Linha", type="primary", use_container_width=True)
-
-    # Lógica de submissão
-    if submitted:
-        # b) Validação principal
-        if not processo or not beneficiario or not pdf_rpv:
-            st.error("❌ Preencha os campos Processo, Beneficiário e anexe o PDF do RPV.")
+        if not processo or not beneficiario or not pdf_valido:
+            if anexar_multiplos_pdf:
+                st.error("❌ Preencha os campos Processo, Beneficiário e anexe pelo menos um PDF do RPV.")
+            else:
+                st.error("❌ Preencha os campos Processo, Beneficiário e anexe o PDF do RPV.")
+        elif mes_competencia and not validar_mes_competencia(mes_competencia):
+            st.error("❌ Mês de competência deve estar no formato mm/yyyy (ex: 12/2024).")
         else:
             from components.functions_controle import formatar_processo, validar_cpf, gerar_id_unico
             
@@ -555,8 +767,17 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 else:
                     status_inicial = "Enviado ao Financeiro"
 
-                # Salvar PDF
-                pdf_url = salvar_arquivo(pdf_rpv, processo_formatado, "rpv")
+                # Salvar PDF(s)
+                if anexar_multiplos_pdf:
+                    # Salvar múltiplos arquivos
+                    pdf_urls = []
+                    for i, arquivo in enumerate(pdf_rpv):
+                        url = salvar_arquivo(arquivo, processo_formatado, f"rpv_{i+1}")
+                        pdf_urls.append(url)
+                    pdf_url = "; ".join(pdf_urls)
+                else:
+                    # Salvar arquivo único
+                    pdf_url = salvar_arquivo(pdf_rpv, processo_formatado, "rpv")
 
                 # Criar nova linha
                 nova_linha = {
@@ -565,6 +786,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                     "Beneficiário": beneficiario,
                     "CPF": cpf,
                     "Valor RPV": valor_rpv,
+                    "Mês Competência": mes_competencia,
                     "Observações": observacoes,
                     "Solicitar Certidão": solicitar_certidao,
                     "Status": status_inicial, # <-- Status inicial dinâmico
@@ -596,7 +818,78 @@ def interface_cadastro_rpv(df, perfil_usuario):
                     ignore_index=True
                 )
 
-                # Resetar o formulário
-                st.session_state.form_reset_counter_rpv += 1
-                st.toast("✅ Linha adicionada! Salve para persistir os dados.", icon="👍")
+                # Limpar campos após submissão bem-sucedida
+                for key in [processo_key, beneficiario_key, cpf_key, valor_key, obs_key, competencia_key]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                
+                st.success("✅ Linha adicionada! Salve para persistir os dados.")
                 st.rerun()
+
+def confirmar_exclusao_massa_rpv(df, processos_selecionados):
+    """Função para confirmar exclusão em massa de RPVs"""
+    
+    @st.dialog("🗑️ Confirmar Exclusão em Massa", width="large")
+    def dialog_confirmacao():
+        st.error("⚠️ **ATENÇÃO:** Esta ação não pode ser desfeita!")
+        
+        # Mostrar processos que serão excluídos
+        st.markdown(f"### Você está prestes a excluir **{len(processos_selecionados)}** processo(s):")
+        
+        processos_para_excluir = df[df["ID"].isin(processos_selecionados)]
+        
+        for _, processo in processos_para_excluir.iterrows():
+            st.markdown(f"- **{processo.get('Processo', 'N/A')}** - {processo.get('Beneficiário', 'N/A')}")
+        
+        st.markdown("---")
+        
+        col_conf, col_canc = st.columns(2)
+        
+        with col_conf:
+            if st.button("✅ Confirmar Exclusão", type="primary", use_container_width=True):
+                # Importar sistema de log
+                from components.log_exclusoes import registrar_exclusao
+                
+                usuario_atual = st.session_state.get("usuario", "Sistema")
+                
+                # Registrar cada exclusão no log
+                for _, processo in processos_para_excluir.iterrows():
+                    registrar_exclusao(
+                        tipo_processo="RPV",
+                        processo_numero=processo.get('Processo', 'N/A'),
+                        dados_excluidos=processo,
+                        usuario=usuario_atual
+                    )
+                
+                # Remover processos do DataFrame
+                st.session_state.df_editado_rpv = st.session_state.df_editado_rpv[
+                    ~st.session_state.df_editado_rpv["ID"].isin(processos_selecionados)
+                ].reset_index(drop=True)
+                
+                # Salvar no GitHub
+                from components.functions_controle import save_data_to_github_seguro
+                
+                with st.spinner("Salvando alterações..."):
+                    novo_sha = save_data_to_github_seguro(
+                        st.session_state.df_editado_rpv,
+                        "lista_rpv.csv",
+                        "file_sha_rpv"
+                    )
+                
+                if novo_sha:
+                    st.session_state.file_sha_rpv = novo_sha
+                    st.success(f"✅ {len(processos_selecionados)} processo(s) excluído(s) com sucesso!")
+                    
+                    # Resetar estado de exclusão
+                    st.session_state.modo_exclusao_rpv = False
+                    st.session_state.processos_selecionados_rpv = []
+                    
+                    st.rerun()
+                else:
+                    st.error("❌ Erro ao salvar. Exclusão cancelada.")
+        
+        with col_canc:
+            if st.button("❌ Cancelar", use_container_width=True):
+                st.rerun()
+    
+    dialog_confirmacao()

@@ -233,6 +233,60 @@ def upload_to_google_drive(processo, comprovante_file, pdf_file):
     return drive.upload_alvara_documents(processo, comprovante_file, pdf_file)
 
 
+def upload_log_to_drive(arquivo_local, nome_arquivo="log_exclusoes.csv"):
+    """
+    Função específica para upload de logs CSV para Google Drive
+    
+    Args:
+        arquivo_local: Caminho para o arquivo local
+        nome_arquivo: Nome do arquivo no Drive
+        
+    Returns:
+        bool: True se sucesso, False se falha
+    """
+    try:
+        drive = GoogleDriveIntegration()
+        
+        # Verificar se arquivo local existe
+        if not os.path.exists(arquivo_local):
+            return False
+        
+        # Inicializar serviço
+        if not drive.initialize_service():
+            return False
+        
+        # Encontrar ou criar pasta de Logs
+        pasta_logs_id = drive.find_folder("Logs_Sistema")
+        if not pasta_logs_id:
+            pasta_logs_id = drive.create_folder("Logs_Sistema")
+            if not pasta_logs_id:
+                return False
+        
+        # Ler arquivo local
+        with open(arquivo_local, 'rb') as file:
+            file_content = file.read()
+        
+        # Upload para Drive
+        file_id, uploaded_name = drive.upload_file(
+            file_content=file_content,
+            file_name=nome_arquivo,
+            folder_id=pasta_logs_id,
+            mime_type='text/csv'
+        )
+        
+        if file_id:
+            # Log informações do upload
+            file_size = len(file_content)
+            st.success(f"📁 Log enviado para Google Drive: {uploaded_name} ({file_size} bytes)")
+            return True
+        else:
+            return False
+        
+    except Exception as e:
+        st.error(f"Erro ao enviar log para Drive: {str(e)}")
+        return False
+
+
 def test_google_drive_connection():
     """Função para testar conexão com Google Drive - Interface Streamlit"""
     drive = GoogleDriveIntegration()

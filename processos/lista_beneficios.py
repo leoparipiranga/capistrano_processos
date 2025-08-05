@@ -58,11 +58,9 @@ def show():
     
     # Verificação de perfil
     perfil_usuario = verificar_perfil_usuario_beneficios()
-    st.sidebar.info(f"👤 **Perfil Benefícios:** {perfil_usuario}")
     
     # Título
     st.title("🏥 Gestão de Benefícios")
-    st.markdown(f"**Perfil ativo:** {perfil_usuario}")
     
     # Carregar dados
     selected_file_name = "lista_beneficios.csv"
