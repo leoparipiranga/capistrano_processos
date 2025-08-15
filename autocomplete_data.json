@@ -5,6 +5,8 @@
   "assuntos_beneficios": [
     "AUXILIO EMERGENCIAL"
   ],
-  "assuntos_rpv": [],
+  "assuntos_rpv": [
+    "PRECATORIO FEDERAL"
+  ],
   "orgaos_rpv": []
 }
