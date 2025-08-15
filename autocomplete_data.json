@@ -2,7 +2,9 @@
   "orgaos_judiciais": [
     "TRT 3ª REGIAO"
   ],
-  "assuntos_beneficios": [],
+  "assuntos_beneficios": [
+    "AUXILIO EMERGENCIAL"
+  ],
   "assuntos_rpv": [],
   "orgaos_rpv": []
 }
