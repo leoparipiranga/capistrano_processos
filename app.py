@@ -91,14 +91,67 @@ def mostrar_guia_utilizacao():
     with tab1:
         st.header("Visão Geral do Sistema")
         st.markdown("""
-        ### O que é o Sistema Capistrano?
-        O Sistema Capistrano é uma plataforma web desenvolvida para gerenciar três tipos principais de processos:
+        ### 🚀 **O que é o Sistema Capistrano?**
         
-        - **🏛️ Alvarás**: Processos relacionados a licenças e autorizações
-        - **💰 RPV**: Requisições de Pequeno Valor
-        - **🎯 Benefícios**: Processos de benefícios sociais
+        O Sistema Capistrano é uma **plataforma web avançada** desenvolvida para gerenciar três tipos principais de processos com **funcionalidades completas de workflow** e **sistema de pagamento parcelado**:
         
+        - **🏛️ Alvarás**: Processos relacionados a licenças e autorizações administrativas
+        - **💰 RPV**: Requisições de Pequeno Valor com análise jurídica
+        - **🎯 Benefícios**: Processos de benefícios sociais com **sistema SAC** e **parcelamento em até 12x**
+        
+        ### ⭐ **Principais Recursos Avançados**
+        
+        #### 💳 **Sistema de Pagamento Parcelado**
+        - **Parcelamento em até 12x** para processos de benefícios
+        - **Controle individual** de cada parcela (Pendente, Pago, Atrasado)
+        - **Dashboard financeiro** com métricas detalhadas
+        - **Timeline completa** de pagamentos
+        
+        #### 👥 **Novo Perfil SAC (Customer Service)**
+        - **Atendimento especializado** ao cliente
+        - **Workflow dedicado** para contato com beneficiários
+        - **Integração completa** com o fluxo de benefícios
+        
+        #### 🔄 **Workflow Inteligente**
+        - **Fluxos específicos** para cada tipo de processo
+        - **Transições controladas** por perfil de usuário
+        - **Histórico completo** de todas as operações
+        - **Estados bem definidos** para cada etapa
+        
+        #### 📊 **Dashboard e Relatórios**
+        - **Métricas em tempo real** de todos os processos
+        - **Gráficos interativos** por status e responsável
+        - **Filtros avançados** por período e tipo
+        - **Exportação de dados** para análise
+        
+        #### 🔒 **Segurança e Controle**
+        - **6 perfis de usuário** com permissões específicas
+        - **Log completo** de todas as operações
+        - **Backup automático** via Google Drive
+        - **Controle de versões** de documentos
         """)
+        
+        st.success("🎉 **Sistema 100% atualizado** - Incluindo novo perfil SAC e sistema de parcelamento avançado!")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric(
+                label="📋 Tipos de Processo", 
+                value="3", 
+                help="Alvarás, RPV e Benefícios"
+            )
+        with col2:
+            st.metric(
+                label="👥 Perfis de Usuário", 
+                value="6", 
+                help="Admin, Cadastrador, Administrativo, Financeiro, Jurídico, SAC"
+            )
+        with col3:
+            st.metric(
+                label="💳 Parcelas Máximas", 
+                value="12x", 
+                help="Sistema de parcelamento para benefícios"
+            )
     
     with tab2:
         st.header("Perfis e Permissões")
@@ -164,11 +217,12 @@ def mostrar_guia_utilizacao():
             },
             "📞 SAC": {
                 "cor": "primary",
-                "descricao": "Atendimento ao cliente",
+                "descricao": "Atendimento ao cliente - Etapa de contato",
                 "permissoes": [
-                    "✅ Visualizar processos",
-                    "✅ Consultar status",
-                    "❌ Editar processos",
+                    "✅ Visualizar processos enviados para SAC",
+                    "✅ Marcar cliente como contatado",
+                    "✅ Enviar processos para financeiro",
+                    "❌ Editar informações do processo",
                     "❌ Excluir processos"
                 ]
             }
@@ -190,89 +244,107 @@ def mostrar_guia_utilizacao():
                     st.markdown(f"- {permissao}")
     
     with tab3:
-        st.header("Fluxo de Processos por Status")
+        st.header("📋 Gerenciamento de Processos")
         
-        # Alvarás
-        st.markdown("### 🏛️ **Fluxo de Alvarás**")
-        with st.expander("Status e Perfis Responsáveis"):
+        st.markdown("""
+        ### Tipos de Processos
+        
+        O sistema gerencia três categorias principais de processos:
+        """)
+        
+        # Sub-abas para cada tipo de processo
+        sub_tab1, sub_tab2, sub_tab3 = st.tabs(["🏛️ Alvarás", "💰 RPV", "🎯 Benefícios"])
+        
+        with sub_tab1:
             st.markdown("""
-            **📋 Cadastrado**
-            - **Responsável**: Cadastrador, Admin
-            - **Ação**: Processo recém-criado, aguardando documentação
-            - **Próximo passo**: Upload de comprovante de conta e PDF do alvará
+            #### 🏛️ Alvarás - Licenças e Autorizações
             
-            **💰 Enviado para o Financeiro**
-            - **Responsável**: Financeiro, Admin
-            - **Ação**: Análise de valores e documentos financeiros
-            - **Próximo passo**: Verificação e envio para o chefe
+            **Fluxo do Processo:**
+            1. **📝 Cadastrado:** Inserção inicial dos dados do alvará
+            2. **💰 Enviado para Financeiro:** Processo enviado para análise financeira
+            3. **👔 Enviado para o Chefe:** Aprovação final e autorização
+            4. **🎯 Finalizado:** Processo concluído com pagamento registrado
             
-            **👔 Enviado para o Chefe**
-            - **Responsável**: Admin
-            - **Ação**: Aprovação final e autorização de pagamento
-            - **Próximo passo**: Upload do comprovante de recebimento
+            **Responsabilidades por Perfil:**
+            - **Cadastrador**: Criação e cadastro inicial
+            - **Financeiro**: Análise de valores e documentos
+            - **Admin**: Aprovação final e gestão completa
             
-            **🎯 Finalizado**
-            - **Status final**: Processo completo e pago
-            - **Responsável**: Admin
-            - **Documentos**: Todos os comprovantes arquivados
+            **Funcionalidades:**
+            - Cadastro de novos alvarás
+            - Upload de documentos comprobatórios
+            - Controle de status e acompanhamento
+            - Gestão de pagamentos
+            - Relatórios e visualizações
             """)
         
-        # RPV
-        st.markdown("### 📄 **Fluxo de RPV**")
-        with st.expander("Status e Perfis Responsáveis"):
+        with sub_tab2:
             st.markdown("""
-            **📝 Cadastrado**
-            - **Responsável**: Cadastrador, Admin
-            - **Ação**: RPV criada, dados básicos preenchidos
-            - **Próximo passo**: Análise jurídica e definição de valores
+            #### � RPV - Requisições de Pequeno Valor
             
-            **⚖️ Em Análise Jurídica**
-            - **Responsável**: Jurídico, Admin
-            - **Ação**: Verificação legal da requisição
-            - **Próximo passo**: Aprovação e envio para financeiro
+            **Fluxo do Processo:**
+            1. **📝 Cadastrado:** Registro da requisição inicial
+            2. **⚖️ Em Análise Jurídica:** Avaliação legal do processo
+            3. **💰 Aprovado - Aguardando Pagamento:** Preparação para pagamento
+            4. **✅ Pago:** RPV processado e finalizado
             
-            **💰 Aprovado - Aguardando Pagamento**
-            - **Responsável**: Financeiro, Admin
-            - **Ação**: Processamento do pagamento
-            - **Próximo passo**: Confirmação do pagamento
+            **Responsabilidades por Perfil:**
+            - **Cadastrador**: Registro inicial da RPV
+            - **Jurídico**: Análise legal e aprovação
+            - **Financeiro**: Processamento de pagamentos
+            - **Admin**: Gestão completa do fluxo
             
-            **✅ Pago**
-            - **Status final**: RPV quitada
-            - **Responsável**: Financeiro, Admin
-            - **Documentos**: Comprovantes de pagamento arquivados
+            **Funcionalidades:**
+            - Controle de prazos e vencimentos
+            - Gestão de documentação
+            - Acompanhamento de status
+            - Relatórios financeiros
+            - Operações em massa (exclusão)
             """)
         
-        # Benefícios
-        st.markdown("### 📋 **Fluxo de Benefícios**")
-        with st.expander("Status e Perfis Responsáveis"):
+        with sub_tab3:
             st.markdown("""
-            **📝 Ativo**
-            - **Responsável**: Cadastrador, Admin
-            - **Ação**: Benefício cadastrado, aguardando análise
-            - **Próximo passo**: Verificação administrativa
+            #### 🎯 Benefícios - Processos de Benefícios Sociais
             
-            **🏢 Enviado para Administrativo**
-            - **Responsável**: Administrativo, Admin
-            - **Ação**: Análise documental e verificação de elegibilidade
-            - **Próximo passo**: Implantação ou correções
+            **Fluxo Completo do Processo:**
+            1. **📝 Ativo:** Cadastrador cria o processo inicial
+            2. **🏢 Enviado para Administrativo:** Processo enviado para análise
+            3. **💻 Implantado:** Processo implantado pelo administrativo
+            4. **📞 Enviado para SAC:** Processo enviado para contato com cliente
+            5. **☎️ Contato SAC:** SAC faz contato e marca como contatado
+            6. **💰 Enviado para Financeiro:** Processo enviado para cobrança
+            7. **🎯 Finalizado:** Processo concluído com pagamento
             
-            **💻 Implantado**
-            - **Responsável**: Administrativo, Admin
-            - **Ação**: Benefício aprovado e implantado no sistema
-            - **Próximo passo**: Envio para análise financeira
+            **Responsabilidades por Perfil:**
+            - **Cadastrador**: Criação do processo inicial
+            - **Administrativo**: Análise, documentação e implantação
+            - **SAC**: Contato com clientes e acompanhamento
+            - **Financeiro**: Gestão de pagamentos e parcelamentos
+            - **Admin**: Controle total do sistema
             
-            **💰 Enviado para Financeiro**
-            - **Responsável**: Financeiro, Admin
-            - **Ação**: Cálculo de valores e definição de pagamento
-            - **Próximo passo**: Finalização do processo
-            
-            **🎯 Finalizado**
-            - **Status final**: Benefício processado e concluído
-            - **Responsável**: Admin
-            - **Documentos**: Processo arquivado completamente
+            **Funcionalidades Avançadas:**
+            - **Sistema de Pagamento Parcelado:** Suporte a parcelamento em até 12x
+            - **Controle Individual de Parcelas:** Acompanhamento detalhado de cada parcela
+            - **Timeline Completa:** Histórico detalhado de todas as etapas
+            - **Gestão de Documentos:** Upload e controle de comprovantes
+            - **Dashboard Financeiro:** Visão completa dos pagamentos
+            - **Workflow SAC:** Sistema completo de atendimento ao cliente
             """)
-            
-        st.markdown("---")
+        
+        st.markdown("""
+        ---
+        ### 🔄 Estados e Transições
+        
+        Cada tipo de processo possui estados específicos e regras de transição definidas pelos perfis de usuário.
+        
+        ### 👥 Novo Perfil: SAC (Customer Service)
+        
+        O perfil **SAC** foi criado especificamente para gerenciar o atendimento ao cliente nos processos de benefícios:
+        - **Acesso**: Apenas processos de benefícios
+        - **Funcionalidades**: Contato com clientes, atualização de status
+        - **Workflow**: Recebe processos implantados e faz contato com beneficiários
+        """)
+        
         st.info("💡 **Dica**: Cada perfil tem acesso apenas aos status relevantes para suas funções. Admins podem gerenciar todos os status.")
     with tab4:
         st.header("Configurações do Sistema")
@@ -312,6 +384,27 @@ def mostrar_guia_utilizacao():
         
         faqs = [
             {
+                "pergunta": "❓ Como funciona o sistema de pagamento parcelado?",
+                "resposta": """
+                **Sistema disponível apenas para Benefícios:**
+                1. Na edição do processo, escolha "Pagamento Parcelado"
+                2. Selecione o número de parcelas (até 12x)
+                3. O sistema criará automaticamente todas as parcelas
+                4. Cada parcela tem status individual: Pendente, Pago, Atrasado
+                5. Use o dashboard para acompanhar o progresso dos pagamentos
+                """
+            },
+            {
+                "pergunta": "❓ O que é o perfil SAC e como funciona?",
+                "resposta": """
+                **SAC (Customer Service)** é o novo perfil para atendimento ao cliente:
+                - **Função**: Fazer contato com beneficiários de processos implantados
+                - **Acesso**: Apenas processos de benefícios enviados para SAC
+                - **Workflow**: Recebe processos → Faz contato → Marca como contatado → Envia para financeiro
+                - **Permissões**: Visualizar processos SAC, marcar como contatado, enviar para financeiro
+                """
+            },
+            {
                 "pergunta": "❓ Como faço upload de múltiplos arquivos?",
                 "resposta": """
                 1. Marque a caixa "Anexar múltiplos documentos" 
@@ -325,6 +418,20 @@ def mostrar_guia_utilizacao():
                 "resposta": """
                 Apenas usuários com perfil **Admin** ou **Cadastrador** podem excluir processos.
                 Outros perfis têm permissões limitadas por segurança.
+                Para **RPV**, use a funcionalidade de exclusão em massa selecionando múltiplos itens.
+                """
+            },
+            {
+                "pergunta": "❓ Como funciona o novo fluxo de benefícios?",
+                "resposta": """
+                **Fluxo completo em 7 etapas:**
+                1. **Ativo** (Cadastrador)
+                2. **Enviado para Administrativo** (Administrativo analisa)
+                3. **Implantado** (Administrativo implanta)
+                4. **Enviado para SAC** (SAC faz contato)
+                5. **Contato SAC** (Cliente contatado)
+                6. **Enviado para Financeiro** (Cobrança)
+                7. **Finalizado** (Processo concluído)
                 """
             },
             {
@@ -341,6 +448,7 @@ def mostrar_guia_utilizacao():
                 "resposta": """
                 Os perfis são definidos pelo administrador do sistema.
                 Entre em contato com o responsável para alterações de perfil.
+                **Novos perfis disponíveis**: Admin, Cadastrador, Administrativo, Financeiro, Jurídico, SAC
                 """
             },
             {
@@ -348,6 +456,7 @@ def mostrar_guia_utilizacao():
                 "resposta": """
                 Todas as exclusões são registradas no Log de Exclusões.
                 Entre em contato com o administrador para possível recuperação.
+                **RPV**: Use a exclusão em massa para eficiência.
                 """
             },
             {
@@ -357,6 +466,18 @@ def mostrar_guia_utilizacao():
                 - Organizados por tipo de processo
                 - Backup de segurança dos dados
                 - Configuração necessária apenas pelo Admin
+                - Suporte a múltiplos documentos por processo
+                """
+            },
+            {
+                "pergunta": "❓ Como acompanhar parcelas em atraso?",
+                "resposta": """
+                **Para usuários Financeiro e Admin:**
+                1. Acesse a lista de Benefícios
+                2. Use os filtros para mostrar apenas "Parcelado"
+                3. Na edição do processo, veja o status de cada parcela
+                4. Parcelas em vermelho estão atrasadas
+                5. Use o dashboard para métricas gerais de pagamento
                 """
             }
         ]

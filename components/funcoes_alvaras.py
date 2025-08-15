@@ -5,7 +5,14 @@ import requests
 import base64
 from datetime import datetime
 import math
-from streamlit_js_eval import streamlit_js_eval # 1. ADICIONE ESTE IMPORT
+import unicodedata
+from streamlit_js_eval import streamlit_js_eval
+from streamlit_tags import st_tags
+from components.autocomplete_manager import (
+    inicializar_autocomplete_session, 
+    adicionar_orgao_judicial, 
+    carregar_dados_autocomplete
+)
 
 # =====================================
 # CONFIGURAÇÕES DE PERFIS - ALVARÁS
@@ -23,6 +30,152 @@ STATUS_ETAPAS_ALVARAS = {
     3: "Financeiro - Enviado para Rodrigo",
     4: "Finalizado"
 }
+
+# Órgãos Judiciais para autocomplete
+ORGAOS_JUDICIAIS_DEFAULT = [
+    "TRF 5A REGIAO",
+    "JFSE",
+    "TJSE",
+    "STJ",
+    "STF",
+    "TRT 20A REGIAO",
+    "TST"
+]
+
+def normalizar_orgao_judicial(texto):
+    """Normaliza nome do órgão judicial removendo acentos e convertendo para maiúsculo"""
+    if not texto:
+        return ""
+    # Remove acentos
+    texto_normalizado = unicodedata.normalize('NFD', texto)
+    texto_sem_acento = ''.join(c for c in texto_normalizado if unicodedata.category(c) != 'Mn')
+    return texto_sem_acento.upper().strip()
+
+def obter_orgaos_judiciais():
+    """Retorna lista de órgãos judiciais salvos + padrões"""
+    # Inicializa dados de autocomplete da sessão com dados persistidos
+    inicializar_autocomplete_session()
+    
+    # Combina dados padrão com customizados
+    orgaos_customizados = st.session_state.get("orgaos_judiciais_customizados", [])
+    return list(set(ORGAOS_JUDICIAIS_DEFAULT + orgaos_customizados))
+
+def safe_get_value_alvara(data, key, default='Não cadastrado'):
+    """Obtém valor de forma segura, tratando NaN e valores None"""
+    value = data.get(key, default)
+    if value is None:
+        return default
+    # Converter para string e verificar se não é 'nan'
+    str_value = str(value)
+    if str_value.lower() in ['nan', 'none', '']:
+        return default
+    return str_value
+
+def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
+    """Exibe informações básicas do Alvará de forma organizada e visual
+    
+    Args:
+        linha_alvara: Dados da linha do Alvará
+        estilo: "padrao", "compacto", ou "horizontal"
+    """
+    
+    st.markdown("""
+    <style>
+    .compact-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #dee2e6;
+        margin: 10px 0;
+    }
+    .compact-item {
+        text-align: center;
+        padding: 10px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .compact-label {
+        font-size: 12px;
+        color: #6c757d;
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+    .compact-value {
+        font-size: 14px;
+        color: #212529;
+        font-weight: 500;
+    }
+    .compact-status {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: bold;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    status_atual = safe_get_value_alvara(linha_alvara, 'Status')
+    status_class = {
+        "Cadastrado": "background-color: #fff3cd; color: #856404;",
+        "Enviado para o Financeiro": "background-color: #d1ecf1; color: #0c5460;",
+        "Financeiro - Enviado para Rodrigo": "background-color: #d4edda; color: #155724;",
+        "Finalizado": "background-color: #d1e7dd; color: #0f5132;"
+    }.get(status_atual, "background-color: #e2e3e5; color: #383d41;")
+    
+    st.markdown("### 📋 Resumo do Alvará")
+    st.markdown(f"""
+    <div class="compact-grid">
+        <div class="compact-item">
+            <div class="compact-label">📄 PROCESSO</div>
+            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'Processo')}</div>
+        </div>
+        <div class="compact-item">
+            <div class="compact-label">👤 PARTE</div>
+            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'Parte')}</div>
+        </div>
+        <div class="compact-item">
+            <div class="compact-label">🆔 CPF</div>
+            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'CPF')}</div>
+        </div>
+        <div class="compact-item">
+            <div class="compact-label">📊 STATUS</div>
+            <div class="compact-value">
+                <span class="compact-status" style="{status_class}">{status_atual}</span>
+            </div>
+        </div>
+        <div class="compact-item">
+            <div class="compact-label">💰 PAGAMENTO</div>
+            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'Pagamento')}</div>
+        </div>
+        <div class="compact-item">
+            <div class="compact-label">🏛️ ÓRGÃO</div>
+            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'Órgão Judicial')[:20]}...</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("---")
+
+def search_orgaos_judiciais(searchterm):
+    """Função de busca para o autocomplete de órgãos judiciais"""
+    orgaos_disponiveis = obter_orgaos_judiciais()
+    
+    if not searchterm:
+        return orgaos_disponiveis[:10]  # Mostrar primeiros 10 se não há busca
+    
+    # Normalizar termo de busca
+    termo_normalizado = searchterm.upper().strip()
+    
+    # Buscar órgãos que contenham o termo
+    resultados = []
+    for orgao in orgaos_disponiveis:
+        if termo_normalizado in orgao.upper():
+            resultados.append(orgao)
+    
+    return resultados[:10]  # Limitar a 10 resultados
 
 # =====================================
 # FUNÇÕES DE PERFIL E CONTROLE - ALVARÁS
@@ -51,6 +204,8 @@ def obter_colunas_controle():
     return [
         "Status", "Data Cadastro", "Cadastrado Por", "Comprovante Conta", 
         "PDF Alvará", "Data Envio Financeiro", "Enviado Financeiro Por",
+        "Valor Total Alvara", "Valor Devido Cliente", "Valor Escritorio Contratual",
+        "Valor Escritorio Sucumbencial", "Observacoes Financeiras",
         "Data Envio Rodrigo", "Enviado Rodrigo Por", "Comprovante Recebimento",
         "Data Finalização", "Finalizado Por"
     ]
@@ -136,8 +291,8 @@ def interface_lista_alvaras(df, perfil_usuario):
                            key="confirmar_exclusao_alvaras", type="primary"):
                     confirmar_exclusao_massa_alvaras(df, st.session_state.processos_selecionados_alvaras)
 
-    # Filtros - agora em 4 colunas
-    col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
+    # Filtros - agora em 5 colunas
+    col_filtro1, col_filtro2, col_filtro3, col_filtro4, col_filtro5 = st.columns(5)
     
     with col_filtro1:
         if "Status" in df.columns:
@@ -161,6 +316,17 @@ def interface_lista_alvaras(df, perfil_usuario):
         )
     
     with col_filtro4:
+        # Filtro de órgão judicial
+        if "Órgão Judicial" in df.columns:
+            orgaos_unicos = ["Todos"] + sorted(df["Órgão Judicial"].dropna().unique().tolist())
+            orgao_filtro = st.selectbox(
+                "🔍 Filtrar por Órgão:",
+                orgaos_unicos
+            )
+        else:
+            orgao_filtro = "Todos"
+    
+    with col_filtro5:
         mostrar_apenas_meus = False
         if perfil_usuario == "Financeiro":
             mostrar_apenas_meus = st.checkbox("Mostrar apenas processos que posso editar")
@@ -174,6 +340,8 @@ def interface_lista_alvaras(df, perfil_usuario):
         df_filtrado = df_filtrado[df_filtrado["Processo"].astype(str).str.contains(processo_filtro, case=False, na=False)]
     if nome_filtro:
         df_filtrado = df_filtrado[df_filtrado["Parte"].astype(str).str.contains(nome_filtro, case=False, na=False)]
+    if orgao_filtro != "Todos" and "Órgão Judicial" in df.columns:
+        df_filtrado = df_filtrado[df_filtrado["Órgão Judicial"] == orgao_filtro]
     
     if mostrar_apenas_meus and perfil_usuario == "Financeiro":
         df_filtrado = df_filtrado[df_filtrado["Status"].isin(["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo"])]
@@ -567,21 +735,8 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
     linha_processo = linha_processo_df.iloc[0]
     numero_processo = linha_processo.get("Processo", "N/A")
     
-    st.markdown(f"### 📋 Editando: {numero_processo} - {linha_processo['Parte']}")
-    st.markdown(f"**ID:** {alvara_id} | **Status atual:** {status_atual}")
-    
-    # Mostrar informações básicas do processo
-    col_info1, col_info2, col_info3, col_info4 = st.columns(4)
-    with col_info1:
-        st.write(f"**Pagamento:** {linha_processo.get('Pagamento', 'N/A')}")
-    with col_info2:
-        st.write(f"**Órgão Judicial:** {linha_processo.get('Órgão Judicial', 'N/A')}")
-    with col_info3:
-        st.write(f"**Cadastrado em:** {linha_processo.get('Data Cadastro', 'N/A')}")
-    with col_info4:
-        st.write(f"**Cadastrado por:** {linha_processo.get('Cadastrado Por', 'N/A')}")
-    
-    st.markdown("----")
+    # Exibir informações básicas do processo com layout compacto
+    exibir_informacoes_basicas_alvara(linha_processo, "compacto")
     
     # ETAPA 2: Cadastrado -> Anexar documentos (Cadastrador ou Admin)
     if status_atual == "Cadastrado" and perfil_usuario in ["Cadastrador", "Admin"]:
@@ -687,53 +842,222 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
         else:
             st.info("📋 Anexe o comprovante da conta e o PDF do alvará")
     
-    # ETAPA 3: Enviado para Financeiro -> Enviar para Rodrigo (Financeiro ou Admin)
-    elif status_atual == "Enviado para o Financeiro" and perfil_usuario in ["Financeiro", "Admin"]:
-        st.markdown("#### 📤 Enviar para o Rodrigo")
+    # ETAPA 3: Enviado para Financeiro -> Preencher valores financeiros (Cadastrador) ou Enviar para Rodrigo (Financeiro)
+    elif status_atual == "Enviado para o Financeiro":
         
-        # Mostrar documentos anexados
-        col_doc1, col_doc2 = st.columns(2)
-        
-        with col_doc1:
-            st.markdown("**📄 Comprovante da Conta**")
-            if linha_processo.get("Comprovante Conta"):
-                from components.functions_controle import baixar_arquivo_drive
-                baixar_arquivo_drive(linha_processo["Comprovante Conta"], "📎 Baixar Comprovante")
-            else:
-                st.warning("❌ Comprovante não anexado")
-        
-        with col_doc2:
-            st.markdown("**📄 PDF do Alvará**")
-            if linha_processo.get("PDF Alvará"):
-                from components.functions_controle import baixar_arquivo_drive
-                baixar_arquivo_drive(linha_processo["PDF Alvará"], "📎 Baixar PDF")
-            else:
-                st.warning("❌ PDF não anexado")
-        
-        st.markdown("**📋 Informações do envio:**")
-        st.write(f"- Enviado em: {linha_processo.get('Data Envio Financeiro', 'N/A')}")
-        st.write(f"- Enviado por: {linha_processo.get('Enviado Financeiro Por', 'N/A')}")
-        
-        if st.button("📤 Enviar para Rodrigo", type="primary", key=f"enviar_fin_id_{alvara_id}"):
-            # Atualizar status
-            from components.functions_controle import save_data_to_github_seguro
-            idx = df[df["ID"] == alvara_id].index[0]
-            st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Financeiro - Enviado para Rodrigo"
-            st.session_state.df_editado_alvaras.loc[idx, "Data Envio Rodrigo"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-            st.session_state.df_editado_alvaras.loc[idx, "Enviado Rodrigo Por"] = st.session_state.get("usuario", "Sistema")
+        # Se for Cadastrador ou Admin, mostrar campos para preencher valores financeiros
+        if perfil_usuario in ["Cadastrador", "Admin"]:
+            st.markdown("#### 💰 Preencher Valores Financeiros")
             
-            # Salvar no GitHub
-            novo_sha = save_data_to_github_seguro(
-                st.session_state.df_editado_alvaras,
-                "lista_alvaras.csv",
-                st.session_state.file_sha_alvaras
-            )
-            st.session_state.file_sha_alvaras = novo_sha
+            # Mostrar informações básicas dos valores já preenchidos
+            col_info1, col_info2, col_info3 = st.columns(3)
+            with col_info1:
+                valor_total = linha_processo.get("Valor Total Alvara", "")
+                st.write(f"**Valor Total:** {valor_total if valor_total else 'Não preenchido'}")
+            with col_info2:
+                valor_cliente = linha_processo.get("Valor Devido Cliente", "")
+                st.write(f"**Valor Cliente:** {valor_cliente if valor_cliente else 'Não preenchido'}")
+            with col_info3:
+                valor_contratual = linha_processo.get("Valor Escritorio Contratual", "")
+                st.write(f"**Valor Contratual:** {valor_contratual if valor_contratual else 'Não preenchido'}")
             
-            st.success("✅ Processo enviado para o Rodrigo!")
-            st.balloons()
-            st.session_state.show_alvara_dialog = False
-            st.rerun()
+            st.markdown("---")
+            
+            # Formulário para preencher valores
+            with st.form(f"form_valores_financeiros_{alvara_id}"):
+                st.markdown("**📊 Preencha os valores financeiros:**")
+                
+                col_val1, col_val2 = st.columns(2)
+                
+                with col_val1:
+                    valor_total_input = st.text_input(
+                        "💰 Valor Total do Alvará:",
+                        value=linha_processo.get("Valor Total Alvara", ""),
+                        placeholder="Ex: 15000.50",
+                        help="Valor total do alvará em reais"
+                    )
+                    
+                    valor_cliente_input = st.text_input(
+                        "👤 Valor Devido ao Cliente:",
+                        value=linha_processo.get("Valor Devido Cliente", ""),
+                        placeholder="Ex: 12000.50",
+                        help="Valor que será pago ao cliente"
+                    )
+                    
+                    valor_contratual_input = st.text_input(
+                        "🏢 Valor do Escritório (Contratual):",
+                        value=linha_processo.get("Valor Escritorio Contratual", ""),
+                        placeholder="Ex: 2500.00",
+                        help="Valor contratual do escritório"
+                    )
+                
+                with col_val2:
+                    valor_sucumbencial_input = st.text_input(
+                        "⚖️ Valor do Escritório (Sucumbencial):",
+                        value=linha_processo.get("Valor Escritorio Sucumbencial", ""),
+                        placeholder="Ex: 500.00",
+                        help="Valor sucumbencial do escritório (opcional)"
+                    )
+                    
+                    observacoes_input = st.text_area(
+                        "📝 Observações Financeiras:",
+                        value=linha_processo.get("Observacoes Financeiras", ""),
+                        placeholder="Observações sobre os valores e cálculos...",
+                        help="Observações adicionais sobre os valores (opcional)",
+                        height=120
+                    )
+                
+                submitted_valores = st.form_submit_button("💾 Salvar Valores", type="primary")
+                
+                if submitted_valores:
+                    # Validar e processar valores
+                    valores_validos = True
+                    erro_msg = []
+                    
+                    # Função para validar e converter valores monetários
+                    def validar_valor_monetario(valor_str, nome_campo):
+                        if not valor_str.strip():
+                            return "", True  # Valor vazio é válido para campos opcionais
+                        try:
+                            # Remover caracteres não numéricos exceto ponto e vírgula
+                            valor_limpo = ''.join(c for c in valor_str if c.isdigit() or c in '.,')
+                            if valor_limpo:
+                                # Converter vírgula para ponto
+                                valor_limpo = valor_limpo.replace(',', '.')
+                                valor_float = float(valor_limpo)
+                                return f"{valor_float:.2f}", True
+                            return "", True
+                        except:
+                            return "", False
+                    
+                    # Validar campos obrigatórios
+                    campos_obrigatorios = [
+                        (valor_total_input, "Valor Total"),
+                        (valor_cliente_input, "Valor Cliente"),
+                        (valor_contratual_input, "Valor Contratual")
+                    ]
+                    
+                    valores_processados = {}
+                    
+                    for valor_input, nome in campos_obrigatorios:
+                        valor_processado, valido = validar_valor_monetario(valor_input, nome)
+                        if not valido:
+                            valores_validos = False
+                            erro_msg.append(f"Valor inválido em {nome}")
+                        elif not valor_processado:
+                            valores_validos = False
+                            erro_msg.append(f"{nome} é obrigatório")
+                        else:
+                            valores_processados[nome] = valor_processado
+                    
+                    # Validar campos opcionais
+                    valor_sucumbencial_proc, sucumb_valido = validar_valor_monetario(valor_sucumbencial_input, "Valor Sucumbencial")
+                    if not sucumb_valido:
+                        valores_validos = False
+                        erro_msg.append("Valor inválido em Valor Sucumbencial")
+                    
+                    if valores_validos:
+                        # Salvar valores no DataFrame
+                        from components.functions_controle import save_data_to_github_seguro
+                        idx = df[df["ID"] == alvara_id].index[0]
+                        
+                        st.session_state.df_editado_alvaras.loc[idx, "Valor Total Alvara"] = valores_processados["Valor Total"]
+                        st.session_state.df_editado_alvaras.loc[idx, "Valor Devido Cliente"] = valores_processados["Valor Cliente"]
+                        st.session_state.df_editado_alvaras.loc[idx, "Valor Escritorio Contratual"] = valores_processados["Valor Contratual"]
+                        st.session_state.df_editado_alvaras.loc[idx, "Valor Escritorio Sucumbencial"] = valor_sucumbencial_proc
+                        st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_input.strip()
+                        
+                        # Salvar no GitHub
+                        novo_sha = save_data_to_github_seguro(
+                            st.session_state.df_editado_alvaras,
+                            "lista_alvaras.csv",
+                            st.session_state.file_sha_alvaras
+                        )
+                        st.session_state.file_sha_alvaras = novo_sha
+                        
+                        st.success("✅ Valores financeiros salvos com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Erros encontrados: {', '.join(erro_msg)}")
+        
+        # Se for Financeiro ou Admin, mostrar opção para enviar para Rodrigo
+        elif perfil_usuario in ["Financeiro", "Admin"]:
+            st.markdown("#### 📤 Enviar para o Rodrigo")
+            
+            # Mostrar valores financeiros preenchidos
+            st.markdown("**💰 Valores Financeiros:**")
+            col_val1, col_val2, col_val3 = st.columns(3)
+            
+            with col_val1:
+                valor_total = linha_processo.get("Valor Total Alvara", "")
+                valor_cliente = linha_processo.get("Valor Devido Cliente", "")
+                valor_contratual = linha_processo.get("Valor Escritorio Contratual", "")
+                
+                st.write(f"**Valor Total:** R$ {valor_total if valor_total else 'Não informado'}")
+                st.write(f"**Valor Cliente:** R$ {valor_cliente if valor_cliente else 'Não informado'}")
+                st.write(f"**Valor Contratual:** R$ {valor_contratual if valor_contratual else 'Não informado'}")
+            
+            with col_val2:
+                valor_sucumbencial = linha_processo.get("Valor Escritorio Sucumbencial", "")
+                if valor_sucumbencial:
+                    st.write(f"**Valor Sucumbencial:** R$ {valor_sucumbencial}")
+            
+            with col_val3:
+                observacoes = linha_processo.get("Observacoes Financeiras", "")
+                if observacoes:
+                    st.write(f"**Observações:**")
+                    st.write(observacoes)
+            
+            st.markdown("---")
+            
+            # Mostrar documentos anexados
+            col_doc1, col_doc2 = st.columns(2)
+            
+            with col_doc1:
+                st.markdown("**📄 Comprovante da Conta**")
+                if linha_processo.get("Comprovante Conta"):
+                    from components.functions_controle import baixar_arquivo_drive
+                    baixar_arquivo_drive(linha_processo["Comprovante Conta"], "📎 Baixar Comprovante")
+                else:
+                    st.warning("❌ Comprovante não anexado")
+            
+            with col_doc2:
+                st.markdown("**📄 PDF do Alvará**")
+                if linha_processo.get("PDF Alvará"):
+                    from components.functions_controle import baixar_arquivo_drive
+                    baixar_arquivo_drive(linha_processo["PDF Alvará"], "📎 Baixar PDF")
+                else:
+                    st.warning("❌ PDF não anexado")
+            
+            st.markdown("**📋 Informações do envio:**")
+            st.write(f"- Enviado em: {linha_processo.get('Data Envio Financeiro', 'N/A')}")
+            st.write(f"- Enviado por: {linha_processo.get('Enviado Financeiro Por', 'N/A')}")
+            
+            if st.button("📤 Enviar para Rodrigo", type="primary", key=f"enviar_rodrigo_id_{alvara_id}"):
+                # Atualizar status
+                from components.functions_controle import save_data_to_github_seguro
+                idx = df[df["ID"] == alvara_id].index[0]
+                st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Financeiro - Enviado para Rodrigo"
+                st.session_state.df_editado_alvaras.loc[idx, "Data Envio Rodrigo"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                st.session_state.df_editado_alvaras.loc[idx, "Enviado Rodrigo Por"] = st.session_state.get("usuario", "Sistema")
+                
+                # Salvar no GitHub
+                novo_sha = save_data_to_github_seguro(
+                    st.session_state.df_editado_alvaras,
+                    "lista_alvaras.csv",
+                    st.session_state.file_sha_alvaras
+                )
+                st.session_state.file_sha_alvaras = novo_sha
+                
+                st.success("✅ Processo enviado para o Rodrigo!")
+                st.balloons()
+                st.session_state.show_alvara_dialog = False
+                st.rerun()
+        
+        # Se não tem permissão
+        else:
+            st.error(f"❌ Seu perfil ({perfil_usuario}) não pode editar processos com status '{status_atual}'")
+            st.info("💡 Apenas Cadastradores podem preencher valores financeiros e Financeiro pode enviar para Rodrigo")
     
     # ETAPA 4: Financeiro - Enviado para Rodrigo -> Finalizar (Financeiro ou Admin)
     elif status_atual == "Financeiro - Enviado para Rodrigo" and perfil_usuario in ["Financeiro", "Admin"]:
@@ -821,6 +1145,40 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
     elif status_atual == "Finalizado":
         st.markdown("#### 🎉 Processo Finalizado")
         st.success("✅ Este processo foi concluído com sucesso!")
+        
+        # Mostrar valores financeiros sempre (A, B, C)
+        st.markdown("**💰 Valores Financeiros:**")
+        col_val1, col_val2, col_val3 = st.columns(3)
+        
+        with col_val1:
+            valor_total = linha_processo.get("Valor Total Alvara", "")
+            st.write(f"**A) Valor Total:** R$ {valor_total if valor_total else 'Não informado'}")
+        
+        with col_val2:
+            valor_cliente = linha_processo.get("Valor Devido Cliente", "")
+            st.write(f"**B) Valor Cliente:** R$ {valor_cliente if valor_cliente else 'Não informado'}")
+        
+        with col_val3:
+            valor_contratual = linha_processo.get("Valor Escritorio Contratual", "")
+            st.write(f"**C) Valor Contratual:** R$ {valor_contratual if valor_contratual else 'Não informado'}")
+        
+        # Mostrar D e E apenas se preenchidos
+        valor_sucumbencial = linha_processo.get("Valor Escritorio Sucumbencial", "")
+        observacoes = linha_processo.get("Observacoes Financeiras", "")
+        
+        if valor_sucumbencial or observacoes:
+            col_val4, col_val5 = st.columns(2)
+            
+            with col_val4:
+                if valor_sucumbencial:
+                    st.write(f"**D) Valor Sucumbencial:** R$ {valor_sucumbencial}")
+            
+            with col_val5:
+                if observacoes:
+                    st.write(f"**E) Observações:**")
+                    st.write(observacoes)
+        
+        st.markdown("---")
         
         col_final1, col_final2 = st.columns(2)
         
@@ -977,23 +1335,28 @@ def interface_cadastro_alvara(df, perfil_usuario):
                     valor = ''.join([c for c in valor_raw if not c.isalpha()])
 
                 elif col == "Órgão Judicial":
-                    opcoes_orgao = ["", "TRF 5ª REGIÃO", "JFSE", "TJSE", "STJ", "STF", "Outro"]
-                    orgao_selecionado = st.selectbox(
-                        f"{col}",
-                        opcoes_orgao,
-                        key=f"input_alvaras_{col}_select_{st.session_state.form_reset_counter_alvaras}",
-                        help=hints.get(col, "")
+                    # Campo de autocomplete usando streamlit-tags
+                    orgaos_disponiveis = obter_orgaos_judiciais()
+                    
+                    orgao_selecionado = st_tags(
+                        label=f"{col}",
+                        text="Digite e pressione Enter para adicionar novo órgão",
+                        value=[],
+                        suggestions=orgaos_disponiveis,
+                        maxtags=1,
+                        key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}"
                     )
                     
-                    if orgao_selecionado == "Outro":
-                        valor = st.text_input(
-                            "Especifique o órgão:",
-                            key=f"input_alvaras_{col}_outro_{st.session_state.form_reset_counter_alvaras}",
-                            max_chars=50,
-                            placeholder="Digite o nome do órgão"
-                        )
+                    # Processar o valor selecionado
+                    if orgao_selecionado and len(orgao_selecionado) > 0:
+                        valor = normalizar_orgao_judicial(orgao_selecionado[0])
+                        
+                        # Se não está na lista, adicionar automaticamente
+                        if valor and valor not in obter_orgaos_judiciais():
+                            adicionar_orgao_judicial(valor)
+                            st.success(f"🆕 Novo órgão '{valor}' adicionado à lista!")
                     else:
-                        valor = orgao_selecionado
+                        valor = ""
                 
                 nova_linha[col] = valor
 
@@ -1061,6 +1424,17 @@ def interface_cadastro_alvara(df, perfil_usuario):
         
     # Lógica de submissão
     if submitted:
+        # Primeiro, processar e salvar novos valores de autocomplete
+        for col, valor in nova_linha.items():
+            if col == "Orgao Judicial" and valor:
+                # Normalizar e verificar se é um novo órgão
+                valor_normalizado = normalizar_orgao_judicial(valor)
+                orgaos_existentes = obter_orgaos_judiciais()
+                if valor_normalizado and valor_normalizado not in orgaos_existentes:
+                    if adicionar_orgao_judicial(valor_normalizado):
+                        st.success(f"🆕 Novo órgão '{valor_normalizado}' salvo permanentemente!")
+                    nova_linha[col] = valor_normalizado  # Usar valor normalizado
+        
         # Validações
         cpf_valor = nova_linha.get("CPF", "")
         cpf_numeros = ''.join([c for c in cpf_valor if c.isdigit()])
@@ -1145,7 +1519,7 @@ def interface_visualizar_dados(df):
 
     # Filtros para visualização
     st.markdown("### 🔍 Filtros")
-    col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
+    col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
     
     with col_filtro1:
         status_unicos = df["Status"].dropna().unique() if "Status" in df.columns else []
@@ -1156,6 +1530,21 @@ def interface_visualizar_dados(df):
         usuario_filtro = st.multiselect("Cadastrado Por:", options=usuarios_unicos, default=usuarios_unicos)
     
     with col_filtro3:
+        # Filtro por órgão judicial (incluindo novos órgãos salvos)
+        if "Orgao Judicial" in df.columns:
+            orgaos_df = df["Orgao Judicial"].dropna().unique()
+            orgaos_salvos = obter_orgaos_judiciais()  # Inclui novos órgãos salvos
+            
+            # Combina órgãos do DF com órgãos salvos
+            orgaos_todos = list(set(list(orgaos_df) + orgaos_salvos))
+            orgaos_todos = [o for o in orgaos_todos if o and str(o) != 'nan']
+            orgaos_todos = sorted(orgaos_todos)
+            
+            orgao_filtro = st.multiselect("Órgão Judicial:", options=orgaos_todos, default=orgaos_todos)
+        else:
+            orgao_filtro = []
+    
+    with col_filtro4:
         # a) Alinhamento vertical do checkbox
         st.markdown("<br>", unsafe_allow_html=True)
         mostrar_todas_colunas = st.checkbox("Mostrar todas as colunas", value=False)
@@ -1165,6 +1554,9 @@ def interface_visualizar_dados(df):
     if status_filtro and "Status" in df.columns:
         df_visualizado = df_visualizado[df_visualizado["Status"].isin(status_filtro)]
     if usuario_filtro and "Cadastrado Por" in df.columns:
+        df_visualizado = df_visualizado[df_visualizado["Cadastrado Por"].isin(usuario_filtro)]
+    if orgao_filtro and "Orgao Judicial" in df.columns:
+        df_visualizado = df_visualizado[df_visualizado["Orgao Judicial"].isin(orgao_filtro)]
         df_visualizado = df_visualizado[df_visualizado["Cadastrado Por"].isin(usuario_filtro)]
     
     # Selecionar colunas para exibir
@@ -1255,7 +1647,9 @@ def confirmar_exclusao_massa_alvaras(df, processos_selecionados):
         # Mostrar processos que serão excluídos
         st.markdown(f"### Você está prestes a excluir **{len(processos_selecionados)}** processo(s):")
         
-        processos_para_excluir = df[df["ID"].isin(processos_selecionados)]
+        # Converter IDs para string para garantir comparação correta
+        processos_selecionados_str = [str(pid) for pid in processos_selecionados]
+        processos_para_excluir = df[df["ID"].astype(str).isin(processos_selecionados_str)]
         
         for _, processo in processos_para_excluir.iterrows():
             st.markdown(f"- **{processo.get('Processo', 'N/A')}** - {processo.get('Parte', 'N/A')}")
@@ -1280,9 +1674,12 @@ def confirmar_exclusao_massa_alvaras(df, processos_selecionados):
                         usuario=usuario_atual
                     )
                 
+                # Converter IDs para o mesmo tipo para garantir comparação
+                processos_selecionados_str = [str(pid) for pid in processos_selecionados]
+                
                 # Remover processos do DataFrame
                 st.session_state.df_editado_alvaras = st.session_state.df_editado_alvaras[
-                    ~st.session_state.df_editado_alvaras["ID"].isin(processos_selecionados)
+                    ~st.session_state.df_editado_alvaras["ID"].astype(str).isin(processos_selecionados_str)
                 ].reset_index(drop=True)
                 
                 # Salvar no GitHub

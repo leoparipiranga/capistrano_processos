@@ -208,6 +208,34 @@ def garantir_coluna_id(df, coluna_id="ID"):
 # FUNÇÕES GITHUB API
 # =====================================
 
+def verificar_token_github():
+    """Verifica se o token do GitHub está válido"""
+    try:
+        headers = {
+            "Authorization": f'token {st.secrets["github"]["token"]}',
+            "Accept": "application/vnd.github+json"
+        }
+        
+        # Testar com endpoint simples
+        test_url = f"https://api.github.com/repos/{st.secrets['github']['repo_owner']}/{st.secrets['github']['repo_name']}"
+        r = requests.get(test_url, headers=headers)
+        
+        if r.status_code == 401:
+            st.error("❌ Token do GitHub expirado ou inválido. Contate o administrador para renovar o token.")
+            return False
+        elif r.status_code == 403:
+            st.error("❌ Token do GitHub sem permissões suficientes.")
+            return False
+        elif r.status_code == 200:
+            return True
+        else:
+            st.warning(f"⚠️ Status inesperado do GitHub: {r.status_code}")
+            return False
+            
+    except Exception as e:
+        st.error(f"❌ Erro ao verificar token: {e}")
+        return False
+
 def get_github_api_info(filename):
     """Obtém informações da API do GitHub"""
     repo_owner = st.secrets["github"]["repo_owner"]
@@ -219,6 +247,12 @@ def get_github_api_info(filename):
 def load_data_from_github(filename):
     """Carrega dados do GitHub com garantia de ID único"""
     try:
+        # Verificar token primeiro
+        if not verificar_token_github():
+            st.error("❌ Token do GitHub inválido. Usando dados locais temporários.")
+            df_vazio = criar_dataframe_vazio_por_tipo(filename)
+            return df_vazio, None
+        
         api_url, branch = get_github_api_info(filename)
         headers = {
             "Authorization": f'token {st.secrets["github"]["token"]}',
@@ -293,6 +327,12 @@ def criar_dataframe_vazio_por_tipo(filename):
 def save_data_to_github_seguro(df, filename, session_state_key):
     """Salva DataFrame no GitHub com recarga automática do SHA"""
     try:
+        # Verificar token primeiro
+        if not verificar_token_github():
+            st.error("❌ Token do GitHub inválido. Salvamento cancelado.")
+            st.info("💡 Contate o administrador para renovar o token do GitHub.")
+            return None
+        
         # SEMPRE RECARREGAR SHA ANTES DE SALVAR
         df_atual, sha_atual = load_data_from_github(filename)
         

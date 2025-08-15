@@ -13,3 +13,16 @@ venv/
 
 # VS Code
 .vscode/
+
+# Arquivos de teste
+test_*.py
+teste_*.py
+
+# Arquivos temporários e logs
+*.log
+*.tmp
+*~
+.DS_Store
+
+# Arquivos locais de backup do autocomplete
+autocomplete_data_local.json
