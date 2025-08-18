@@ -6,11 +6,10 @@ import io
 import base64
 from datetime import datetime
 import math
-from streamlit_tags import st_tags
 from components.autocomplete_manager import (
-    inicializar_autocomplete_session, 
-    adicionar_assunto_beneficio, 
-    carregar_dados_autocomplete
+    inicializar_autocomplete_session,
+    adicionar_assunto_beneficio,
+    campo_assunto_beneficio
 )
 from components.functions_controle import (
     # Funções GitHub
@@ -746,16 +745,17 @@ def interface_cadastro_beneficio(df, perfil_usuario):
                 help="Selecione o tipo de benefício ou processo."
             )
             
-            # Campo de assunto com autocomplete
-            assuntos_disponiveis = obter_assuntos_beneficios()
-            assunto_selecionado = st_tags(
+            # Campo de assunto com nova interface
+            assunto_selecionado = campo_assunto_beneficio(
                 label="ASSUNTO *",
-                text="Digite e pressione Enter para adicionar novo assunto",
-                value=[],
-                suggestions=assuntos_disponiveis,
-                maxtags=1,
-                key=f"assunto_beneficio_{st.session_state.form_reset_counter_beneficios}"
+                key_prefix=f"beneficio_{st.session_state.form_reset_counter_beneficios}"
             )
+            
+            # Converter para lista para manter compatibilidade
+            if assunto_selecionado:
+                assunto_selecionado = [assunto_selecionado]
+            else:
+                assunto_selecionado = []
         
         with col2:
             data_liminar = st.date_input(

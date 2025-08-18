@@ -6,11 +6,12 @@ import base64
 import math
 import re
 from datetime import datetime
-from streamlit_tags import st_tags
 from components.autocomplete_manager import (
     inicializar_autocomplete_session, 
     adicionar_assunto_rpv, 
     adicionar_orgao_rpv,
+    campo_orgao_rpv,
+    campo_assunto_rpv,
     carregar_dados_autocomplete
 )
 from components.functions_controle import (
@@ -1207,51 +1208,23 @@ def interface_cadastro_rpv(df, perfil_usuario):
         beneficiario = st.text_input("Beneficiário:", key=beneficiario_key)
         cpf = st.text_input("CPF:", key=cpf_key)
         
-        # Campo Assunto com autocomplete
-        assuntos_disponiveis = obter_assuntos_rpv()
-        assunto_selecionado = st_tags(
+        # Campo Assunto com nova interface
+        assunto_selecionado = campo_assunto_rpv(
             label="Assunto:",
-            text="Digite ou selecione o assunto...",
-            value=[],
-            suggestions=assuntos_disponiveis,
-            maxtags=1,
-            key="new_rpv_assunto"
+            key_prefix="new_rpv_assunto"
         )
         
-        # Processar assunto selecionado e salvar se for novo
-        assunto_final = ""
-        if assunto_selecionado and len(assunto_selecionado) > 0:
-            assunto_processado = normalizar_assunto_rpv(assunto_selecionado[0])
-            
-            # Se não está na lista, adicionar automaticamente
-            if assunto_processado and assunto_processado not in assuntos_disponiveis:
-                if adicionar_assunto_rpv(assunto_processado):
-                    st.success(f"🆕 Novo assunto '{assunto_processado}' adicionado à lista!")
-            
-            assunto_final = assunto_processado
+        # Converter para formato compatível
+        assunto_final = assunto_selecionado if assunto_selecionado else ""
         
-        # Campo Órgão Judicial com autocomplete
-        orgaos_disponiveis = obter_orgaos_rpv()
-        orgao_selecionado = st_tags(
-            label="Orgao Judicial:",
-            text="Digite ou selecione o orgao judicial...",
-            value=[],
-            suggestions=orgaos_disponiveis,
-            maxtags=1,
-            key="new_rpv_orgao"
+        # Campo Órgão Judicial com nova interface
+        orgao_selecionado = campo_orgao_rpv(
+            label="Órgão Judicial:",
+            key_prefix="new_rpv_orgao"
         )
         
-        # Processar órgão selecionado e salvar se for novo
-        orgao_final = ""
-        if orgao_selecionado and len(orgao_selecionado) > 0:
-            orgao_processado = normalizar_orgao_rpv(orgao_selecionado[0])
-            
-            # Se não está na lista, adicionar automaticamente
-            if orgao_processado and orgao_processado not in orgaos_disponiveis:
-                if adicionar_orgao_rpv(orgao_processado):
-                    st.success(f"🆕 Novo órgão '{orgao_processado}' adicionado à lista!")
-            
-            orgao_final = orgao_processado
+        # Converter para formato compatível
+        orgao_final = orgao_selecionado if orgao_selecionado else ""
         
         solicitar_certidao = st.selectbox(
             "Solicitar Certidão?",

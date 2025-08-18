@@ -7,11 +7,10 @@ from datetime import datetime
 import math
 import unicodedata
 from streamlit_js_eval import streamlit_js_eval
-from streamlit_tags import st_tags
 from components.autocomplete_manager import (
-    inicializar_autocomplete_session, 
-    adicionar_orgao_judicial, 
-    carregar_dados_autocomplete
+    inicializar_autocomplete_session,
+    adicionar_orgao_judicial,
+    campo_orgao_judicial
 )
 
 # =====================================
@@ -1335,27 +1334,14 @@ def interface_cadastro_alvara(df, perfil_usuario):
                     valor = ''.join([c for c in valor_raw if not c.isalpha()])
 
                 elif col == "Órgão Judicial":
-                    # Campo de autocomplete usando streamlit-tags
-                    orgaos_disponiveis = obter_orgaos_judiciais()
-                    
-                    orgao_selecionado = st_tags(
+                    # Campo selectbox + botão usando nova interface
+                    valor = campo_orgao_judicial(
                         label=f"{col}",
-                        text="Digite e pressione Enter para adicionar novo órgão",
-                        value=[],
-                        suggestions=orgaos_disponiveis,
-                        maxtags=1,
-                        key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}"
+                        key_prefix=f"alvaras_{st.session_state.form_reset_counter_alvaras}"
                     )
                     
-                    # Processar o valor selecionado
-                    if orgao_selecionado and len(orgao_selecionado) > 0:
-                        valor = normalizar_orgao_judicial(orgao_selecionado[0])
-                        
-                        # Se não está na lista, adicionar automaticamente
-                        if valor and valor not in obter_orgaos_judiciais():
-                            adicionar_orgao_judicial(valor)
-                            st.success(f"🆕 Novo órgão '{valor}' adicionado à lista!")
-                    else:
+                    # Se retornou vazio, não preencher o campo
+                    if not valor:
                         valor = ""
                 
                 nova_linha[col] = valor
