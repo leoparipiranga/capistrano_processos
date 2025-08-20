@@ -182,6 +182,98 @@ def adicionar_orgao_rpv(novo_orgao):
     
     return False
 
+def remover_orgao_judicial(orgao_para_remover):
+    """Remove um órgão judicial da lista permanentemente"""
+    if not orgao_para_remover or orgao_para_remover.strip() == "":
+        return False
+        
+    # Normaliza o órgão
+    import unicodedata
+    orgao_normalizado = unicodedata.normalize('NFD', orgao_para_remover.upper().strip())
+    orgao_normalizado = ''.join(c for c in orgao_normalizado if unicodedata.category(c) != 'Mn')
+    
+    # Carrega dados atuais
+    dados = carregar_dados_autocomplete()
+    
+    # Remove se existir
+    if orgao_normalizado in dados["orgaos_judiciais"]:
+        dados["orgaos_judiciais"].remove(orgao_normalizado)
+        
+        # Salva no arquivo
+        if salvar_dados_autocomplete(dados):
+            return True
+    
+    return False
+
+def remover_assunto_beneficio(assunto_para_remover):
+    """Remove um assunto de benefício da lista permanentemente"""
+    if not assunto_para_remover or assunto_para_remover.strip() == "":
+        return False
+        
+    # Normaliza o assunto
+    import unicodedata
+    assunto_normalizado = unicodedata.normalize('NFD', assunto_para_remover.upper().strip())
+    assunto_normalizado = ''.join(c for c in assunto_normalizado if unicodedata.category(c) != 'Mn')
+    
+    # Carrega dados atuais
+    dados = carregar_dados_autocomplete()
+    
+    # Remove se existir
+    if assunto_normalizado in dados["assuntos_beneficios"]:
+        dados["assuntos_beneficios"].remove(assunto_normalizado)
+        
+        # Salva no arquivo
+        if salvar_dados_autocomplete(dados):
+            return True
+    
+    return False
+
+def remover_assunto_rpv(assunto_para_remover):
+    """Remove um assunto de RPV da lista permanentemente"""
+    if not assunto_para_remover or assunto_para_remover.strip() == "":
+        return False
+        
+    # Normaliza o assunto
+    import unicodedata
+    assunto_normalizado = unicodedata.normalize('NFD', assunto_para_remover.upper().strip())
+    assunto_normalizado = ''.join(c for c in assunto_normalizado if unicodedata.category(c) != 'Mn')
+    
+    # Carrega dados atuais
+    dados = carregar_dados_autocomplete()
+    
+    # Remove se existir
+    if assunto_normalizado in dados["assuntos_rpv"]:
+        dados["assuntos_rpv"].remove(assunto_normalizado)
+        
+        # Salva no arquivo
+        if salvar_dados_autocomplete(dados):
+            return True
+    
+    return False
+
+def remover_orgao_rpv(orgao_para_remover):
+    """Remove um órgão de RPV da lista permanentemente"""
+    if not orgao_para_remover or orgao_para_remover.strip() == "":
+        return False
+        
+    # Normaliza o órgão
+    import unicodedata
+    orgao_normalizado = unicodedata.normalize('NFD', orgao_para_remover.upper().strip())
+    orgao_normalizado = ''.join(c for c in orgao_normalizado if unicodedata.category(c) != 'Mn')
+    
+    # Carrega dados atuais
+    dados = carregar_dados_autocomplete()
+    
+    # Remove se existir
+    if orgao_normalizado in dados["orgaos_rpv"]:
+        dados["orgaos_rpv"].remove(orgao_normalizado)
+        
+        # Salva no arquivo
+        if salvar_dados_autocomplete(dados):
+            return True
+    
+    return False
+
 def inicializar_autocomplete_session():
     """Inicializa os dados de autocomplete na sessão carregando do arquivo persistente"""
     dados = carregar_dados_autocomplete()
@@ -240,18 +332,28 @@ def obter_orgaos_judiciais_completo():
 
 def obter_assuntos_beneficios_completo():
     """Obtém lista completa de assuntos de benefícios (padrão + salvos)"""
-    # Dados padrão
+    # Dados padrão (incluindo tipos de processo)
     ASSUNTOS_BENEFICIOS_BASE = [
-        "AUXÍLIO-DOENÇA",
+        # Tipos de processo principais
+        "LOAS",
+        "LOAS DEFICIENTE", 
+        "LOAS IDOSO",
+        "APOSENTADORIA POR INVALIDEZ",
         "APOSENTADORIA POR IDADE",
-        "APOSENTADORIA POR INVALIDEZ", 
-        "APOSENTADORIA ESPECIAL",
-        "AUXÍLIO-ACIDENTE",
+        "AUXÍLIO DOENÇA",
+        "AUXÍLIO ACIDENTE",
         "PENSÃO POR MORTE",
-        "SALÁRIO-MATERNIDADE",
+        "SALÁRIO MATERNIDADE",
+        "OUTROS",
+        # Assuntos específicos adicionais
+        "AUXÍLIO-DOENÇA",
+        "APOSENTADORIA ESPECIAL",
         "BENEFÍCIO DE PRESTAÇÃO CONTINUADA (BPC)",
         "REVISÃO DE BENEFÍCIO",
-        "DIFERENÇAS DE APOSENTADORIA"
+        "DIFERENÇAS DE APOSENTADORIA",
+        "ABONO ANUAL (13º SALÁRIO)",
+        "AUXÍLIO-ALIMENTAÇÃO",
+        "LICENÇA-PRÊMIO"
     ]
     
     # Dados salvos
@@ -316,7 +418,7 @@ def obter_orgaos_rpv_completo():
     return sorted(list(set(ORGAOS_RPV_BASE + orgaos_salvos)))
 
 def campo_orgao_judicial(label="🏛️ Órgão Judicial:", key_prefix="orgao"):
-    """Campo selectbox + botão para órgão judicial com opção de adicionar novo"""
+    """Campo selectbox + campo de texto para órgão judicial - Aparece imediatamente"""
     
     # Obter lista completa (padrão + salvos)
     orgaos_existentes = obter_orgaos_judiciais_completo()
@@ -324,66 +426,36 @@ def campo_orgao_judicial(label="🏛️ Órgão Judicial:", key_prefix="orgao"):
     # Adicionar opção especial
     opcoes = orgaos_existentes + ["➕ Adicionar novo órgão"]
     
-    col1, col2 = st.columns([3, 1])
+    orgao_selecionado = st.selectbox(
+        label,
+        opcoes,
+        key=f"select_{key_prefix}",
+        help="Selecione um órgão existente ou '➕ Adicionar novo órgão' para criar um novo"
+    )
     
-    with col1:
-        orgao_selecionado = st.selectbox(
-            label,
-            opcoes,
-            key=f"select_{key_prefix}"
-        )
-    
-    with col2:
-        # Botão só aparece se "Adicionar novo" foi selecionado
-        if orgao_selecionado == "➕ Adicionar novo órgão":
-            if st.button("➕ Novo", key=f"btn_novo_{key_prefix}"):
-                st.session_state[f"show_modal_{key_prefix}"] = True
-    
-    # Modal para adicionar novo
-    modal_key = f"show_modal_{key_prefix}"
-    if st.session_state.get(modal_key, False):
-        st.markdown("---")
-        st.markdown("**✏️ Adicionar Novo Órgão Judicial:**")
-        
-        novo_orgao = st.text_input(
-            "Digite o nome do novo órgão:", 
-            key=f"input_novo_{key_prefix}",
-            placeholder="Ex: TRF 5ª REGIÃO"
-        )
-        
-        col_modal1, col_modal2 = st.columns(2)
-        with col_modal1:
-            if st.button("✅ Salvar", key=f"salvar_{key_prefix}"):
-                if novo_orgao.strip():
-                    if adicionar_orgao_judicial(novo_orgao.strip()):
-                        st.session_state[modal_key] = False
-                        st.success(f"✅ '{novo_orgao}' adicionado com sucesso!")
-                        # Limpar o input
-                        if f"input_novo_{key_prefix}" in st.session_state:
-                            del st.session_state[f"input_novo_{key_prefix}"]
-                        st.rerun()
-                    else:
-                        st.error("❌ Erro ao adicionar órgão ou órgão já existe")
-                else:
-                    st.warning("⚠️ Digite um nome válido para o órgão")
-        
-        with col_modal2:
-            if st.button("❌ Cancelar", key=f"cancelar_{key_prefix}"):
-                st.session_state[modal_key] = False
-                # Limpar o input
-                if f"input_novo_{key_prefix}" in st.session_state:
-                    del st.session_state[f"input_novo_{key_prefix}"]
-                st.rerun()
-        
-        st.markdown("---")
-    
-    # Retorna o valor selecionado (ou vazio se for "adicionar novo")
+    # Se "Adicionar novo" foi selecionado, mostra campo de texto SEMPRE
     if orgao_selecionado == "➕ Adicionar novo órgão":
-        return ""
-    return orgao_selecionado
+        novo_orgao = st.text_input(
+            "📝 Digite o nome do novo órgão:",
+            key=f"input_novo_{key_prefix}",
+            placeholder="Ex: TRF 5ª REGIÃO",
+            help="Este órgão será adicionado automaticamente ao confirmar o formulário"
+        )
+        
+        if novo_orgao and novo_orgao.strip():
+            st.info(f"✏️ Novo órgão será adicionado: **{novo_orgao.strip()}**")
+            return novo_orgao.strip()
+        else:
+            if novo_orgao == "":  # Campo vazio (não foi digitado ainda)
+                return None
+            else:  # Campo foi tocado mas está vazio
+                st.warning("⚠️ Digite o nome do novo órgão antes de continuar")
+                return None
+    else:
+        return orgao_selecionado
 
 def campo_assunto_beneficio(label="📄 Assunto:", key_prefix="assunto_ben"):
-    """Campo selectbox + botão para assunto de benefício com opção de adicionar novo"""
+    """Campo selectbox + campo de texto para assunto de benefício - Aparece imediatamente"""
     
     # Obter lista completa (padrão + salvos)
     assuntos_existentes = obter_assuntos_beneficios_completo()
@@ -391,66 +463,36 @@ def campo_assunto_beneficio(label="📄 Assunto:", key_prefix="assunto_ben"):
     # Adicionar opção especial
     opcoes = assuntos_existentes + ["➕ Adicionar novo assunto"]
     
-    col1, col2 = st.columns([3, 1])
+    assunto_selecionado = st.selectbox(
+        label,
+        opcoes,
+        key=f"select_{key_prefix}",
+        help="Selecione um assunto existente ou '➕ Adicionar novo assunto' para criar um novo"
+    )
     
-    with col1:
-        assunto_selecionado = st.selectbox(
-            label,
-            opcoes,
-            key=f"select_{key_prefix}"
-        )
-    
-    with col2:
-        # Botão só aparece se "Adicionar novo" foi selecionado
-        if assunto_selecionado == "➕ Adicionar novo assunto":
-            if st.button("➕ Novo", key=f"btn_novo_{key_prefix}"):
-                st.session_state[f"show_modal_{key_prefix}"] = True
-    
-    # Modal para adicionar novo
-    modal_key = f"show_modal_{key_prefix}"
-    if st.session_state.get(modal_key, False):
-        st.markdown("---")
-        st.markdown("**✏️ Adicionar Novo Assunto de Benefício:**")
-        
-        novo_assunto = st.text_input(
-            "Digite o nome do novo assunto:", 
-            key=f"input_novo_{key_prefix}",
-            placeholder="Ex: AUXÍLIO EMERGENCIAL"
-        )
-        
-        col_modal1, col_modal2 = st.columns(2)
-        with col_modal1:
-            if st.button("✅ Salvar", key=f"salvar_{key_prefix}"):
-                if novo_assunto.strip():
-                    if adicionar_assunto_beneficio(novo_assunto.strip()):
-                        st.session_state[modal_key] = False
-                        st.success(f"✅ '{novo_assunto}' adicionado com sucesso!")
-                        # Limpar o input
-                        if f"input_novo_{key_prefix}" in st.session_state:
-                            del st.session_state[f"input_novo_{key_prefix}"]
-                        st.rerun()
-                    else:
-                        st.error("❌ Erro ao adicionar assunto ou assunto já existe")
-                else:
-                    st.warning("⚠️ Digite um nome válido para o assunto")
-        
-        with col_modal2:
-            if st.button("❌ Cancelar", key=f"cancelar_{key_prefix}"):
-                st.session_state[modal_key] = False
-                # Limpar o input
-                if f"input_novo_{key_prefix}" in st.session_state:
-                    del st.session_state[f"input_novo_{key_prefix}"]
-                st.rerun()
-        
-        st.markdown("---")
-    
-    # Retorna o valor selecionado (ou vazio se for "adicionar novo")
+    # Se "Adicionar novo" foi selecionado, mostra campo de texto SEMPRE
     if assunto_selecionado == "➕ Adicionar novo assunto":
-        return ""
-    return assunto_selecionado
+        novo_assunto = st.text_input(
+            "📝 Digite o nome do novo assunto:",
+            key=f"input_novo_{key_prefix}",
+            placeholder="Ex: AUXÍLIO EMERGENCIAL",
+            help="Este assunto será adicionado automaticamente ao confirmar o formulário"
+        )
+        
+        if novo_assunto and novo_assunto.strip():
+            st.info(f"✏️ Novo assunto será adicionado: **{novo_assunto.strip()}**")
+            return novo_assunto.strip()
+        else:
+            if novo_assunto == "":  # Campo vazio (não foi digitado ainda)
+                return None
+            else:  # Campo foi tocado mas está vazio
+                st.warning("⚠️ Digite o nome do novo assunto antes de continuar")
+                return None
+    else:
+        return assunto_selecionado
 
 def campo_assunto_rpv(label="📄 Assunto:", key_prefix="assunto_rpv"):
-    """Campo selectbox + botão para assunto de RPV com opção de adicionar novo"""
+    """Campo selectbox + campo de texto para assunto de RPV - Aparece imediatamente"""
     
     # Obter lista completa (padrão + salvos)
     assuntos_existentes = obter_assuntos_rpv_completo()
@@ -458,66 +500,36 @@ def campo_assunto_rpv(label="📄 Assunto:", key_prefix="assunto_rpv"):
     # Adicionar opção especial
     opcoes = assuntos_existentes + ["➕ Adicionar novo assunto"]
     
-    col1, col2 = st.columns([3, 1])
+    assunto_selecionado = st.selectbox(
+        label,
+        opcoes,
+        key=f"select_{key_prefix}",
+        help="Selecione um assunto existente ou '➕ Adicionar novo assunto' para criar um novo"
+    )
     
-    with col1:
-        assunto_selecionado = st.selectbox(
-            label,
-            opcoes,
-            key=f"select_{key_prefix}"
-        )
-    
-    with col2:
-        # Botão só aparece se "Adicionar novo" foi selecionado
-        if assunto_selecionado == "➕ Adicionar novo assunto":
-            if st.button("➕ Novo", key=f"btn_novo_{key_prefix}"):
-                st.session_state[f"show_modal_{key_prefix}"] = True
-    
-    # Modal para adicionar novo
-    modal_key = f"show_modal_{key_prefix}"
-    if st.session_state.get(modal_key, False):
-        st.markdown("---")
-        st.markdown("**✏️ Adicionar Novo Assunto de RPV:**")
-        
-        novo_assunto = st.text_input(
-            "Digite o nome do novo assunto:", 
-            key=f"input_novo_{key_prefix}",
-            placeholder="Ex: PRECATÓRIO FEDERAL"
-        )
-        
-        col_modal1, col_modal2 = st.columns(2)
-        with col_modal1:
-            if st.button("✅ Salvar", key=f"salvar_{key_prefix}"):
-                if novo_assunto.strip():
-                    if adicionar_assunto_rpv(novo_assunto.strip()):
-                        st.session_state[modal_key] = False
-                        st.success(f"✅ '{novo_assunto}' adicionado com sucesso!")
-                        # Limpar o input
-                        if f"input_novo_{key_prefix}" in st.session_state:
-                            del st.session_state[f"input_novo_{key_prefix}"]
-                        st.rerun()
-                    else:
-                        st.error("❌ Erro ao adicionar assunto ou assunto já existe")
-                else:
-                    st.warning("⚠️ Digite um nome válido para o assunto")
-        
-        with col_modal2:
-            if st.button("❌ Cancelar", key=f"cancelar_{key_prefix}"):
-                st.session_state[modal_key] = False
-                # Limpar o input
-                if f"input_novo_{key_prefix}" in st.session_state:
-                    del st.session_state[f"input_novo_{key_prefix}"]
-                st.rerun()
-        
-        st.markdown("---")
-    
-    # Retorna o valor selecionado (ou vazio se for "adicionar novo")
+    # Se "Adicionar novo" foi selecionado, mostra campo de texto SEMPRE
     if assunto_selecionado == "➕ Adicionar novo assunto":
-        return ""
-    return assunto_selecionado
+        novo_assunto = st.text_input(
+            "📝 Digite o nome do novo assunto:",
+            key=f"input_novo_{key_prefix}",
+            placeholder="Ex: PRECATÓRIO FEDERAL",
+            help="Este assunto será adicionado automaticamente ao confirmar o formulário"
+        )
+        
+        if novo_assunto and novo_assunto.strip():
+            st.info(f"✏️ Novo assunto será adicionado: **{novo_assunto.strip()}**")
+            return novo_assunto.strip()
+        else:
+            if novo_assunto == "":  # Campo vazio (não foi digitado ainda)
+                return None
+            else:  # Campo foi tocado mas está vazio
+                st.warning("⚠️ Digite o nome do novo assunto antes de continuar")
+                return None
+    else:
+        return assunto_selecionado
 
 def campo_orgao_rpv(label="🏛️ Órgão Judicial:", key_prefix="orgao_rpv"):
-    """Campo selectbox + botão para órgão de RPV com opção de adicionar novo"""
+    """Campo selectbox + campo de texto para órgão de RPV - Aparece imediatamente"""
     
     # Obter lista completa (padrão + salvos)
     orgaos_existentes = obter_orgaos_rpv_completo()
@@ -525,60 +537,30 @@ def campo_orgao_rpv(label="🏛️ Órgão Judicial:", key_prefix="orgao_rpv"):
     # Adicionar opção especial
     opcoes = orgaos_existentes + ["➕ Adicionar novo órgão"]
     
-    col1, col2 = st.columns([3, 1])
+    orgao_selecionado = st.selectbox(
+        label,
+        opcoes,
+        key=f"select_{key_prefix}",
+        help="Selecione um órgão existente ou '➕ Adicionar novo órgão' para criar um novo"
+    )
     
-    with col1:
-        orgao_selecionado = st.selectbox(
-            label,
-            opcoes,
-            key=f"select_{key_prefix}"
-        )
-    
-    with col2:
-        # Botão só aparece se "Adicionar novo" foi selecionado
-        if orgao_selecionado == "➕ Adicionar novo órgão":
-            if st.button("➕ Novo", key=f"btn_novo_{key_prefix}"):
-                st.session_state[f"show_modal_{key_prefix}"] = True
-    
-    # Modal para adicionar novo
-    modal_key = f"show_modal_{key_prefix}"
-    if st.session_state.get(modal_key, False):
-        st.markdown("---")
-        st.markdown("**✏️ Adicionar Novo Órgão de RPV:**")
-        
-        novo_orgao = st.text_input(
-            "Digite o nome do novo órgão:", 
-            key=f"input_novo_{key_prefix}",
-            placeholder="Ex: TRF 2ª REGIÃO"
-        )
-        
-        col_modal1, col_modal2 = st.columns(2)
-        with col_modal1:
-            if st.button("✅ Salvar", key=f"salvar_{key_prefix}"):
-                if novo_orgao.strip():
-                    if adicionar_orgao_rpv(novo_orgao.strip()):
-                        st.session_state[modal_key] = False
-                        st.success(f"✅ '{novo_orgao}' adicionado com sucesso!")
-                        # Limpar o input
-                        if f"input_novo_{key_prefix}" in st.session_state:
-                            del st.session_state[f"input_novo_{key_prefix}"]
-                        st.rerun()
-                    else:
-                        st.error("❌ Erro ao adicionar órgão ou órgão já existe")
-                else:
-                    st.warning("⚠️ Digite um nome válido para o órgão")
-        
-        with col_modal2:
-            if st.button("❌ Cancelar", key=f"cancelar_{key_prefix}"):
-                st.session_state[modal_key] = False
-                # Limpar o input
-                if f"input_novo_{key_prefix}" in st.session_state:
-                    del st.session_state[f"input_novo_{key_prefix}"]
-                st.rerun()
-        
-        st.markdown("---")
-    
-    # Retorna o valor selecionado (ou vazio se for "adicionar novo")
+    # Se "Adicionar novo" foi selecionado, mostra campo de texto SEMPRE
     if orgao_selecionado == "➕ Adicionar novo órgão":
-        return ""
-    return orgao_selecionado
+        novo_orgao = st.text_input(
+            "📝 Digite o nome do novo órgão:",
+            key=f"input_novo_{key_prefix}",
+            placeholder="Ex: TRF 2ª REGIÃO",
+            help="Este órgão será adicionado automaticamente ao confirmar o formulário"
+        )
+        
+        if novo_orgao and novo_orgao.strip():
+            st.info(f"✏️ Novo órgão será adicionado: **{novo_orgao.strip()}**")
+            return novo_orgao.strip()
+        else:
+            if novo_orgao == "":  # Campo vazio (não foi digitado ainda)
+                return None
+            else:  # Campo foi tocado mas está vazio
+                st.warning("⚠️ Digite o nome do novo órgão antes de continuar")
+                return None
+    else:
+        return orgao_selecionado

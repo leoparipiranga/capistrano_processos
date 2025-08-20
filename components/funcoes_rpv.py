@@ -965,7 +965,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
         st.info("Anexe os comprovantes e preencha os valores para finalizar o processo.")
         
         # Checkbox para anexar múltiplos documentos
-        anexar_multiplos = st.checkbox("📎 Anexar múltiplos documentos", key=f"multiplos_rpv_{rpv_id}")
+        anexar_multiplos = st.checkbox("Anexar múltiplos documentos", key=f"multiplos_rpv_{rpv_id}")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -1245,7 +1245,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
         observacoes = st.text_area("Observações:", height=125, key=obs_key)
         
         # Checkbox para anexar múltiplos PDFs
-        anexar_multiplos_pdf = st.checkbox("📎 Anexar múltiplos PDFs", key=multiplos_key)
+        anexar_multiplos_pdf = st.checkbox("Anexar múltiplos PDFs", key=multiplos_key)
         
         # Usar keys diferentes para múltiplos vs único para evitar conflitos
         if anexar_multiplos_pdf:
@@ -1268,7 +1268,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
         
         # Processar assunto
         if assunto_selecionado and len(assunto_selecionado) > 0:
-            assunto_processado = normalizar_assunto_rpv(assunto_selecionado[0])
+            assunto_processado = normalizar_assunto_rpv(assunto_selecionado)
             assuntos_existentes = obter_assuntos_rpv()
             if assunto_processado and assunto_processado not in assuntos_existentes:
                 if adicionar_assunto_rpv(assunto_processado):
@@ -1277,7 +1277,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
         
         # Processar órgão
         if orgao_selecionado and len(orgao_selecionado) > 0:
-            orgao_processado = normalizar_orgao_rpv(orgao_selecionado[0])
+            orgao_processado = normalizar_orgao_rpv(orgao_selecionado)
             orgaos_existentes = obter_orgaos_rpv()
             if orgao_processado and orgao_processado not in orgaos_existentes:
                 if adicionar_orgao_rpv(orgao_processado):

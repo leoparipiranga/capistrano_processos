@@ -26,3 +26,4 @@ teste_*.py
 
 # Arquivos locais de backup do autocomplete
 autocomplete_data_local.json
+GOOGLE_DRIVE_TOKEN_HELP.md

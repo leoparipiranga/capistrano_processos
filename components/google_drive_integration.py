@@ -28,54 +28,56 @@ class GoogleDriveIntegration:
         self.service = None
         
     def get_credentials(self):
-        """Obter credenciais do Google Drive via secrets.toml com renovação automática"""
+        """Obter credenciais do Google Drive com renovação automática de tokens"""
         try:
-            if "google_drive" in st.secrets:
-                creds_info = dict(st.secrets["google_drive"])
+            if "google_drive" not in st.secrets:
+                st.error("❌ Configuração google_drive não encontrada")
+                return False
                 
-                # Campos obrigatórios (removido 'token' da lista)
-                required_fields = ['client_id', 'client_secret', 'refresh_token']
-                missing_fields = [field for field in required_fields if field not in creds_info]
-                
-                if missing_fields:
-                    st.error(f"❌ Campos obrigatórios ausentes: {missing_fields}")
-                    return False
-                
-                # Criar credenciais sem o token atual (será renovado automaticamente)
-                creds_data = {
-                    'client_id': creds_info['client_id'],
-                    'client_secret': creds_info['client_secret'],
-                    'refresh_token': creds_info['refresh_token'],
-                    'token_uri': creds_info.get('token_uri', 'https://oauth2.googleapis.com/token')
-                }
-                
-                # Se existir token atual, incluir (mas não é obrigatório)
-                if 'token' in creds_info:
-                    creds_data['token'] = creds_info['token']
-                
-                self.credentials = Credentials.from_authorized_user_info(creds_data, self.SCOPES)
-            else:
-                st.error("❌ Seção [google_drive] não encontrada no secrets.toml")
+            creds_info = dict(st.secrets["google_drive"])
+            
+            # Campos obrigatórios
+            required_fields = ['client_id', 'client_secret', 'refresh_token']
+            missing_fields = [field for field in required_fields if field not in creds_info]
+            
+            if missing_fields:
+                st.error(f"❌ Campos obrigatórios ausentes: {missing_fields}")
                 return False
             
-            # Verificar e renovar credenciais se necessário
-            if not self.credentials or not self.credentials.valid:
-                if self.credentials and self.credentials.refresh_token:
+            # Criar credenciais com refresh token
+            creds_data = {
+                'client_id': creds_info['client_id'],
+                'client_secret': creds_info['client_secret'],
+                'refresh_token': creds_info['refresh_token'],
+                'token_uri': creds_info.get('token_uri', 'https://oauth2.googleapis.com/token')
+            }
+            
+            # Incluir token atual se existir (opcional)
+            if 'token' in creds_info:
+                creds_data['token'] = creds_info['token']
+            
+            # Criar objeto de credenciais
+            self.credentials = Credentials.from_authorized_user_info(creds_data, self.SCOPES)
+            
+            # IMPORTANTE: Renovar automaticamente se necessário
+            if not self.credentials.valid:
+                if self.credentials.expired and self.credentials.refresh_token:
                     try:
-                        # Renovação silenciosa - mensagens apenas em caso de erro
                         self.credentials.refresh(Request())
-                        return True
-                    except Exception as e:
-                        st.error(f"❌ Erro ao renovar token: {str(e)}")
-                        st.info("💡 Possíveis soluções:")
-                        st.info("1. Remova a linha 'token' do secrets.toml")
-                        st.info("2. Ou gere um novo refresh_token")
+                        st.info("🔄 Token renovado automaticamente")
+                    except Exception as refresh_error:
+                        st.error(f"❌ Erro ao renovar token: {refresh_error}")
+                        st.error("💡 Dica: Gere um novo refresh token na aba 'Configurações'")
                         return False
                 else:
-                    st.error("❌ Refresh token não disponível")
+                    st.error("❌ Token inválido e sem refresh token")
                     return False
-                    
+            
             return True
+                
+        except Exception as e:
+            st.error(f"❌ Erro ao obter credenciais: {e}")
+            return False
             
         except Exception as e:
             st.error(f"❌ Erro nas credenciais: {str(e)}")

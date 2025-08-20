@@ -1,18 +1,8 @@
 {
   "orgaos_judiciais": [
-    "ATLAS",
-    "TRT 3ª REGIAO",
-    "ULYSSES"
+    "TESTE CADASTRO"
   ],
-  "assuntos_beneficios": [
-    "ALFASSESS",
-    "AUXILIO EMERGENCIAL"
-  ],
-  "assuntos_rpv": [
-    "PRECATORIO FEDERAL",
-    "ULYSSSES"
-  ],
-  "orgaos_rpv": [
-    "ATLAS"
-  ]
+  "assuntos_beneficios": [],
+  "assuntos_rpv": [],
+  "orgaos_rpv": []
 }

@@ -454,13 +454,13 @@ def baixar_arquivo_drive(url_arquivo, nome_display):
             if "(ID:" in str(url_arquivo):
                 file_id = str(url_arquivo).split("(ID:")[1].split(")")[0].strip()
                 drive_url = f"https://drive.google.com/file/d/{file_id}/view"
-                st.markdown(f"📎 **[{nome_display} - Visualizar no Drive]({drive_url})**")
+                st.markdown(f"**[{nome_display} - Visualizar no Drive]({drive_url})**")
             else:
-                st.markdown(f"📎 **{nome_display}** - {url_arquivo}")
+                st.markdown(f"**{nome_display}** - {url_arquivo}")
             return True
         else:
             # Link tradicional (GitHub ou outro)
-            st.markdown(f"📎 **[{nome_display}]({url_arquivo})**")
+            st.markdown(f"**[{nome_display}]({url_arquivo})**")
             return True
     return False
 
@@ -706,7 +706,7 @@ def interface_lista_alvaras(df, perfil_usuario):
 
 def interface_anexar_documentos(df, processo):
     """Interface para anexar comprovante e PDF do alvará"""
-    st.markdown(f"### 📎 Anexar Documentos - Processo: {processo}")
+    st.markdown(f"### Anexar Documentos - Processo: {processo}")
     
     # Buscar dados do processo
     linha_processo = df[df["Processo"] == processo].iloc[0]
@@ -716,7 +716,7 @@ def interface_anexar_documentos(df, processo):
         return
     
     # Checkbox para anexar múltiplos documentos
-    anexar_multiplos = st.checkbox("📎 Anexar múltiplos documentos", key=f"multiplos_{processo}")
+    anexar_multiplos = st.checkbox("Anexar múltiplos documentos", key=f"multiplos_{processo}")
     
     col_doc1, col_doc2 = st.columns(2)
     
@@ -928,7 +928,7 @@ def interface_cadastrador_fluxo(df):
         processos_pendentes = pd.DataFrame()
     
     if len(processos_pendentes) > 0:
-        st.markdown("#### 📎 Processos aguardando documentos:")
+        st.markdown("#### Processos aguardando documentos:")
         
         for _, processo in processos_pendentes.iterrows():
             with st.expander(f"📋 {processo['Processo']} - {processo['Parte']}"):

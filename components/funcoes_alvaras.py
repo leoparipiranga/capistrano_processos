@@ -501,7 +501,7 @@ def interface_lista_alvaras(df, perfil_usuario):
 
 def interface_anexar_documentos(df, processo):
     """Interface para anexar comprovante e PDF do alvará"""
-    st.markdown(f"### 📎 Anexar Documentos - Processo: {processo}")
+    st.markdown(f"### Anexar Documentos - Processo: {processo}")
     
     # Buscar dados do processo
     linha_processo = df[df["Processo"] == processo].iloc[0]
@@ -511,7 +511,7 @@ def interface_anexar_documentos(df, processo):
         return
     
     # Checkbox para múltiplos anexos
-    anexar_multiplos = st.checkbox("📎 Anexar múltiplos documentos", key=f"multiplos_alvara_{processo}")
+    anexar_multiplos = st.checkbox("Anexar múltiplos documentos", key=f"multiplos_alvara_{processo}")
     
     col_doc1, col_doc2 = st.columns(2)
     
@@ -655,7 +655,7 @@ def interface_acoes_financeiro(df_filtrado):
             with st.expander(f"Finalizar: {processo['Processo']} - {processo['Parte']}"):
                 # Checkbox para múltiplos comprovantes
                 anexar_multiplos_comp = st.checkbox(
-                    "📎 Anexar múltiplos comprovantes", 
+                    "Anexar múltiplos comprovantes", 
                     key=f"multiplos_comprovante_{processo['Processo']}"
                 )
                 
@@ -739,10 +739,10 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
     
     # ETAPA 2: Cadastrado -> Anexar documentos (Cadastrador ou Admin)
     if status_atual == "Cadastrado" and perfil_usuario in ["Cadastrador", "Admin"]:
-        st.markdown("#### 📎 Anexar Documentos")
+        st.markdown("#### Anexar Documentos")
         
         # Checkbox para anexar múltiplos documentos
-        anexar_multiplos = st.checkbox("📎 Anexar múltiplos documentos", key=f"multiplos_edicao_{alvara_id}")
+        anexar_multiplos = st.checkbox("Anexar múltiplos documentos", key=f"multiplos_edicao_{alvara_id}")
         
         col_doc1, col_doc2 = st.columns(2)
         
@@ -1016,7 +1016,7 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
                 st.markdown("**📄 Comprovante da Conta**")
                 if linha_processo.get("Comprovante Conta"):
                     from components.functions_controle import baixar_arquivo_drive
-                    baixar_arquivo_drive(linha_processo["Comprovante Conta"], "📎 Baixar Comprovante")
+                    baixar_arquivo_drive(linha_processo["Comprovante Conta"], "Baixar Comprovante")
                 else:
                     st.warning("❌ Comprovante não anexado")
             
@@ -1024,7 +1024,7 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
                 st.markdown("**📄 PDF do Alvará**")
                 if linha_processo.get("PDF Alvará"):
                     from components.functions_controle import baixar_arquivo_drive
-                    baixar_arquivo_drive(linha_processo["PDF Alvará"], "📎 Baixar PDF")
+                    baixar_arquivo_drive(linha_processo["PDF Alvará"], "Baixar PDF")
                 else:
                     st.warning("❌ PDF não anexado")
             
@@ -1070,12 +1070,12 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
         if linha_processo.get("Comprovante Recebimento"):
             st.success("✅ Comprovante de recebimento já anexado")
             from components.functions_controle import baixar_arquivo_drive
-            baixar_arquivo_drive(linha_processo["Comprovante Recebimento"], "📎 Ver Comprovante")
+            baixar_arquivo_drive(linha_processo["Comprovante Recebimento"], "Ver Comprovante")
         
-        st.markdown("**📎 Anexar Comprovante de Recebimento:**")
+        st.markdown("**Anexar Comprovante de Recebimento:**")
         
         # Checkbox para anexar múltiplos comprovantes
-        anexar_multiplos_recebimento = st.checkbox("📎 Anexar múltiplos comprovantes", key=f"multiplos_recebimento_{alvara_id}")
+        anexar_multiplos_recebimento = st.checkbox("Anexar múltiplos comprovantes", key=f"multiplos_recebimento_{alvara_id}")
         
         if anexar_multiplos_recebimento:
             comprovante_recebimento = st.file_uploader(
@@ -1196,7 +1196,7 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
             st.write(f"- Finalizado por: {linha_processo.get('Finalizado Por', 'N/A')}")
         
         # Documentos anexados
-        st.markdown("**📎 Documentos anexados:**")
+        st.markdown("**Documentos anexados:**")
         col_docs1, col_docs2, col_docs3 = st.columns(3)
         
         with col_docs1:
@@ -1287,132 +1287,132 @@ def interface_cadastro_alvara(df, perfil_usuario):
         "Observação Honorários": "Detalhes sobre os honorários sucumbenciais",
     }
     
-    with st.form(f"adicionar_linha_form_alvaras_{st.session_state.form_reset_counter_alvaras}"):
-        nova_linha = {}
-        aviso_letras = False
-        
-        # DEFINIR COLUNAS PARA CADA LADO DO FORMULÁRIO
-        colunas_esquerda = ["Processo", "Parte", "CPF", "Órgão Judicial"]
-        colunas_direita = ["Pagamento", "Observação pagamento", "Honorários Sucumbenciais", "Observação Honorários"]
+    # O st.form foi removido para permitir a atualização dinâmica dos widgets.
+    nova_linha = {}
+    aviso_letras = False
+    
+    # DEFINIR COLUNAS PARA CADA LADO DO FORMULÁRIO
+    colunas_esquerda = ["Processo", "Parte", "CPF", "Órgão Judicial"]
+    colunas_direita = ["Pagamento", "Observação pagamento", "Honorários Sucumbenciais", "Observação Honorários"]
 
-        col_form_1, col_form_2 = st.columns(2)
+    col_form_1, col_form_2 = st.columns(2)
 
-        # --- COLUNA ESQUERDA ---
-        with col_form_1:
-            for col in colunas_esquerda:
-                if col == "Processo":
-                    valor_raw = st.text_input(
-                        f"{col}",
-                        key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
-                        max_chars=50,
-                        help=hints.get(col, ""),
-                        placeholder="0000000-00.0000.0.00.0000"
-                    )
-                    if any(c.isalpha() for c in valor_raw):
-                        aviso_letras = True
-                    valor = ''.join([c for c in valor_raw if not c.isalpha()])
+    # --- COLUNA ESQUERDA ---
+    with col_form_1:
+        for col in colunas_esquerda:
+            if col == "Processo":
+                valor_raw = st.text_input(
+                    f"{col}",
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    max_chars=50,
+                    help=hints.get(col, ""),
+                    placeholder="0000000-00.0000.0.00.0000"
+                )
+                if any(c.isalpha() for c in valor_raw):
+                    aviso_letras = True
+                valor = ''.join([c for c in valor_raw if not c.isalpha()])
+            
+            elif col == "Parte":
+                valor = st.text_input(
+                    f"{col}",
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    max_chars=100,
+                    help=hints.get(col, ""),
+                    placeholder="NOME COMPLETO DA PARTE"
+                ).upper()
+
+            elif col == "CPF":
+                valor_raw = st.text_input(
+                    f"{col}",
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    max_chars=14,
+                    help=hints.get(col, ""),
+                    placeholder="000.000.000-00"
+                )
+                if any(c.isalpha() for c in valor_raw):
+                    aviso_letras = True
+                valor = ''.join([c for c in valor_raw if not c.isalpha()])
+
+            elif col == "Órgão Judicial":
+                # Campo selectbox + botão usando nova interface
+                valor = campo_orgao_judicial(
+                    label=f"{col}",
+                    key_prefix=f"alvaras_{st.session_state.form_reset_counter_alvaras}"
+                )
                 
-                elif col == "Parte":
-                    valor = st.text_input(
-                        f"{col}",
-                        key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
-                        max_chars=100,
-                        help=hints.get(col, ""),
-                        placeholder="NOME COMPLETO DA PARTE"
-                    ).upper()
+                # Se retornou vazio, não preencher o campo
+                if not valor:
+                    valor = ""
+            
+            nova_linha[col] = valor
 
-                elif col == "CPF":
-                    valor_raw = st.text_input(
-                        f"{col}",
-                        key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
-                        max_chars=14,
-                        help=hints.get(col, ""),
-                        placeholder="000.000.000-00"
-                    )
-                    if any(c.isalpha() for c in valor_raw):
-                        aviso_letras = True
-                    valor = ''.join([c for c in valor_raw if not c.isalpha()])
+    # --- COLUNA DIREITA ---
+    with col_form_2:
+        for col in colunas_direita:
+            if col == "Pagamento":
+                valor_raw = st.text_input(
+                    f"{col}",
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    max_chars=20,
+                    help=hints.get(col, ""),
+                    placeholder="1500.50"
+                )
+                valor_numerico = ''.join([c for c in valor_raw if c.isdigit() or c in '.,'])
+                if valor_numerico:
+                    valor_numerico = valor_numerico.replace(',', '.')
+                    try:
+                        float(valor_numerico)
+                        valor = f"R$ {valor_numerico}"
+                    except ValueError:
+                        valor = valor_numerico
+                else:
+                    valor = ""
+                if any(c.isalpha() for c in valor_raw):
+                    aviso_letras = True
 
-                elif col == "Órgão Judicial":
-                    # Campo selectbox + botão usando nova interface
-                    valor = campo_orgao_judicial(
-                        label=f"{col}",
-                        key_prefix=f"alvaras_{st.session_state.form_reset_counter_alvaras}"
-                    )
-                    
-                    # Se retornou vazio, não preencher o campo
-                    if not valor:
-                        valor = ""
-                
-                nova_linha[col] = valor
+            elif col == "Observação pagamento":
+                valor = st.text_area(
+                    f"{col}",
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    max_chars=200,
+                    help=hints.get(col, ""),
+                    placeholder="Detalhes sobre o pagamento...",
+                    height=100
+                )
+            
+            elif col == "Honorários Sucumbenciais":
+                honorarios_marcado = st.checkbox(
+                    "✅ Honorários Sucumbenciais",
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    help=hints.get(col, ""),
+                    value=False
+                )
+                valor = "Sim" if honorarios_marcado else "Não"
+            
+            elif col == "Observação Honorários":
+                valor = st.text_area(
+                    f"{col}",
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    max_chars=300,
+                    help=hints.get(col, "Detalhes sobre os honorários sucumbenciais (opcional)"),
+                    placeholder="Ex: Honorários de 10% sobre o valor da condenação...",
+                    height=100
+                )
+            
+            nova_linha[col] = valor
+    
+    # Aviso sobre letras removidas
+    if aviso_letras:
+        st.warning("⚠️ Letras foram removidas automaticamente dos campos numéricos")
 
-        # --- COLUNA DIREITA ---
-        with col_form_2:
-            for col in colunas_direita:
-                if col == "Pagamento":
-                    valor_raw = st.text_input(
-                        f"{col}",
-                        key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
-                        max_chars=20,
-                        help=hints.get(col, ""),
-                        placeholder="1500.50"
-                    )
-                    valor_numerico = ''.join([c for c in valor_raw if c.isdigit() or c in '.,'])
-                    if valor_numerico:
-                        valor_numerico = valor_numerico.replace(',', '.')
-                        try:
-                            float(valor_numerico)
-                            valor = f"R$ {valor_numerico}"
-                        except ValueError:
-                            valor = valor_numerico
-                    else:
-                        valor = ""
-                    if any(c.isalpha() for c in valor_raw):
-                        aviso_letras = True
-
-                elif col == "Observação pagamento":
-                    valor = st.text_area(
-                        f"{col}",
-                        key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
-                        max_chars=200,
-                        help=hints.get(col, ""),
-                        placeholder="Detalhes sobre o pagamento...",
-                        height=100
-                    )
-                
-                elif col == "Honorários Sucumbenciais":
-                    honorarios_marcado = st.checkbox(
-                        "✅ Honorários Sucumbenciais",
-                        key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
-                        help=hints.get(col, ""),
-                        value=False
-                    )
-                    valor = "Sim" if honorarios_marcado else "Não"
-                
-                elif col == "Observação Honorários":
-                    valor = st.text_area(
-                        f"{col}",
-                        key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
-                        max_chars=300,
-                        help=hints.get(col, "Detalhes sobre os honorários sucumbenciais (opcional)"),
-                        placeholder="Ex: Honorários de 10% sobre o valor da condenação...",
-                        height=100
-                    )
-                
-                nova_linha[col] = valor
-        
-        # Aviso sobre letras removidas
-        if aviso_letras:
-            st.warning("⚠️ Letras foram removidas automaticamente dos campos numéricos")
-
-        # Validação antes de submeter (REMOVIDA)
-        submitted = st.form_submit_button("📝 Adicionar Linha", type="primary", use_container_width=True)
+    # Validação antes de submeter (REMOVIDA)
+    submitted = st.button("📝 Adicionar Linha", type="primary", use_container_width=True)
         
     # Lógica de submissão
     if submitted:
         # Primeiro, processar e salvar novos valores de autocomplete
         for col, valor in nova_linha.items():
-            if col == "Orgao Judicial" and valor:
+            if col == "Órgão Judicial" and valor:
                 # Normalizar e verificar se é um novo órgão
                 valor_normalizado = normalizar_orgao_judicial(valor)
                 orgaos_existentes = obter_orgaos_judiciais()

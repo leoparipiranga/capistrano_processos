@@ -615,6 +615,11 @@ else:
                 limpar_estados_dialogos()
                 st.session_state.pagina_atual = "log_exclusoes"
                 st.rerun()
+                
+            if st.button("🗂️ Gerenciar Autocomplete", key='gerenciar_autocomplete', use_container_width=True):
+                limpar_estados_dialogos()
+                st.session_state.pagina_atual = "gerenciar_autocomplete"
+                st.rerun()
 
     # CONTEÚDO DAS PÁGINAS
     if st.session_state.pagina_atual == "processo_alvaras":
@@ -632,5 +637,8 @@ else:
     elif st.session_state.pagina_atual == "log_exclusoes":
         from components.log_exclusoes import visualizar_log_exclusoes
         visualizar_log_exclusoes()
+    elif st.session_state.pagina_atual == "gerenciar_autocomplete":
+        from components.gerenciar_autocomplete import interface_gerenciamento_autocomplete
+        interface_gerenciamento_autocomplete()
     elif st.session_state.pagina_atual == "guia_utilizacao":
         mostrar_guia_utilizacao()

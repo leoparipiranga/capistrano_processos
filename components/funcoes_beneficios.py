@@ -717,105 +717,91 @@ def interface_cadastro_beneficio(df, perfil_usuario):
         
         st.markdown("---")
 
-    with st.form(f"adicionar_linha_form_beneficios_{st.session_state.form_reset_counter_beneficios}"):
-        col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        processo = st.text_input(
+            "Nº DO PROCESSO *",
+            placeholder="0000000-00.0000.0.00.0000",
+            help="Ex: 0000000-00.0000.0.00.0000"
+        )
+        parte = st.text_input(
+            "PARTE *",
+            placeholder="Nome completo do beneficiário",
+            help="O nome será convertido para maiúsculas automaticamente."
+        ).upper()
+        cpf = st.text_input(
+            "CPF *",
+            placeholder="000.000.000-00",
+            help="Digite apenas os números.",
+            max_chars=14
+        )
         
-        with col1:
-            processo = st.text_input(
-                "Nº DO PROCESSO *",
-                placeholder="0000000-00.0000.0.00.0000",
-                help="Ex: 0000000-00.0000.0.00.0000"
-            )
-            parte = st.text_input(
-                "PARTE *",
-                placeholder="Nome completo do beneficiário",
-                help="O nome será convertido para maiúsculas automaticamente."
-            ).upper()
-            cpf = st.text_input(
-                "CPF *",
-                placeholder="000.000.000-00",
-                help="Digite apenas os números.",
-                max_chars=14
-            )
-            tipo_processo = st.selectbox(
-                "TIPO DE PROCESSO *",
-                ["", "LOAS", "LOAS DEFICIENTE", "LOAS IDOSO", "Aposentadoria por Invalidez", 
-                 "Aposentadoria por Idade", "Auxílio Doença", "Auxílio Acidente", 
-                 "Pensão por Morte", "Salário Maternidade", "Outros"],
-                help="Selecione o tipo de benefício ou processo."
-            )
-            
-            # Campo de assunto com nova interface
-            assunto_selecionado = campo_assunto_beneficio(
-                label="ASSUNTO *",
-                key_prefix=f"beneficio_{st.session_state.form_reset_counter_beneficios}"
-            )
-            
-            # Converter para lista para manter compatibilidade
-            if assunto_selecionado:
-                assunto_selecionado = [assunto_selecionado]
-            else:
-                assunto_selecionado = []
+        # Campo de assunto (que agora inclui tipos de processo)
+        assunto_selecionado = campo_assunto_beneficio(
+            label="ASSUNTO/TIPO DE PROCESSO *",
+            key_prefix=f"beneficio_{st.session_state.form_reset_counter_beneficios}"
+        )
+    
+    with col2:
+        data_liminar = st.date_input(
+            "DATA DA CONCESSÃO DA LIMINAR",
+            value=None,
+            help="Opcional: Data em que a liminar foi concedida.",
+            format="DD/MM/YYYY"
+        )
+        prazo_fatal = st.date_input(
+            "PROVÁVEL PRAZO FATAL PARA CUMPRIMENTO",
+            value=None,
+            help="Opcional: Prazo final para o cumprimento da obrigação.",
+            format="DD/MM/YYYY"
+        )
+        percentual_cobrado = st.number_input(
+            "PERCENTUAL COBRADO (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=30.0,
+            step=0.1,
+            help="Percentual de honorários cobrado do cliente (padrão: 30%)"
+        )
+        observacoes = st.text_area(
+            "OBSERVAÇÕES",
+            placeholder="Detalhes importantes sobre o caso...",
+            height=100
+        )
         
-        with col2:
-            data_liminar = st.date_input(
-                "DATA DA CONCESSÃO DA LIMINAR",
-                value=None,
-                help="Opcional: Data em que a liminar foi concedida.",
-                format="DD/MM/YYYY"
-            )
-            prazo_fatal = st.date_input(
-                "PROVÁVEL PRAZO FATAL PARA CUMPRIMENTO",
-                value=None,
-                help="Opcional: Prazo final para o cumprimento da obrigação.",
-                format="DD/MM/YYYY"
-            )
-            percentual_cobrado = st.number_input(
-                "PERCENTUAL COBRADO (%)",
+        # Campos de pagamento parcelado (sem título)
+        tipo_pagamento = st.selectbox(
+            "TIPO DE PAGAMENTO DOS HONORÁRIOS",
+            list(OPCOES_PAGAMENTO.keys()),
+            index=0,
+            help="Selecione se o pagamento será à vista ou parcelado"
+        )
+        
+        # Campos condicionais para pagamento parcelado
+        valor_total_honorarios = None
+        if OPCOES_PAGAMENTO[tipo_pagamento]["permite_parcelamento"]:
+            valor_total_honorarios = st.number_input(
+                "VALOR TOTAL DOS HONORÁRIOS (R$)",
                 min_value=0.0,
-                max_value=100.0,
-                value=30.0,
-                step=0.1,
-                help="Percentual de honorários cobrado do cliente (padrão: 30%)"
-            )
-            observacoes = st.text_area(
-                "OBSERVAÇÕES",
-                placeholder="Detalhes importantes sobre o caso...",
-                height=100
+                step=100.0,
+                format="%.2f",
+                help="Valor total dos honorários que será dividido em parcelas"
             )
             
-            # Campos de pagamento parcelado (sem título)
-            tipo_pagamento = st.selectbox(
-                "TIPO DE PAGAMENTO DOS HONORÁRIOS",
-                list(OPCOES_PAGAMENTO.keys()),
-                index=0,
-                help="Selecione se o pagamento será à vista ou parcelado"
-            )
-            
-            # Campos condicionais para pagamento parcelado
-            valor_total_honorarios = None
-            if OPCOES_PAGAMENTO[tipo_pagamento]["permite_parcelamento"]:
-                valor_total_honorarios = st.number_input(
-                    "VALOR TOTAL DOS HONORÁRIOS (R$)",
-                    min_value=0.0,
-                    step=100.0,
-                    format="%.2f",
-                    help="Valor total dos honorários que será dividido em parcelas"
-                )
-                
-                if valor_total_honorarios > 0:
-                    num_parcelas = OPCOES_PAGAMENTO[tipo_pagamento]["parcelas"]
-                    valor_parcela = valor_total_honorarios / num_parcelas
-                    st.info(f"💡 {num_parcelas} parcelas de R$ {valor_parcela:.2f} cada")
+            if valor_total_honorarios > 0:
+                num_parcelas = OPCOES_PAGAMENTO[tipo_pagamento]["parcelas"]
+                valor_parcela = valor_total_honorarios / num_parcelas
+                st.info(f"💡 {num_parcelas} parcelas de R$ {valor_parcela:.2f} cada")
 
-        submitted = st.form_submit_button("📝 Adicionar Linha", type="primary", use_container_width=True)
+    submitted = st.button("📝 Adicionar Linha", type="primary", use_container_width=True)
 
     # Lógica de submissão
     if submitted:
         # Processar assunto selecionado e salvar permanentemente
         assunto_processado = ""
-        if assunto_selecionado and len(assunto_selecionado) > 0:
-            assunto_processado = normalizar_assunto_beneficio(assunto_selecionado[0])
+        if assunto_selecionado and assunto_selecionado.strip():
+            assunto_processado = normalizar_assunto_beneficio(assunto_selecionado)
             
             # Se não está na lista, adicionar automaticamente e salvar permanentemente
             assuntos_existentes = obter_assuntos_beneficios()
@@ -830,8 +816,7 @@ def interface_cadastro_beneficio(df, perfil_usuario):
             "Nº DO PROCESSO": processo, 
             "PARTE": parte, 
             "CPF": cpf, 
-            "TIPO DE PROCESSO": tipo_processo,
-            "ASSUNTO": assunto_processado
+            "ASSUNTO/TIPO DE PROCESSO": assunto_processado
         }
         campos_vazios = [nome for nome, valor in campos_obrigatorios.items() if not valor or not valor.strip()]
         
@@ -864,7 +849,7 @@ def interface_cadastro_beneficio(df, perfil_usuario):
                 "Nº DO PROCESSO": processo,
                 "PARTE": parte,
                 "CPF": cpf_numeros, # Salva apenas os números
-                "TIPO DE PROCESSO": tipo_processo,
+                "TIPO DE PROCESSO": assunto_processado,  # Agora usa o assunto como tipo de processo
                 "ASSUNTO": assunto_processado,
                 "DATA DA CONCESSÃO DA LIMINAR": data_liminar.strftime("%d/%m/%Y") if data_liminar else "",
                 "PROVÁVEL PRAZO FATAL PARA CUMPRIMENTO": prazo_fatal.strftime("%d/%m/%Y") if prazo_fatal else "",
@@ -1095,8 +1080,8 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
             st.write(f"- Data: {linha_beneficio.get('Data Finalização', 'N/A')}")
             
             if linha_beneficio.get("Comprovante Pagamento"):
-                st.markdown("**📎 Comprovante:**")
-                baixar_arquivo_drive(linha_beneficio["Comprovante Pagamento"], "📎 Baixar Comprovante")
+                st.markdown("**Comprovante:**")
+                baixar_arquivo_drive(linha_beneficio["Comprovante Pagamento"], "Baixar Comprovante")
         
             
             with col_final2:
@@ -1462,6 +1447,7 @@ def confirmar_exclusao_massa_beneficios(df, processos_selecionados):
         with col_canc:
             if st.button("❌ Cancelar", use_container_width=True):
                 st.rerun()
+    
     
     dialog_confirmacao()
 
