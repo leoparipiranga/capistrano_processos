@@ -490,7 +490,7 @@ if "logado" not in st.session_state:
     st.session_state.logado = False
 
 if "pagina_atual" not in st.session_state:
-    st.session_state.pagina_atual = "home"
+    st.session_state.pagina_atual = "processo_alvaras"  # Inicia direto na tela de Alvarás
 
 if not st.session_state.logado:
     
