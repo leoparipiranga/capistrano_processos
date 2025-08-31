@@ -281,7 +281,23 @@ def load_data_from_github(filename):
             file_data = r.json()
             content = base64.b64decode(file_data["content"]).decode("utf-8")
             from io import StringIO
-            df = pd.read_csv(StringIO(content), sep=';')
+            
+            # Tentar diferentes métodos de parsing para maior robustez
+            try:
+                df = pd.read_csv(StringIO(content), sep=';', encoding='utf-8')
+            except pd.errors.ParserError as e:
+                # Se houver erro de parsing, tentar com parâmetros mais flexíveis
+                try:
+                    df = pd.read_csv(StringIO(content), sep=';', encoding='utf-8', 
+                                   on_bad_lines='skip')
+                except:
+                    # Última tentativa com engine python mais tolerante
+                    df = pd.read_csv(StringIO(content), sep=';', encoding='utf-8', 
+                                   engine='python', on_bad_lines='skip')
+            except Exception as e:
+                st.error(f"Erro ao fazer parse do CSV: {e}")
+                df_vazio = criar_dataframe_vazio_por_tipo(filename)
+                return df_vazio, None
             
             # GARANTIR QUE TODOS OS REGISTROS TENHAM ID ÚNICO
             df = garantir_coluna_id(df, "ID")
@@ -314,12 +330,17 @@ def criar_dataframe_vazio_por_tipo(filename):
     
     elif filename == "lista_rpv.csv":
         colunas_rpv = [
-            "ID",  # ← ADICIONAR ID
-            "Processo", "Beneficiário", "CPF", "Valor RPV", "Observações",
-            "Solicitar Certidão", "Status", "Data Cadastro", "Cadastrado Por", "PDF RPV",
-            "Data Envio", "Enviado Por", "Certidão Anexada", "Data Certidão", "Anexado Certidão Por",
-            "Data Envio Rodrigo", "Enviado Rodrigo Por", "Comprovante Saque", "Comprovante Pagamento",
-            "Valor Final Escritório", "Data Finalização", "Finalizado Por"
+            "Processo", "Beneficiário", "CPF", "Valor RPV", "Observações", "Solicitar Certidão", 
+            "Status", "ID", "Data Cadastro", "Cadastrado Por", "PDF RPV", "Data Envio", "Enviado Por", 
+            "Certidão Anexada", "Data Certidão", "Anexado Certidão Por", "Data Envio Rodrigo", 
+            "Enviado Rodrigo Por", "Comprovante Saque", "Comprovante Pagamento", "Valor Final Escritório", 
+            "Data Finalização", "Finalizado Por", "Certidão no Korbil", "Documentação Cliente OK", 
+            "Observações Valor", "Assunto", "Mês Competência", "Documentação Organizada", "Valor Líquido", 
+            "Observações Pagamento", "Status Secundario", "SAC Documentacao Pronta", "Data SAC Documentacao", 
+            "SAC Responsavel", "Admin Documentacao Pronta", "Data Admin Documentacao", "Admin Responsavel", 
+            "Validado Financeiro", "Data Validacao", "Validado Por", "Comprovante Recebimento", 
+            "Data Recebimento", "Recebido Por", "Data Pagamento", "Pago Por", "Data Finalizacao", 
+            "Banco", "Orgao Judicial", "Data Comprovante Recebimento", "Recebimento Por"
         ]
         return pd.DataFrame(columns=colunas_rpv)
     
