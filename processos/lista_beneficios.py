@@ -12,12 +12,6 @@ sys.path.append(str(project_root))
 
 # Importar funções do módulo de controle
 from components.functions_controle import (
-    # Configurações Benefícios
-    PERFIS_BENEFICIOS, STATUS_ETAPAS_BENEFICIOS,
-    
-    # Funções de perfil Benefícios
-    verificar_perfil_usuario_beneficios, pode_editar_status_beneficios,
-    
     # Funções GitHub
     get_github_api_info, load_data_from_github, 
     save_data_local, save_data_to_github_seguro,
@@ -27,26 +21,22 @@ from components.functions_controle import (
     gerar_id_unico, garantir_coluna_id,
     
     # Funções de análise
-    mostrar_diferencas, validar_cpf, formatar_processo,
-    
-    # Funções de limpeza Benefícios
-    limpar_campos_formulario, obter_colunas_controle_beneficios, inicializar_linha_vazia_beneficios
+    mostrar_diferencas, validar_cpf, formatar_processo
 )
 
-from components.funcoes_beneficios import *
+from components.funcoes_beneficios import (
+    interface_cadastro_beneficio,
+    interface_lista_beneficios,
+    interface_visualizar_dados_beneficio,
+    limpar_estados_dialogo_beneficio
+)
 
 def show():
     """Função principal do módulo Benefícios"""
     
-    # CSS para estilização
+    # CSS para estilização (removido CSS que sobrescreve cores dos inputs)
     st.markdown("""
     <style>
-        .stSelectbox > div > div > select {
-            background-color: #f0f2f6;
-        }
-        .stTextInput > div > div > input {
-            background-color: #f0f2f6;
-        }
         .metric-container {
             background-color: #f8f9fa;
             padding: 1rem;
@@ -56,8 +46,8 @@ def show():
     </style>
     """, unsafe_allow_html=True)
     
-    # Verificação de perfil
-    perfil_usuario = verificar_perfil_usuario_beneficios()
+    # Verificação de perfil simples
+    perfil_usuario = st.session_state.get("perfil_usuario", "N/A")
     
     # Título
     st.title("🏥 Gestão de Benefícios")
@@ -82,15 +72,15 @@ def show():
     # Limpar colunas sem nome
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     
-    # Abas
-    aba = st.tabs(["📝 Cadastrar Benefício", "📊 Gerenciar Benefícios", "📁 Visualizar Dados"])
+    # Abas - adicionando aba Visualizar Dados
+    aba_selecionada = st.tabs(["📝 Cadastrar Benefício", "📊 Gerenciar Benefícios", "📈 Visualizar Dados"])
     
-    with aba[0]:
+    with aba_selecionada[0]:
         interface_cadastro_beneficio(df, perfil_usuario)
     
-    with aba[1]:
+    with aba_selecionada[1]:
         interface_lista_beneficios(df, perfil_usuario)
     
-    with aba[2]:
-        interface_visualizar_dados_beneficios(df)
+    with aba_selecionada[2]:
+        interface_visualizar_dados_beneficio(df)
 

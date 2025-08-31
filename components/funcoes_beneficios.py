@@ -1,9 +1,7 @@
 # components/funcoes_beneficios.py
 import streamlit as st
 import pandas as pd
-import requests
 import io
-import base64
 from datetime import datetime
 import math
 from components.autocomplete_manager import (
@@ -20,9 +18,6 @@ from components.functions_controle import (
     salvar_arquivo, baixar_arquivo_drive,
     gerar_id_unico, garantir_coluna_id,
     
-    # Funções de análise
-    mostrar_diferencas, validar_cpf, formatar_processo,
-    
     # Funções de limpeza comuns
     limpar_campos_formulario
 )
@@ -37,6 +32,11 @@ def safe_get_value_beneficio(data, key, default='Não cadastrado'):
     if str_value.lower() in ['nan', 'none', '']:
         return default
     return str_value
+
+def limpar_estados_dialogo_beneficio():
+    """Limpa todos os estados relacionados aos diálogos de benefícios"""
+    st.session_state.show_beneficio_dialog = False
+    st.session_state.beneficio_aberto_id = None
 
 def exibir_informacoes_basicas_beneficio(linha_beneficio, estilo="compacto"):
     """Exibe informações básicas do Benefício de forma organizada e visual
@@ -131,15 +131,6 @@ def exibir_informacoes_basicas_beneficio(linha_beneficio, estilo="compacto"):
 # CONFIGURAÇÕES DE PERFIS - BENEFÍCIOS
 # =====================================
 
-# STATUS POSSÍVEIS
-STATUS_ETAPAS_BENEFICIO = {
-    1: "Enviado para administrativo",
-    2: "Implantado",
-    3: "Enviado para o SAC",
-    4: "Enviado para o financeiro",
-    5: "Finalizado"
-}
-
 # PERFIS E PERMISSÕES
 PERFIS_BENEFICIOS = {
     "Cadastrador": ["Implantado"],
@@ -192,6 +183,9 @@ def obter_colunas_controle_beneficios():
         "Parcela_11_Status", "Parcela_11_Comprovante", "Parcela_11_Data_Pagamento",
         "Parcela_12_Status", "Parcela_12_Comprovante", "Parcela_12_Data_Pagamento",
         
+        # Campos de honorários contratuais
+        "Honorarios Contratuais", "HC1", "HC2",
+        
         # Campos de finalização
         "Todas_Parcelas_Pagas", "Data Finalização", "Finalizado Por"
     ]
@@ -224,105 +218,7 @@ def calcular_status_parcelas(linha_beneficio, num_parcelas):
     
     return parcelas_pagas, todas_pagas
 
-def safe_get_value_beneficio(data, key, default='Não cadastrado'):
-    """Obtém valor de forma segura, tratando NaN e valores None"""
-    value = data.get(key, default)
-    if value is None:
-        return default
-    # Converter para string e verificar se não é 'nan'
-    str_value = str(value)
-    if str_value.lower() in ['nan', 'none', '']:
-        return default
-    return str_value
 
-def exibir_informacoes_basicas_beneficio(linha_beneficio, estilo="compacto"):
-    """Exibe informações básicas do Benefício de forma organizada e visual
-    
-    Args:
-        linha_beneficio: Dados da linha do Benefício
-        estilo: "padrao", "compacto", ou "horizontal"
-    """
-    
-    st.markdown("""
-    <style>
-    .compact-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 10px;
-        background: #f8f9fa;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #dee2e6;
-        margin: 10px 0;
-    }
-    .compact-item {
-        text-align: center;
-        padding: 10px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .compact-label {
-        font-size: 12px;
-        color: #6c757d;
-        font-weight: 600;
-        margin-bottom: 5px;
-    }
-    .compact-value {
-        font-size: 14px;
-        color: #212529;
-        font-weight: 500;
-    }
-    .compact-status {
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: bold;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    status_atual = safe_get_value_beneficio(linha_beneficio, 'Status')
-    status_class = {
-        "Enviado para administrativo": "background-color: #fff3cd; color: #856404;",
-        "Implantado": "background-color: #d1ecf1; color: #0c5460;",
-        "Enviado para o SAC": "background-color: #e7f1ff; color: #004085;",
-        "Enviado para o financeiro": "background-color: #cff4fc; color: #055160;",
-        "Finalizado": "background-color: #d1e7dd; color: #0f5132;"
-    }.get(status_atual, "background-color: #e2e3e5; color: #383d41;")
-    
-    st.markdown("### 📋 Resumo do Benefício")
-    st.markdown(f"""
-    <div class="compact-grid">
-        <div class="compact-item">
-            <div class="compact-label">📄 PROCESSO</div>
-            <div class="compact-value">{safe_get_value_beneficio(linha_beneficio, 'Nº DO PROCESSO')}</div>
-        </div>
-        <div class="compact-item">
-            <div class="compact-label">👤 PARTE</div>
-            <div class="compact-value">{safe_get_value_beneficio(linha_beneficio, 'PARTE')}</div>
-        </div>
-        <div class="compact-item">
-            <div class="compact-label">🆔 CPF</div>
-            <div class="compact-value">{safe_get_value_beneficio(linha_beneficio, 'CPF')}</div>
-        </div>
-        <div class="compact-item">
-            <div class="compact-label">📊 STATUS</div>
-            <div class="compact-value">
-                <span class="compact-status" style="{status_class}">{status_atual}</span>
-            </div>
-        </div>
-        <div class="compact-item">
-            <div class="compact-label">Tipo</div>
-            <div class="compact-value">{safe_get_value_beneficio(linha_beneficio, 'ÓRGÃO')[:20]}...</div>
-        </div>
-        <div class="compact-item">
-            <div class="compact-label">Data Cadastro</div>
-            <div class="compact-value">{safe_get_value_beneficio(linha_beneficio, 'BENEFÍCIO')}</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("---")
 
 # Assuntos para autocomplete
 ASSUNTOS_BENEFICIOS_DEFAULT = [
@@ -392,23 +288,6 @@ def toggle_beneficio_selection(beneficio_id):
     if st.session_state.get(checkbox_key, False):
         st.session_state.processos_selecionados_beneficios.append(beneficio_id_str)
 
-def interface_lista_beneficios(df, perfil_usuario):
-    """Lista de benefícios com paginação e diálogo para ações"""
-    
-    # Importar funções necessárias localmente
-    from components.functions_controle import (
-        gerar_id_unico, garantir_coluna_id,
-        get_github_api_info, save_data_to_github_seguro, 
-        load_data_from_github, baixar_arquivo_drive
-    )
-
-# =====================================
-# FUNÇÕES DE PERFIL E CONTROLE - BENEFÍCIOS
-# =====================================
-def pode_editar_status_beneficios(status_atual, perfil_usuario):
-    """Verifica se o usuário pode editar determinado status Benefícios"""
-    return status_atual in PERFIS_BENEFICIOS.get(perfil_usuario, [])
-
 # =====================================
 # FUNÇÕES DE INTERFACE E INTERAÇÃO - BENEFÍCIOS
 # =====================================
@@ -428,9 +307,10 @@ def interface_lista_beneficios(df, perfil_usuario):
             by="_data_cadastro_dt", ascending=False, na_position='last'
         ).drop(columns=["_data_cadastro_dt"])
 
-    # Inicializar estado do diálogo e paginação
+    # Inicializar estado do diálogo e paginação APENAS se não existirem
     if "show_beneficio_dialog" not in st.session_state:
         st.session_state.show_beneficio_dialog = False
+    if "beneficio_aberto_id" not in st.session_state:
         st.session_state.beneficio_aberto_id = None
     if "current_page_beneficios" not in st.session_state:
         st.session_state.current_page_beneficios = 1
@@ -473,14 +353,8 @@ def interface_lista_beneficios(df, perfil_usuario):
                 if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_beneficios)})", 
                            key="confirmar_exclusao_beneficios", type="primary"):
                     confirmar_exclusao_massa_beneficios(df, st.session_state.processos_selecionados_beneficios)
-    if "show_beneficio_dialog" not in st.session_state:
-        st.session_state.show_beneficio_dialog = False
-        st.session_state.beneficio_aberto_id = None
-    if "current_page_beneficios" not in st.session_state:
-        st.session_state.current_page_beneficios = 1
-
+    
     # FILTROS
-    st.markdown("### 🔍 Filtros")
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -656,18 +530,6 @@ def interface_lista_beneficios(df, perfil_usuario):
                 if st.button("Próxima >", key="ben_proxima"): st.session_state.current_page_beneficios += 1; st.rerun()
                 if st.button("Última >>", key="ben_ultima"): st.session_state.current_page_beneficios = total_pages; st.rerun()
 
-def abrir_beneficio(beneficio_id, df):
-    """Abre um benefício para visualização/edição"""
-    # Armazenar ID do benefício selecionado na sessão
-    st.session_state.beneficio_selecionado = beneficio_id
-    st.session_state.view = "editar_beneficio"
-
-def adicionar_novo_beneficio(df):
-    """Prepara para adicionar um novo benefício"""
-    # Atualizar visualização para formulário de cadastro
-    st.session_state.view = "cadastrar_beneficio"
-    st.session_state.beneficio_selecionado = None
-
 def interface_cadastro_beneficio(df, perfil_usuario):
     """Interface para cadastrar novos benefícios, com validações e dicas."""
     
@@ -691,7 +553,6 @@ def interface_cadastro_beneficio(df, perfil_usuario):
         
         with col_salvar:
             if st.button("💾 Salvar Todas as Linhas", type="primary", key="salvar_beneficios"):
-                from components.functions_controle import save_data_to_github_seguro
                 with st.spinner("Salvando no GitHub..."):
                     novo_sha = save_data_to_github_seguro(
                         st.session_state.df_editado_beneficios,
@@ -702,6 +563,10 @@ def interface_cadastro_beneficio(df, perfil_usuario):
                 if novo_sha:
                     st.session_state.file_sha_beneficios = novo_sha
                     del st.session_state["preview_novas_linhas_beneficios"]
+                    
+                    # Garantir que nenhum diálogo seja aberto automaticamente
+                    limpar_estados_dialogo_beneficio()
+                    
                     st.toast("✅ Todas as linhas foram salvas com sucesso!", icon="🎉")
                     st.rerun()
                 else:
@@ -712,6 +577,10 @@ def interface_cadastro_beneficio(df, perfil_usuario):
                 num_linhas_remover = len(st.session_state["preview_novas_linhas_beneficios"])
                 st.session_state.df_editado_beneficios = st.session_state.df_editado_beneficios.iloc[:-num_linhas_remover]
                 del st.session_state["preview_novas_linhas_beneficios"]
+                
+                # Garantir que nenhum diálogo seja aberto automaticamente
+                limpar_estados_dialogo_beneficio()
+                
                 st.warning("🗑️ Linhas descartadas!")
                 st.rerun()
         
@@ -836,7 +705,6 @@ def interface_cadastro_beneficio(df, perfil_usuario):
         elif erro_pagamento:
             pass  # Erro já mostrado acima
         else:
-            from components.functions_controle import gerar_id_unico
             
             # Calcular dados de parcelamento
             num_parcelas = OPCOES_PAGAMENTO[tipo_pagamento]["parcelas"]
@@ -888,6 +756,10 @@ def interface_cadastro_beneficio(df, perfil_usuario):
             )
 
             st.session_state.form_reset_counter_beneficios += 1
+            
+            # Garantir que nenhum diálogo seja aberto automaticamente
+            limpar_estados_dialogo_beneficio()
+            
             st.toast("✅ Linha adicionada! Salve para persistir os dados.", icon="👍")
             st.rerun()
 
@@ -895,7 +767,6 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
     """
     Interface de edição com o fluxo de trabalho corrigido e adaptada para st.dialog.
     """
-    from components.functions_controle import salvar_arquivo, baixar_arquivo_drive
 
     linha_beneficio = df[df["ID"] == beneficio_id].iloc[0]
     status_atual = linha_beneficio.get("Status", "N/A")
@@ -904,9 +775,6 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
     # Exibir informações básicas do benefício com layout compacto
     exibir_informacoes_basicas_beneficio(linha_beneficio, "compacto")
 
-    # ETAPA 1: Cadastrador cria -> Status 'Enviado para administrativo' (Tratado no cadastro)
-
-    # ETAPA 2: Administrativo recebe, analisa e marca como implantado.
     if status_atual == "Enviado para administrativo" and perfil_usuario in ["Administrativo", "Admin"]:
         st.markdown("#### 🔧 Análise Administrativa")
         st.info("Após inserir os documentos no Korbil, marque a caixa abaixo e salve.")
@@ -916,7 +784,6 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
         if st.button("💾 Salvar e Devolver para Cadastrador", type="primary", disabled=not korbil_ok):
             atualizar_status_beneficio(beneficio_id, "Implantado", df)
 
-    # ETAPA 3: Cadastrador recebe, verifica e envia para o SAC.
     elif status_atual == "Implantado" and perfil_usuario in ["Cadastrador", "Admin"]:
         st.markdown("#### 📞 Enviar para SAC")
         st.info("🔍 Processo implantado e pronto para contato com cliente via SAC.")
@@ -926,7 +793,6 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
                 beneficio_id, "Enviado para o SAC", df
             )
 
-    # ETAPA 4: SAC faz contato com cliente e envia para financeiro.
     elif status_atual == "Enviado para o SAC" and perfil_usuario in ["SAC", "Admin"]:
         st.markdown("#### 📞 Contato com Cliente - SAC")
         st.info("📋 Entre em contato com o cliente e marque quando concluído.")
@@ -940,15 +806,14 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
                                                       "Data Contato SAC": datetime.now().strftime("%d/%m/%Y %H:%M"),
                                                       "Contatado Por": perfil_usuario})
 
-    # ETAPA 5: Financeiro recebe e finaliza o pagamento.
     elif status_atual == "Enviado para o financeiro" and perfil_usuario in ["Financeiro", "Admin"]:
         st.markdown("#### 💰 Gestão de Pagamento")
         
         # Verificar tipo de pagamento
         tipo_pagamento = linha_beneficio.get("Tipo Pagamento", "À vista")
         num_parcelas = int(linha_beneficio.get("Numero Parcelas", 1))
-        valor_total = linha_beneficio.get("Valor Total Honorarios", "")
-        valor_parcela = linha_beneficio.get("Valor Parcela", "")
+        valor_total = safe_get_value_beneficio(linha_beneficio, "Valor Total Honorarios", "A definir")
+        valor_parcela = safe_get_value_beneficio(linha_beneficio, "Valor Parcela", "")
         
         # Exibir informações do pagamento
         col_info1, col_info2, col_info3 = st.columns(3)
@@ -957,7 +822,117 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
         with col_info2:
             st.metric("Número de Parcelas", num_parcelas)
         with col_info3:
-            st.metric("Valor Total", valor_total if valor_total else "A definir")
+            # Tratar valores nan e formatar monetário se possível
+            if valor_total and valor_total != "A definir":
+                try:
+                    # Se é uma string com "R$", extrair o valor
+                    if "R$" in str(valor_total):
+                        valor_limpo = str(valor_total).replace("R$", "").replace(",", "").strip()
+                        valor_float = float(valor_limpo)
+                        st.metric("Valor Total", f"R$ {valor_float:,.2f}")
+                    else:
+                        valor_float = float(valor_total)
+                        st.metric("Valor Total", f"R$ {valor_float:,.2f}")
+                except:
+                    st.metric("Valor Total", "A definir")
+            else:
+                st.metric("Valor Total", "A definir")
+        
+        st.markdown("---")
+
+        # Controle HC com botão progressivo (FORA do formulário)
+        if st.button("➕ Adicionar Honorários Contratuais", key=f"btn_hc_beneficio_{beneficio_id}"):
+            # Inicializar estado do botão HC se não existir
+            if f"hc_nivel_beneficio_{beneficio_id}" not in st.session_state:
+                st.session_state[f"hc_nivel_beneficio_{beneficio_id}"] = 0
+            
+            st.session_state[f"hc_nivel_beneficio_{beneficio_id}"] = (st.session_state[f"hc_nivel_beneficio_{beneficio_id}"] + 1) % 3
+            st.rerun()
+        
+        # Inicializar estado do botão HC
+        if f"hc_nivel_beneficio_{beneficio_id}" not in st.session_state:
+            st.session_state[f"hc_nivel_beneficio_{beneficio_id}"] = 0
+        
+        # Formulário para honorários contratuais
+        with st.form(f"form_hc_beneficio_{beneficio_id}"):
+            
+            def safe_get_hc_value(linha, campo):
+                valor = linha.get(campo, "0")
+                if pd.isna(valor) or valor == "nan" or valor == "" or valor is None:
+                    return 0.0
+                try:
+                    return float(valor)
+                except:
+                    return 0.0
+            
+            honorarios_contratuais = st.number_input(
+                "Honorário Contratual 1:",
+                min_value=0.0,
+                value=safe_get_hc_value(linha_beneficio, "Honorarios Contratuais"),
+                step=0.01,
+                format="%.2f",
+                help="Valor dos honorários contratuais principais"
+            )
+            
+            # Campos HC adicionais (aparecem conforme o nível do botão)
+            hc1_valor, hc2_valor = 0.0, 0.0
+            nivel_hc = st.session_state.get(f"hc_nivel_beneficio_{beneficio_id}", 0)
+            
+            if nivel_hc >= 1:  # Primeira pressão: Mostrar HC2
+                hc1_valor = st.number_input(
+                    "Honorário Contratual 2:",
+                    min_value=0.0,
+                    value=safe_get_hc_value(linha_beneficio, "HC1"),
+                    step=0.01,
+                    format="%.2f",
+                    key=f"hc2_beneficio_{beneficio_id}"
+                )
+            
+            if nivel_hc >= 2:  # Segunda pressão: Mostrar HC3
+                hc2_valor = st.number_input(
+                    "Honorário Contratual 3:",
+                    min_value=0.0,
+                    value=safe_get_hc_value(linha_beneficio, "HC2"),
+                    step=0.01,
+                    format="%.2f",
+                    key=f"hc3_beneficio_{beneficio_id}"
+                )
+            
+            # Botão salvar dentro do formulário
+            submitted_hc = st.form_submit_button("💾 Salvar Honorários Contratuais", type="primary")
+            
+            if submitted_hc:
+                try:
+                    idx = df[df["ID"] == beneficio_id].index[0]
+                    
+                    # Salvar honorários contratuais
+                    st.session_state.df_editado_beneficios.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
+                    
+                    # Salvar HC adicionais se foram preenchidos
+                    if nivel_hc >= 1:  # HC2 está visível
+                        st.session_state.df_editado_beneficios.loc[idx, "HC1"] = hc1_valor
+                    if nivel_hc >= 2:  # HC3 está visível
+                        st.session_state.df_editado_beneficios.loc[idx, "HC2"] = hc2_valor
+                    
+                    # Salvar no GitHub
+                    novo_sha = save_data_to_github_seguro(
+                        st.session_state.df_editado_beneficios,
+                        "lista_beneficios.csv",
+                        st.session_state.file_sha_beneficios
+                    )
+                    st.session_state.file_sha_beneficios = novo_sha
+                    
+                    st.success("✅ Honorários contratuais salvos com sucesso!")
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro ao salvar honorários: {str(e)}")
+        
+        st.markdown("---")
+        
+        # =====================================
+        # GESTÃO DE PAGAMENTO (ORIGINAL)
+        # =====================================
         
         if tipo_pagamento == "À vista":
             # Pagamento à vista - interface simples
@@ -1120,7 +1095,6 @@ def atualizar_status_beneficio(beneficio_id, novo_status, df, **kwargs):
     """
     Atualiza o status e outros campos de um benefício, salva e fecha o diálogo.
     """
-    from components.functions_controle import save_data_to_github_seguro
     
     if "df_editado_beneficios" not in st.session_state:
         st.session_state.df_editado_beneficios = df.copy()
@@ -1161,7 +1135,7 @@ def atualizar_status_beneficio(beneficio_id, novo_status, df, **kwargs):
     if novo_sha:
         st.session_state.file_sha_beneficios = novo_sha
         st.toast(f"Status atualizado para: {novo_status}", icon="✅")
-        st.session_state.show_beneficio_dialog = False
+        limpar_estados_dialogo_beneficio()
         st.rerun()
     else:
         st.error("Falha ao salvar a atualização.")
@@ -1190,7 +1164,6 @@ def atualizar_pagamento_parcela(beneficio_id, numero_parcela, df, url_comprovant
             st.session_state.df_editado_beneficios.loc[idx, "Todas_Parcelas_Pagas"] = "Sim"
         
         # Salvar no GitHub
-        from components.functions_controle import save_data_to_github_seguro
         novo_sha = save_data_to_github_seguro(
             st.session_state.df_editado_beneficios,
             "lista_beneficios.csv", 
@@ -1209,7 +1182,6 @@ def atualizar_pagamento_parcela(beneficio_id, numero_parcela, df, url_comprovant
 
 def atualizar_dados_finalizacao(beneficio_id, novo_status, df, comprovante_url="", tipo_pagamento=""):
     """Atualiza os dados de finalização de um benefício, salva e fecha o diálogo."""
-    from components.functions_controle import save_data_to_github_seguro
 
     if "df_editado_beneficios" not in st.session_state:
         st.session_state.df_editado_beneficios = df.copy()
@@ -1237,7 +1209,7 @@ def atualizar_dados_finalizacao(beneficio_id, novo_status, df, comprovante_url="
         st.session_state.file_sha_beneficios = novo_sha
         st.toast("Benefício finalizado com sucesso!", icon="🎉")
         st.balloons()
-        st.session_state.show_beneficio_dialog = False
+        limpar_estados_dialogo_beneficio()
         st.rerun()
     else:
         st.error("Falha ao salvar a finalização.")
@@ -1276,8 +1248,6 @@ def interface_visualizar_dados_beneficios(df):
     
     st.markdown("---")
 
-    # --- Filtros ---
-    st.markdown("#### 🔍 Filtros e Pesquisa")
     col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns([2, 2, 2, 3])
     
     df_visualizado = df.copy()
@@ -1351,14 +1321,45 @@ def interface_visualizar_dados_beneficios(df):
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
             )
 
-    # Tabela com dados paginados
+    # Tabela com dados paginados em formato de colunas (igual ao gerenciar)
     if not df_paginado.empty:
         st.markdown(f'<p style="font-size: small; color: steelblue;">Mostrando {start_idx+1} a {min(end_idx, total_registros)} de {total_registros} registros</p>', unsafe_allow_html=True)
-        st.dataframe(
-            df_paginado[colunas_disponiveis],
-            use_container_width=True,
-            hide_index=True
-        )
+        
+        # Cabeçalho da tabela
+        st.markdown("---")
+        col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([1, 3, 2, 2, 2, 2])
+        with col_h1: st.markdown("**Ação**")
+        with col_h2: st.markdown("**Parte**")
+        with col_h3: st.markdown("**Nº Processo**")
+        with col_h4: st.markdown("**Tipo Processo**")
+        with col_h5: st.markdown("**Status**")
+        with col_h6: st.markdown("**Data Cadastro**")
+        
+        # Linhas dos dados
+        for _, row in df_paginado.iterrows():
+            beneficio_id = row.get("ID")
+            
+            col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([1, 3, 2, 2, 2, 2])
+            
+            with col_b1:
+                if st.button("🔓 Abrir", key=f"vis_abrir_beneficio_id_{beneficio_id}"):
+                    st.session_state.show_beneficio_dialog = True
+                    st.session_state.beneficio_aberto_id = beneficio_id
+                    st.rerun()
+            
+            with col_b2: st.write(f"**{safe_get_value_beneficio(row, 'PARTE')}**")
+            with col_b3: st.write(safe_get_value_beneficio(row, 'Nº DO PROCESSO'))
+            with col_b4: st.write(safe_get_value_beneficio(row, 'TIPO DE PROCESSO'))
+            with col_b5: st.write(safe_get_value_beneficio(row, 'Status'))
+            with col_b6:
+                data_cadastro = row.get('Data Cadastro')
+                if pd.isna(data_cadastro) or data_cadastro == "nan" or data_cadastro == "":
+                    st.write("Não informado")
+                else:
+                    try:
+                        st.write(str(data_cadastro).split(' ')[0])
+                    except:
+                        st.write("Não informado")
     else:
         st.info("Nenhum registro encontrado com os filtros aplicados.")
 
@@ -1422,9 +1423,7 @@ def confirmar_exclusao_massa_beneficios(df, processos_selecionados):
                     ~st.session_state.df_editado_beneficios["ID"].astype(str).isin(processos_selecionados_str)
                 ].reset_index(drop=True)
                 
-                # Salvar no GitHub
-                from components.functions_controle import save_data_to_github_seguro
-                
+                # Salvar no GitHub                
                 with st.spinner("Salvando alterações..."):
                     novo_sha = save_data_to_github_seguro(
                         st.session_state.df_editado_beneficios,
@@ -1448,18 +1447,253 @@ def confirmar_exclusao_massa_beneficios(df, processos_selecionados):
             if st.button("❌ Cancelar", use_container_width=True):
                 st.rerun()
     
-    
     dialog_confirmacao()
 
-# =====================================
-# FUNÇÕES DE EXPORTAÇÃO E IMPORTAÇÃO - BENEFÍCIOS
-# =====================================
 
-def carregar_beneficios():
-    """Carrega os dados de benefícios do GitHub"""
-    df, file_sha = load_data_from_github("lista_beneficios.csv")
+def interface_visualizar_dados_beneficio(df):
+    """Interface para visualizar dados de benefícios em formato de tabela limpa."""
+    if df.empty:
+        st.info("ℹ️ Não há benefícios para visualizar.")
+        return
+
+    # Cards de estatísticas compactos
+    total_beneficios = len(df)
+    finalizados = len(df[df["Status"] == "Finalizado"]) if "Status" in df.columns else 0
+    pendentes = total_beneficios - finalizados
     
-    # Garantir que o DataFrame tenha a coluna ID
-    df = garantir_coluna_id(df)
+    col1, col2, col3, col4 = st.columns(4)
     
-    return df
+    with col1:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; border-radius: 8px; text-align: center; color: white; margin-bottom: 10px;">
+            <h3 style="margin: 0; font-size: 1.8em;">{}</h3>
+            <p style="margin: 3px 0 0 0; font-size: 0.9em;">Total de Benefícios</p>
+        </div>
+        """.format(total_beneficios), unsafe_allow_html=True)
+    
+    with col2:
+        taxa_finalizados = (finalizados/total_beneficios*100) if total_beneficios > 0 else 0
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 15px; border-radius: 8px; text-align: center; color: white; margin-bottom: 10px;">
+            <h3 style="margin: 0; font-size: 1.8em;">{}</h3>
+            <p style="margin: 3px 0 0 0; font-size: 0.9em;">Finalizados ({:.1f}%)</p>
+        </div>
+        """.format(finalizados, taxa_finalizados), unsafe_allow_html=True)
+    
+    with col3:
+        taxa_pendentes = (pendentes/total_beneficios*100) if total_beneficios > 0 else 0
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); padding: 15px; border-radius: 8px; text-align: center; color: #8B4513; margin-bottom: 10px;">
+            <h3 style="margin: 0; font-size: 1.8em;">{}</h3>
+            <p style="margin: 3px 0 0 0; font-size: 0.9em;">Em Andamento ({:.1f}%)</p>
+        </div>
+        """.format(pendentes, taxa_pendentes), unsafe_allow_html=True)
+    
+    with col4:
+        if "Data Cadastro" in df.columns:
+            hoje = datetime.now().strftime("%d/%m/%Y")
+            df_temp = df.copy()
+            df_temp["Data Cadastro"] = df_temp["Data Cadastro"].astype(str)
+            hoje_count = len(df_temp[df_temp["Data Cadastro"].str.contains(hoje, na=False)])
+        else:
+            hoje_count = 0
+            
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); padding: 15px; border-radius: 8px; text-align: center; color: #2c3e50; margin-bottom: 10px;">
+            <h3 style="margin: 0; font-size: 1.8em;">{}</h3>
+            <p style="margin: 3px 0 0 0; font-size: 0.9em;">Cadastrados Hoje</p>
+        </div>
+        """.format(hoje_count), unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
+    
+    with col_filtro1:
+        status_unicos = ["Todos"] + list(df["Status"].dropna().unique()) if "Status" in df.columns else ["Todos"]
+        status_filtro = st.selectbox("Status:", options=status_unicos, key="viz_beneficio_status")
+        
+    with col_filtro2:
+        usuarios_unicos = ["Todos"] + list(df["Cadastrado Por"].dropna().unique()) if "Cadastrado Por" in df.columns else ["Todos"]
+        usuario_filtro = st.selectbox("Cadastrado Por:", options=usuarios_unicos, key="viz_beneficio_user")
+    
+    with col_filtro3:
+        tipos_unicos = ["Todos"] + list(df["TIPO DE PROCESSO"].dropna().unique()) if "TIPO DE PROCESSO" in df.columns else ["Todos"]
+        tipo_filtro = st.selectbox("Tipo de Processo:", options=tipos_unicos, key="viz_beneficio_tipo")
+    
+    with col_filtro4:
+        pesquisa = st.text_input("🔎 Pesquisar por Parte ou Processo:", key="viz_beneficio_search")
+
+    # Aplicar filtros
+    df_filtrado = df.copy()
+    
+    if status_filtro != "Todos" and "Status" in df.columns:
+        df_filtrado = df_filtrado[df_filtrado["Status"] == status_filtro]
+    
+    if usuario_filtro != "Todos" and "Cadastrado Por" in df.columns:
+        df_filtrado = df_filtrado[df_filtrado["Cadastrado Por"] == usuario_filtro]
+        
+    if tipo_filtro != "Todos" and "TIPO DE PROCESSO" in df.columns:
+        df_filtrado = df_filtrado[df_filtrado["TIPO DE PROCESSO"] == tipo_filtro]
+    
+    if pesquisa:
+        mask = pd.Series([False] * len(df_filtrado))
+        if "PARTE" in df_filtrado.columns:
+            mask |= df_filtrado["PARTE"].astype(str).str.contains(pesquisa, case=False, na=False)
+        if "Nº DO PROCESSO" in df_filtrado.columns:
+            mask |= df_filtrado["Nº DO PROCESSO"].astype(str).str.contains(pesquisa, case=False, na=False)
+        df_filtrado = df_filtrado[mask]
+
+    # Ordenar por data de cadastro mais recente
+    if "Data Cadastro" in df_filtrado.columns:
+        df_filtrado["_temp_data"] = pd.to_datetime(df_filtrado["Data Cadastro"], format="%d/%m/%Y %H:%M", errors="coerce")
+        df_filtrado = df_filtrado.sort_values("_temp_data", ascending=False, na_position="last")
+        df_filtrado = df_filtrado.drop("_temp_data", axis=1)
+
+    # Botões de download
+    if not df_filtrado.empty:
+        from io import BytesIO
+        
+        csv_data = df_filtrado.to_csv(index=False, sep=';').encode('utf-8')
+        
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_filtrado.to_excel(writer, index=False, sheet_name='Beneficios')
+        excel_data = output.getvalue()
+
+        col_down1, col_down2, _ = st.columns([1.5, 1.5, 7])
+        with col_down1:
+            st.download_button(
+                label="📥 Baixar CSV",
+                data=csv_data,
+                file_name=f"beneficios_relatorio_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+            )
+        with col_down2:
+            st.download_button(
+                label="📊 Baixar Excel",
+                data=excel_data,
+                file_name=f"beneficios_relatorio_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+    # Lógica de Paginação
+    if "current_page_visualizar_beneficio" not in st.session_state:
+        st.session_state.current_page_visualizar_beneficio = 1
+    
+    items_per_page = 15
+    total_registros = len(df_filtrado)
+    total_pages = math.ceil(total_registros / items_per_page) if items_per_page > 0 else 1
+    
+    start_idx = (st.session_state.current_page_visualizar_beneficio - 1) * items_per_page
+    end_idx = start_idx + items_per_page
+    df_paginado = df_filtrado.iloc[start_idx:end_idx]
+
+    # Selecionar colunas específicas do relatório
+    colunas_relatorio = [
+        "Nº DO PROCESSO", "PARTE", "TIPO DE PROCESSO", "NB", 
+        "Valor Pago", "Status", "Data Cadastro", "Cadastrado Por"
+    ]
+    
+    # Verificar quais colunas existem no DataFrame
+    colunas_existentes = [col for col in colunas_relatorio if col in df_filtrado.columns]
+    
+    if not df_paginado.empty:
+        # Contador de itens
+        st.markdown(f'<p style="font-size: small; color: steelblue;">Mostrando {start_idx+1} a {min(end_idx, total_registros)} de {total_registros} registros</p>', unsafe_allow_html=True)
+        
+        # Cabeçalhos da tabela
+        col_processo, col_parte, col_tipo, col_nb, col_valor, col_status, col_data = st.columns([2, 2, 1.5, 1, 1.5, 1.5, 1.5])
+        with col_processo: st.markdown("**Processo**")
+        with col_parte: st.markdown("**Parte**")
+        with col_tipo: st.markdown("**Tipo**")
+        with col_nb: st.markdown("**NB**")
+        with col_valor: st.markdown("**Valor Pago**")
+        with col_status: st.markdown("**Status**")
+        with col_data: st.markdown("**Data Cadastro**")
+        
+        st.markdown('<hr style="margin-top: 0.1rem; margin-bottom: 0.5rem;" />', unsafe_allow_html=True)
+        
+        # Linhas da tabela
+        for _, beneficio in df_paginado.iterrows():
+            col_processo, col_parte, col_tipo, col_nb, col_valor, col_status, col_data = st.columns([2, 2, 1.5, 1, 1.5, 1.5, 1.5])
+            
+            with col_processo: 
+                processo = safe_get_value_beneficio(beneficio, 'Nº DO PROCESSO', 'N/A')
+                st.write(f"**{processo[:18]}{'...' if len(processo) > 18 else ''}**")
+            
+            with col_parte: 
+                parte = safe_get_value_beneficio(beneficio, 'PARTE', 'N/A')
+                st.write(f"{parte[:20]}{'...' if len(parte) > 20 else ''}")
+                
+            with col_tipo:
+                tipo = safe_get_value_beneficio(beneficio, 'TIPO DE PROCESSO', 'N/A')
+                st.write(f"{tipo[:12]}{'...' if len(tipo) > 12 else ''}")
+                
+            with col_nb:
+                nb = safe_get_value_beneficio(beneficio, 'NB', 'N/A')
+                st.write(nb)
+            
+            with col_valor: 
+                valor_pago = beneficio.get('Valor Pago', 0)
+                if valor_pago and str(valor_pago) != 'nan':
+                    try:
+                        valor_num = float(valor_pago)
+                        st.write(f"R$ {valor_num:,.2f}")
+                    except:
+                        st.write("Não informado")
+                else:
+                    st.write("Não informado")
+                
+            with col_status:
+                status_atual = safe_get_value_beneficio(beneficio, 'Status', 'N/A')
+                # Colorir status
+                if status_atual == "Finalizado":
+                    st.markdown(f'<span style="color: green; font-weight: bold;">🟢 {status_atual}</span>', unsafe_allow_html=True)
+                elif "financeiro" in status_atual.lower():
+                    st.markdown(f'<span style="color: orange; font-weight: bold;">🟠 {status_atual}</span>', unsafe_allow_html=True)
+                elif "administrativo" in status_atual.lower():
+                    st.markdown(f'<span style="color: blue; font-weight: bold;">🔵 {status_atual}</span>', unsafe_allow_html=True)
+                elif "implantado" in status_atual.lower():
+                    st.markdown(f'<span style="color: purple; font-weight: bold;">🟣 {status_atual}</span>', unsafe_allow_html=True)
+                else:
+                    st.write(status_atual)
+                    
+            with col_data:
+                data_cadastro = safe_get_value_beneficio(beneficio, 'Data Cadastro', 'N/A')
+                # Extrair apenas a data (sem horário)
+                if data_cadastro != 'N/A':
+                    try:
+                        data_apenas = data_cadastro.split(' ')[0]
+                        st.write(data_apenas)
+                    except:
+                        st.write(data_cadastro)
+                else:
+                    st.write(data_cadastro)
+        
+        # Controles de paginação
+        st.markdown("---")
+        col_nav1, col_nav2, col_nav3 = st.columns([3, 2, 3])
+        
+        with col_nav1:
+            if st.session_state.current_page_visualizar_beneficio > 1:
+                if st.button("<< Primeira", key="beneficio_viz_primeira"):
+                    st.session_state.current_page_visualizar_beneficio = 1
+                    st.rerun()
+                if st.button("< Anterior", key="beneficio_viz_anterior"):
+                    st.session_state.current_page_visualizar_beneficio -= 1
+                    st.rerun()
+        
+        with col_nav2:
+            st.write(f"Página {st.session_state.current_page_visualizar_beneficio} de {total_pages}")
+        
+        with col_nav3:
+            if st.session_state.current_page_visualizar_beneficio < total_pages:
+                if st.button("Próxima >", key="beneficio_viz_proxima"):
+                    st.session_state.current_page_visualizar_beneficio += 1
+                    st.rerun()
+                if st.button("Última >>", key="beneficio_viz_ultima"):
+                    st.session_state.current_page_visualizar_beneficio = total_pages
+                    st.rerun()
+    else:
+        st.info("Nenhum registro encontrado com os filtros aplicados.")

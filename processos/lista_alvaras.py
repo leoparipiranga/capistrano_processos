@@ -22,7 +22,8 @@ from components.funcoes_alvaras import (
     interface_lista_alvaras, interface_anexar_documentos, 
     interface_acoes_financeiro, interface_edicao_processo, 
     interface_cadastro_alvara,
-    interface_visualizar_dados, interface_visualizar_alvara
+    interface_visualizar_dados, interface_visualizar_alvara,
+    interface_visualizar_dados_alvara
 )
 
 # Importar funções comuns que ainda estão no módulo de controle
@@ -89,7 +90,8 @@ def show():
     # Limpar colunas sem nome
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
-    aba = st.tabs(["📝 Cadastrar Alvará", "📊 Gerenciar Alvarás", "📁 Visualizar Dados"])
+    # Abas - adicionando aba Visualizar Dados
+    aba = st.tabs(["📝 Cadastrar Alvará", "📊 Gerenciar Alvarás", "📈 Visualizar Dados"])
 
     with aba[0]:
         interface_cadastro_alvara(df, perfil_usuario)
@@ -98,5 +100,5 @@ def show():
         interface_lista_alvaras(df, perfil_usuario)
     
     with aba[2]:
-        interface_visualizar_dados(df)
+        interface_visualizar_dados_alvara(df)
 

@@ -5,6 +5,24 @@ import requests
 import base64
 from datetime import datetime
 
+def tratar_valor_nan(valor, default='Não informado'):
+    """
+    Função utilitária para tratar valores nan/None de forma consistente
+    Args:
+        valor: Valor a ser tratado
+        default: Valor padrão a ser retornado se o valor for nan/None/vazio
+    Returns:
+        String tratada ou valor original
+    """
+    if pd.isna(valor) or valor is None:
+        return default
+    
+    str_value = str(valor)
+    if str_value.lower() in ['nan', 'none', '', 'null']:
+        return default
+    
+    return str_value
+
 # =====================================
 # CONFIGURAÇÕES DE PERFIS
 # =====================================
@@ -90,7 +108,6 @@ def verificar_perfil_usuario_rpv():
     perfis_validos_rpv = {
         "Admin": "Admin",
         "Cadastrador": "Cadastrador",
-        "Jurídico": "Jurídico",
         "Financeiro": "Financeiro"
     }
     
@@ -112,7 +129,7 @@ def obter_colunas_controle_rpv():
         "Certidão Anexada", "Data Certidão", "Anexado Certidão Por",
         "Data Envio Rodrigo", "Enviado Rodrigo Por", 
         "Comprovante Saque", "Comprovante Pagamento", "Valor Final Escritório",
-        "Data Finalização", "Finalizado Por"
+        "Data Finalização", "Finalizado Por", "HC1", "HC2", "HC3"
     ]
 
 def inicializar_linha_vazia_rpv():
@@ -388,10 +405,6 @@ def save_data_local(df, filename):
         st.error(f"❌ Erro ao salvar localmente: {e}")
         return False
 
-# =====================================
-# FUNÇÕES DE ARQUIVO E UPLOAD
-# =====================================
-
 def salvar_arquivo(arquivo, processo, tipo):
     """Salva arquivo binário (PDF, imagem) exclusivamente no Google Drive"""
     try:
@@ -464,10 +477,6 @@ def baixar_arquivo_drive(url_arquivo, nome_display):
             return True
     return False
 
-# =====================================
-# FUNÇÕES DE ANÁLISE E COMPARAÇÃO
-# =====================================
-
 def mostrar_diferencas(df_original, df_editado):
     """Mostra diferenças entre DataFrames"""
     diff = []
@@ -496,8 +505,8 @@ def mostrar_diferencas(df_original, df_editado):
                 if str(val_orig) != str(val_edit):
                     alteracoes.append(
                         f"Linha {i+1}, Coluna '{col}': "
-                        f"'{val_orig if not pd.isna(val_orig) else ''}' → "
-                        f"'{val_edit if not pd.isna(val_edit) else ''}'"
+                        f"'{tratar_valor_nan(val_orig, '')}' → "
+                        f"'{tratar_valor_nan(val_edit, '')}'"
                     )
     
     if alteracoes:
@@ -529,10 +538,6 @@ def formatar_processo(processo):
     numeros = ''.join([c for c in str(processo) if c.isdigit() or c in '.-'])
     
     return numeros
-
-# =====================================
-# FUNÇÕES DE LIMPEZA E MANUTENÇÃO
-# =====================================
 
 def limpar_campos_formulario(prefixo="input_alvaras_"):
     """Limpa campos do formulário do session_state"""
@@ -568,13 +573,7 @@ def inicializar_linha_vazia():
     
     return linha_vazia
 
-# =====================================
-# FUNÇÕES DE INTERFACE E AÇÕES
-# =====================================
-
 def interface_lista_alvaras(df, perfil_usuario):
-    """Lista de alvarás com botão Abrir para ações"""
-    st.subheader("📊 Lista de Alvarás")
     
     # Filtros
     col_filtro1, col_filtro2 = st.columns(2)
@@ -614,7 +613,7 @@ def interface_lista_alvaras(df, perfil_usuario):
         # Se ID é inválido, gerar novo baseado no índice
         if (pd.isna(id_atual) or 
             str(id_atual).strip() == "" or 
-            str(id_atual) == "nan" or
+            str(id_atual) == "Não informado" or
             "E+" in str(id_atual) or  # Notação científica
             "e+" in str(id_atual).lower()):
             
@@ -849,7 +848,7 @@ def interface_acoes_financeiro(df_filtrado):
             with st.expander(f"Finalizar: {processo['Processo']} - {processo['Parte']}"):
                 # Checkbox para múltiplos comprovantes
                 anexar_multiplos_rec = st.checkbox(
-                    "📎 Anexar múltiplos comprovantes", 
+                    "Anexar múltiplos comprovantes", 
                     key=f"multiplos_recebimento_{processo['Processo']}"
                 )
                 
@@ -896,16 +895,16 @@ def interface_fluxo_trabalho(df, perfil_usuario):
     total_finalizados = len(df[df["Status"] == "Finalizado"]) if "Status" in df.columns else 0
     
     with col_dash1:
-        st.metric("📝 Cadastrados", total_cadastrados)
+        st.metric("Cadastrados", total_cadastrados)
     
     with col_dash2:
-        st.metric("📤 No Financeiro", total_financeiro)
+        st.metric("No Financeiro", total_financeiro)
     
     with col_dash3:
-        st.metric("👨‍💼 Com Rodrigo", total_Rodrigo)
+        st.metric("Com Rodrigo", total_Rodrigo)
     
     with col_dash4:
-        st.metric("✅ Finalizados", total_finalizados)
+        st.metric("Finalizados", total_finalizados)
     
     st.markdown("---")
     
@@ -915,11 +914,11 @@ def interface_fluxo_trabalho(df, perfil_usuario):
     elif perfil_usuario == "Financeiro":
         interface_financeiro_fluxo(df)
     else:
-        st.info("👤 Perfil não reconhecido para este fluxo")
+        st.info("Perfil não reconhecido para este fluxo")
 
 def interface_cadastrador_fluxo(df):
     """Interface específica para Cadastradores no fluxo"""
-    st.markdown("### 👨‍💻 Ações do Cadastrador")
+    st.markdown("### Ações do Cadastrador")
     
     # Processos que precisam de documentos
     if "Status" in df.columns:
@@ -941,7 +940,7 @@ def interface_cadastrador_fluxo(df):
                     st.write(f"**Cadastrado em:** {processo.get('Data Cadastro', 'N/A')}")
                 
                 with col_acao:
-                    if st.button(f"📎 Anexar Documentos", key=f"anexar_{processo['Processo']}"):
+                    if st.button(f"Anexar Documentos", key=f"anexar_{processo['Processo']}"):
                         st.session_state['processo_anexar'] = processo['Processo']
                         st.rerun()
         
@@ -974,9 +973,8 @@ def interface_financeiro_fluxo(df):
         aguardando_financeiro = pd.DataFrame()
         aguardando_finalizacao = pd.DataFrame()
     
-    # ETAPA 3: Processos para enviar ao Rodrigo
     if len(aguardando_financeiro) > 0:
-        st.markdown("#### 📤 Enviar para o Rodrigo:")
+        st.markdown("#### 📤 Enviar para Rodrigo:")
         
         for _, processo in aguardando_financeiro.iterrows():
             with st.expander(f"📋 {processo['Processo']} - {processo['Parte']}"):
@@ -989,7 +987,7 @@ def interface_financeiro_fluxo(df):
                     st.write(f"**Enviado em:** {processo.get('Data Envio Financeiro', 'N/A')}")
                 
                 with col_docs:
-                    st.markdown("**📎 Documentos:**")
+                    st.markdown("**Documentos:**")
                     if processo.get("Comprovante Conta"):
                         baixar_arquivo_drive(processo["Comprovante Conta"], "Comprovante")
                     if processo.get("PDF Alvará"):
@@ -1014,7 +1012,6 @@ def interface_financeiro_fluxo(df):
                         st.success("✅ Processo enviado para o Rodrigo!")
                         st.rerun()
     
-    # ETAPA 4: Processos para finalizar
     if len(aguardando_finalizacao) > 0:
         st.markdown("#### ✅ Finalizar Processos:")
         
@@ -1035,11 +1032,11 @@ def interface_financeiro_fluxo(df):
                 with col_anexo:
                     # Checkbox para múltiplos comprovantes
                     anexar_multiplos_final = st.checkbox(
-                        "📎 Anexar múltiplos comprovantes", 
+                        "Anexar múltiplos comprovantes", 
                         key=f"multiplos_final_{processo['Processo']}"
                     )
                     
-                    st.markdown("**📎 Anexar Comprovante de Recebimento:**")
+                    st.markdown("**Anexar Comprovante de Recebimento:**")
                     if anexar_multiplos_final:
                         comprovante_recebimento = st.file_uploader(
                             "Comprovantes do Rodrigo:",
@@ -1137,10 +1134,8 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
         st.write(f"**Cadastrado em:** {linha_processo.get('Data Cadastro', 'N/A')}")
     
     st.markdown("---")
-    
-    # ETAPA 2: Cadastrado -> Anexar documentos (Cadastrador)
     if status_atual == "Cadastrado" and perfil_usuario == "Cadastrador":
-        st.markdown("#### 📎 Anexar Documentos")
+        st.markdown("#### Anexar Documentos")
         
         col_doc1, col_doc2 = st.columns(2)
         
@@ -1201,10 +1196,8 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
             st.warning("⚠️ Anexe ambos os documentos para prosseguir")
         else:
             st.info("📋 Anexe o comprovante da conta e o PDF do alvará")
-    
-    # ETAPA 3: Enviado para Financeiro -> Enviar para Rodrigo (Financeiro)
     elif status_atual == "Enviado para o Financeiro" and perfil_usuario == "Financeiro":
-        st.markdown("#### 📤 Enviar para o Rodrigo")
+        st.markdown("#### 📤 Enviar para Rodrigo")
         
         # Mostrar documentos anexados
         col_doc1, col_doc2 = st.columns(2)
@@ -1247,7 +1240,6 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
             del st.session_state['processo_aberto']
             st.rerun()
     
-    # ETAPA 4: Financeiro - Enviado para Rodrigo -> Finalizar (Financeiro)
     elif status_atual == "Financeiro - Enviado para Rodrigo" and perfil_usuario == "Financeiro":
         st.markdown("#### ✅ Finalizar Processo")
         
@@ -1262,11 +1254,11 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
         
         # Checkbox para múltiplos comprovantes
         anexar_multiplos_ult = st.checkbox(
-            "📎 Anexar múltiplos comprovantes", 
+            "Anexar múltiplos comprovantes", 
             key=f"multiplos_ultimo_{processo}"
         )
         
-        st.markdown("**📎 Anexar Comprovante de Recebimento:**")
+        st.markdown("**Anexar Comprovante de Recebimento:**")
         if anexar_multiplos_ult:
             comprovante_recebimento = st.file_uploader(
                 "Comprovantes enviados pelo Rodrigo:",
@@ -1331,7 +1323,7 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
             st.write(f"- Finalizado por: {linha_processo.get('Finalizado Por', 'N/A')}")
         
         # Documentos anexados
-        st.markdown("**📎 Documentos anexados:**")
+        st.markdown("**Documentos anexados:**")
         col_docs1, col_docs2, col_docs3 = st.columns(3)
         
         with col_docs1:
@@ -1670,7 +1662,7 @@ def interface_visualizar_dados(df):
                 
                 # Filtrar apenas registros com data válida e que contém a data de hoje
                 hoje_count = len(df_temp[
-                    (df_temp["Data Cadastro"] != "nan") & 
+                    (df_temp["Data Cadastro"] != "Não informado") & 
                     (df_temp["Data Cadastro"] != "") & 
                     (df_temp["Data Cadastro"].str.contains(hoje, na=False))
                 ])
@@ -1678,8 +1670,6 @@ def interface_visualizar_dados(df):
             else:
                 st.metric("Cadastrados Hoje", "N/A")
         
-        # Filtros para visualização
-        st.markdown("### 🔍 Filtros")
         col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
         
         with col_filtro1:
@@ -1830,7 +1820,7 @@ def interface_visualizar_dados(df):
                 
                 # Filtrar datas válidas
                 df_temp = df_temp[
-                    (df_temp["Data Cadastro"] != "nan") & 
+                    (df_temp["Data Cadastro"] != "Não informado") & 
                     (df_temp["Data Cadastro"] != "") &
                     (df_temp["Data Cadastro"] != "None")
                 ]

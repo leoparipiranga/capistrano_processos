@@ -1,11 +1,10 @@
 import streamlit as st
-import math
 
 st.set_page_config(
     page_title="Capistrano Advogados", 
     layout="wide",
     page_icon="⚖️",
-    initial_sidebar_state="expanded"  # Inicia aberto para mostrar o botão nativo
+    initial_sidebar_state="expanded"
 )
 
 # CSS para estilização da página de login e preservar controles nativos
@@ -49,9 +48,14 @@ st.markdown("""
 def autenticar(usuario, senha):
     try:
         usuarios = st.secrets["usuarios"]
-        if usuario in usuarios:
-            usuario_data = usuarios[usuario]
-            return senha == usuario_data["senha"]
+        # Converter usuario para lowercase para comparação case-insensitive
+        usuario_lower = usuario.lower()
+        
+        # Procurar o usuário ignorando case
+        for usuario_secrets in usuarios:
+            if usuario_secrets.lower() == usuario_lower:
+                usuario_data = usuarios[usuario_secrets]
+                return senha == usuario_data["senha"]
         return False
     except Exception as e:
         st.error(f"Erro na autenticação: {e}")
@@ -61,8 +65,13 @@ def obter_dados_usuario(usuario):
     """Obtém dados completos do usuário autenticado"""
     try:
         usuarios = st.secrets["usuarios"]
-        if usuario in usuarios:
-            return usuarios[usuario]
+        # Converter usuario para lowercase para comparação case-insensitive
+        usuario_lower = usuario.lower()
+        
+        # Procurar o usuário ignorando case
+        for usuario_secrets in usuarios:
+            if usuario_secrets.lower() == usuario_lower:
+                return usuarios[usuario_secrets]
         return None
     except Exception as e:
         st.error(f"Erro ao obter dados do usuário: {e}")
@@ -143,8 +152,8 @@ def mostrar_guia_utilizacao():
         with col2:
             st.metric(
                 label="👥 Perfis de Usuário", 
-                value="6", 
-                help="Admin, Cadastrador, Administrativo, Financeiro, Jurídico, SAC"
+                value="5", 
+                help="Admin, Cadastrador, Administrativo, Financeiro, SAC"
             )
         with col3:
             st.metric(
@@ -192,16 +201,6 @@ def mostrar_guia_utilizacao():
                     "✅ Visualizar processos",
                     "✅ Editar valores financeiros",
                     "✅ Fazer upload de comprovantes",
-                    "❌ Excluir processos"
-                ]
-            },
-            "⚖️ Jurídico": {
-                "cor": "info",
-                "descricao": "Acesso a aspectos legais dos processos", 
-                "permissoes": [
-                    "✅ Visualizar processos",
-                    "✅ Editar informações jurídicas",
-                    "✅ Fazer upload de documentos legais",
                     "❌ Excluir processos"
                 ]
             },
@@ -280,26 +279,32 @@ def mostrar_guia_utilizacao():
         
         with sub_tab2:
             st.markdown("""
-            #### � RPV - Requisições de Pequeno Valor
+            #### 💰 RPV - Requisições de Pequeno Valor
             
-            **Fluxo do Processo:**
-            1. **📝 Cadastrado:** Registro da requisição inicial
-            2. **⚖️ Em Análise Jurídica:** Avaliação legal do processo
-            3. **💰 Aprovado - Aguardando Pagamento:** Preparação para pagamento
-            4. **✅ Pago:** RPV processado e finalizado
+            **Novo Fluxo do Processo (6 Etapas):**
+            1. **📝 Cadastro:** Cadastrador registra a requisição inicial
+            2. **📋 Status Simultâneos:** SAC e Administrativo trabalham em paralelo
+               - **SAC - aguardando documentação** → **SAC - documentação pronta**
+               - **Administrativo - aguardando documentação** → **Administrativo - documentação pronta**
+            3. **💰 Validação Financeiro:** Financeiro valida trabalhos de SAC + Administrativo
+            4. **� Enviado para Rodrigo:** Financeiro anexa comprovante de recebimento
+            5. **💳 Aguardando Pagamento:** Financeiro anexa comprovante de pagamento
+            6. **🎉 Finalizado:** RPV processado com timeline completa
             
             **Responsabilidades por Perfil:**
             - **Cadastrador**: Registro inicial da RPV
-            - **Jurídico**: Análise legal e aprovação
-            - **Financeiro**: Processamento de pagamentos
-            - **Admin**: Gestão completa do fluxo
+            - **SAC**: Preparação de documentação específica do SAC
+            - **Administrativo**: Preparação de documentação administrativa
+            - **Financeiro**: Validação, recebimento e pagamento
+            - **Admin**: Acesso a todas as etapas com interfaces específicas
             
-            **Funcionalidades:**
-            - Controle de prazos e vencimentos
-            - Gestão de documentação
-            - Acompanhamento de status
-            - Relatórios financeiros
-            - Operações em massa (exclusão)
+            **Funcionalidades Avançadas:**
+            - **Status Simultâneos**: SAC e Administrativo trabalham em paralelo
+            - **Upload de Comprovantes**: Recebimento e pagamento
+            - **Timeline Detalhada**: Histórico completo com datas e responsáveis
+            - **Controle por Perfil**: Cada perfil vê apenas suas ações relevantes
+            - **Admin Inteligente**: Vê checkboxes específicos de cada etapa
+            - **Gestão de Anexos**: Arquivos salvos automaticamente no diretório anexos/
             """)
         
         with sub_tab3:
@@ -337,15 +342,22 @@ def mostrar_guia_utilizacao():
         
         Cada tipo de processo possui estados específicos e regras de transição definidas pelos perfis de usuário.
         
-        ### 👥 Novo Perfil: SAC (Customer Service)
+        ### 👥 Perfil SAC (Customer Service)
         
-        O perfil **SAC** foi criado especificamente para gerenciar o atendimento ao cliente nos processos de benefícios:
-        - **Acesso**: Apenas processos de benefícios
+        O perfil **SAC** atua em dois tipos de processo:
+        
+        **🎯 Benefícios:**
+        - **Acesso**: Processos de benefícios enviados para SAC
         - **Funcionalidades**: Contato com clientes, atualização de status
         - **Workflow**: Recebe processos implantados e faz contato com beneficiários
+        
+        **💰 RPV:**
+        - **Acesso**: Status simultâneo "SAC - aguardando documentação"
+        - **Funcionalidades**: Preparação de documentação específica do SAC
+        - **Workflow**: Trabalha em paralelo com Administrativo
         """)
         
-        st.info("💡 **Dica**: Cada perfil tem acesso apenas aos status relevantes para suas funções. Admins podem gerenciar todos os status.")
+        st.info("💡 **Dica**: Cada perfil tem acesso apenas aos status relevantes para suas funções. Admins podem gerenciar todos os status com interfaces específicas.")
     with tab4:
         st.header("Configurações do Sistema")
         
@@ -448,7 +460,7 @@ def mostrar_guia_utilizacao():
                 "resposta": """
                 Os perfis são definidos pelo administrador do sistema.
                 Entre em contato com o responsável para alterações de perfil.
-                **Novos perfis disponíveis**: Admin, Cadastrador, Administrativo, Financeiro, Jurídico, SAC
+                **Novos perfis disponíveis**: Admin, Cadastrador, Administrativo, Financeiro, SAC
                 """
             },
             {
@@ -525,12 +537,33 @@ if not st.session_state.logado:
                 if submitted:
                     if autenticar(usuario, senha):
                         st.session_state.logado = True
-                        st.session_state.usuario = usuario
-                        
+                        # Salvar o nome de usuário original para manter case do secrets.toml
                         dados_usuario = obter_dados_usuario(usuario)
                         if dados_usuario:
+                            # Encontrar o nome real do usuário no secrets.toml
+                            usuarios = st.secrets["usuarios"]
+                            usuario_lower = usuario.lower()
+                            for usuario_secrets in usuarios:
+                                if usuario_secrets.lower() == usuario_lower:
+                                    st.session_state.usuario = usuario_secrets  # Nome real do secrets
+                                    break
+                            
                             st.session_state.nome_completo = dados_usuario.get("nome_completo", usuario)
                             st.session_state.perfil_usuario = dados_usuario.get("perfil", "N/A")
+                        else:
+                            st.session_state.usuario = usuario
+                        
+                        # Limpar estados de diálogos ao fazer login para evitar pop-ups automáticos
+                        dialogos_para_limpar = [
+                            "show_alvara_dialog", "processo_aberto_id",
+                            "show_rpv_dialog", "rpv_aberto_id", 
+                            "show_beneficio_dialog", "beneficio_aberto_id"
+                        ]
+                        for key in dialogos_para_limpar:
+                            if "show_" in key:
+                                st.session_state[key] = False
+                            else:
+                                st.session_state[key] = None
                         
                         st.rerun()
                     else:

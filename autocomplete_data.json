@@ -1,8 +1,17 @@
 {
   "orgaos_judiciais": [
+    "COMARCA DE BELO HORIZONTE",
     "TESTE CADASTRO"
   ],
-  "assuntos_beneficios": [],
-  "assuntos_rpv": [],
-  "orgaos_rpv": []
+  "assuntos_beneficios": [
+    "AUXILIO-ALIMENTACAO"
+  ],
+  "assuntos_rpv": [
+    "ABONO ANUAL (13º SALARIO)",
+    "ADICIONAL NOTURNO"
+  ],
+  "orgaos_rpv": [
+    "GOVERNO DO ESTADO DE MINAS GERAIS",
+    "INSS - INSTITUTO NACIONAL DO SEGURO SOCIAL"
+  ]
 }

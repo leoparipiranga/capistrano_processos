@@ -2,12 +2,33 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
+def tratar_valor_nan(valor, default='Não informado'):
+    """
+    Função utilitária para tratar valores nan/None de forma consistente
+    Args:
+        valor: Valor a ser tratado
+        default: Valor padrão a ser retornado se o valor for nan/None/vazio
+    Returns:
+        String tratada ou valor original
+    """
+    if pd.isna(valor) or valor is None:
+        return default
+    
+    str_value = str(valor)
+    if str_value.lower() in ['nan', 'none', '', 'null']:
+        return default
+    
+    return str_value
+
 @st.cache_data
 def load_data(file_path):
     try:
-        return pd.read_csv(file_path, encoding='utf-8', sep=';', on_bad_lines='skip')
+        df = pd.read_csv(file_path, encoding='utf-8', sep=';', on_bad_lines='skip')
+        # Tratar valores nan ao carregar dados
+        return df.fillna('Não informado')
     except TypeError:
-        return pd.read_csv(file_path, encoding='utf-8', sep=';', error_bad_lines=False)
+        df = pd.read_csv(file_path, encoding='utf-8', sep=';', error_bad_lines=False)
+        return df.fillna('Não informado')
     except Exception as e:
         st.error(f"Erro ao ler o arquivo CSV: {e}")
         return pd.DataFrame()
@@ -42,7 +63,7 @@ def mostrar_diferencas(df_original, df_editado):
                 continue
             if str(val_orig) != str(val_edit):
                 alteracoes.append(
-                    f"Linha {i+1}, Coluna '{col}': '{val_orig if not pd.isna(val_orig) else ''}' → '{val_edit if not pd.isna(val_edit) else ''}'"
+                    f"Linha {i+1}, Coluna '{col}': '{tratar_valor_nan(val_orig, '')}' → '{tratar_valor_nan(val_edit, '')}'"
                 )
     if alteracoes:
         diff.append("Células alteradas:")

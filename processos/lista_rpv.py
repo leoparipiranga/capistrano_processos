@@ -47,15 +47,9 @@ from components.functions_controle import (
 def show():
     """Função principal do módulo RPV"""
     
-    # CSS para estilização
+    # CSS para estilização (removido CSS que sobrescreve cores dos inputs)
     st.markdown("""
     <style>
-        .stSelectbox > div > div > select {
-            background-color: #f0f2f6;
-        }
-        .stTextInput > div > div > input {
-            background-color: #f0f2f6;
-        }
         .metric-container {
             background-color: #f8f9fa;
             padding: 1rem;
@@ -82,11 +76,16 @@ def show():
     
     df = st.session_state.df_editado_rpv
     
+    # Garantir colunas do novo fluxo
+    from components.funcoes_rpv import garantir_colunas_novo_fluxo
+    df = garantir_colunas_novo_fluxo(df)
+    st.session_state.df_editado_rpv = df
+    
     # Limpar colunas sem nome
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     
-    # Abas
-    aba = st.tabs(["📝 Cadastrar RPVs", "📊 Gerenciar RPVs", "📁 Visualizar Dados"])
+    # Abas (adicionada terceira aba Visualizar Dados)
+    aba = st.tabs(["📝 Cadastrar RPVs", "📊 Gerenciar RPVs", "📈 Visualizar Dados"])
     
     with aba[0]:
         interface_cadastro_rpv(df, perfil_usuario)

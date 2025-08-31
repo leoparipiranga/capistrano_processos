@@ -14,15 +14,23 @@ venv/
 # VS Code
 .vscode/
 
-# Arquivos de teste
+# Arquivos de teste e debug
 test_*.py
 teste_*.py
+debug_*.py
+fix_*.py
+criar_teste.py
+corrigir_teste.py
+simular_*.py
+*_teste.py
+verificar_*.py
 
 # Arquivos temporários e logs
 *.log
 *.tmp
 *~
 .DS_Store
+last_backup.txt
 
 # Arquivos locais de backup do autocomplete
 autocomplete_data_local.json

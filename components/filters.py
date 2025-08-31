@@ -2,9 +2,6 @@ import streamlit as st
 import pandas as pd
 
 def aplicar_filtros_temporais(df_analise):
-    """Aplica filtros de ano e tipo principal"""
-    
-    st.subheader("🔍 Filtros")
     col_filtro1, col_filtro2 = st.columns(2)
     
     df_filtrado = df_analise.copy()
