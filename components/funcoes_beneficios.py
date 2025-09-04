@@ -11,7 +11,7 @@ from components.autocomplete_manager import (
 )
 from components.functions_controle import (
     # Funções GitHub
-    get_github_api_info, load_data_from_github, 
+    get_github_api_info, load_data_from_github,
     save_data_local, save_data_to_github_seguro,
     
     # Funções de arquivo
@@ -32,6 +32,57 @@ def safe_get_value_beneficio(data, key, default='Não cadastrado'):
     if str_value.lower() in ['nan', 'none', '']:
         return default
     return str_value
+
+def safe_get_hc_value_beneficio(data, key, default=0.0):
+    """Obtém valor de honorário contratual de forma segura para Benefícios"""
+    value = data.get(key, default)
+    if pd.isna(value) or value == "nan" or value == "" or value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+def calcular_total_hc_beneficio(linha_beneficio):
+    """Calcula o total dos honorários contratuais (HC + HC1 + HC2) para Benefícios"""
+    hc = safe_get_hc_value_beneficio(linha_beneficio, "Honorarios Contratuais", 0.0)
+    hc1 = safe_get_hc_value_beneficio(linha_beneficio, "HC1", 0.0)
+    hc2 = safe_get_hc_value_beneficio(linha_beneficio, "HC2", 0.0)
+    return hc + hc1 + hc2
+
+def mostrar_detalhes_hc_beneficio(linha_beneficio, key_suffix=""):
+    """Mostra detalhes individuais dos honorários contratuais para Benefícios"""
+    total_hc = calcular_total_hc_beneficio(linha_beneficio)
+    
+    if total_hc > 0:
+        with st.expander(f"💼 Ver Detalhes dos Honorários Contratuais (Total: R$ {total_hc:.2f})"):
+            col1, col2, col3 = st.columns(3)
+            
+            hc = safe_get_hc_value_beneficio(linha_beneficio, "Honorarios Contratuais", 0.0)
+            hc1 = safe_get_hc_value_beneficio(linha_beneficio, "HC1", 0.0)
+            hc2 = safe_get_hc_value_beneficio(linha_beneficio, "HC2", 0.0)
+            
+            with col1:
+                if hc > 0:
+                    st.metric("💼 HC1", f"R$ {hc:.2f}")
+                else:
+                    st.info("💼 HC1: Não informado")
+            
+            with col2:
+                if hc1 > 0:
+                    st.metric("💰 HC2", f"R$ {hc1:.2f}")
+                else:
+                    st.info("💰 HC2: Não informado")
+            
+            with col3:
+                if hc2 > 0:
+                    st.metric("📊 HC3", f"R$ {hc2:.2f}")
+                else:
+                    st.info("📊 HC3: Não informado")
+                    
+            st.success(f"💎 **Total Geral:** R$ {total_hc:.2f}")
+    else:
+        st.info("💼 Nenhum honorário contratual cadastrado para este benefício.")
 
 def limpar_estados_dialogo_beneficio():
     """Limpa todos os estados relacionados aos diálogos de benefícios"""
@@ -94,6 +145,9 @@ def exibir_informacoes_basicas_beneficio(linha_beneficio, estilo="compacto"):
         "Finalizado": "background-color: #d1e7dd; color: #0f5132;"
     }.get(status_atual, "background-color: #e2e3e5; color: #383d41;")
     
+    # Calcular total de honorários contratuais
+    total_hc = calcular_total_hc_beneficio(linha_beneficio)
+    
     st.markdown("### 📋 Resumo do Benefício")
     st.markdown(f"""
     <div class="compact-grid">
@@ -116,6 +170,10 @@ def exibir_informacoes_basicas_beneficio(linha_beneficio, estilo="compacto"):
             </div>
         </div>
         <div class="compact-item">
+            <div class="compact-label">💼 TOTAL HC</div>
+            <div class="compact-value">R$ {total_hc:.2f}</div>
+        </div>
+        <div class="compact-item">
             <div class="compact-label">📅 DATA CONCESSÃO</div>
             <div class="compact-value">{safe_get_value_beneficio(linha_beneficio, 'DATA DA CONCESSÃO DA LIMINAR')}</div>
         </div>
@@ -126,6 +184,9 @@ def exibir_informacoes_basicas_beneficio(linha_beneficio, estilo="compacto"):
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
+    
+    # Mostrar detalhes dos honorários contratuais
+    mostrar_detalhes_hc_beneficio(linha_beneficio, "compacto")
 
 # =====================================
 # CONFIGURAÇÕES DE PERFIS - BENEFÍCIOS
@@ -160,13 +221,13 @@ def obter_colunas_controle_beneficios():
     """Retorna lista das colunas de controle do fluxo de benefícios"""
     return [
         # Campos básicos existentes
-        "Nº DO PROCESSO", "DETALHE PROCESSO", "PARTE", "CPF", 
-        "DATA DA CONCESSÃO DA LIMINAR", "PROVÁVEL PRAZO FATAL PARA CUMPRIMENTO", 
+        "Nº DO PROCESSO", "DETALHE PROCESSO", "PARTE", "CPF",
+        "DATA DA CONCESSÃO DA LIMINAR", "PROVÁVEL PRAZO FATAL PARA CUMPRIMENTO",
         "OBSERVAÇÕES", "linhas", "Status", "Data Cadastro", "Cadastrado Por",
-        "Data Envio Administrativo", "Enviado Administrativo Por", "Implantado", 
+        "Data Envio Administrativo", "Enviado Administrativo Por", "Implantado",
         "Data Implantação", "Implantado Por", "Benefício Verificado", "Percentual Cobrança",
         "Data Envio SAC", "Enviado SAC Por", "Cliente Contatado", "Data Contato SAC", "Contatado Por",
-        "Data Envio Financeiro", "Enviado Financeiro Por", 
+        "Data Envio Financeiro", "Enviado Financeiro Por",
         
         # Novos campos para pagamento parcelado
         "Tipo Pagamento", "Numero Parcelas", "Valor Total Honorarios", "Valor Parcela",
@@ -219,11 +280,10 @@ def calcular_status_parcelas(linha_beneficio, num_parcelas):
     return parcelas_pagas, todas_pagas
 
 
-
 # Assuntos para autocomplete
 ASSUNTOS_BENEFICIOS_DEFAULT = [
     "LOAS",
-    "LOAS DEFICIENTE", 
+    "LOAS DEFICIENTE",
     "LOAS IDOSO",
     "APOSENTADORIA POR INVALIDEZ",
     "APOSENTADORIA POR IDADE",
@@ -279,7 +339,7 @@ def toggle_beneficio_selection(beneficio_id):
     
     # Remover qualquer versão duplicada (int ou str)
     st.session_state.processos_selecionados_beneficios = [
-        pid for pid in st.session_state.processos_selecionados_beneficios 
+        pid for pid in st.session_state.processos_selecionados_beneficios
         if str(pid) != beneficio_id_str
     ]
     
@@ -315,6 +375,15 @@ def interface_lista_beneficios(df, perfil_usuario):
     if "current_page_beneficios" not in st.session_state:
         st.session_state.current_page_beneficios = 1
     
+    # VERIFICAR E LIMPAR ESTADOS ÓRFÃOS DE DIÁLOGO
+    # Se o diálogo está aberto mas não há ID, limpar
+    if st.session_state.get("show_beneficio_dialog", False) and not st.session_state.get("beneficio_aberto_id"):
+        st.session_state.show_beneficio_dialog = False
+    
+    # Se há ID mas não deveria mostrar o diálogo, limpar o ID
+    if not st.session_state.get("show_beneficio_dialog", False) and st.session_state.get("beneficio_aberto_id"):
+        st.session_state.beneficio_aberto_id = None
+    
     # Inicializar estado de exclusão em massa
     if "modo_exclusao_beneficios" not in st.session_state:
         st.session_state.modo_exclusao_beneficios = False
@@ -325,7 +394,7 @@ def interface_lista_beneficios(df, perfil_usuario):
     if st.session_state.processos_selecionados_beneficios:
         ids_existentes = set(df["ID"].astype(str).tolist())
         st.session_state.processos_selecionados_beneficios = [
-            pid for pid in st.session_state.processos_selecionados_beneficios 
+            pid for pid in st.session_state.processos_selecionados_beneficios
             if str(pid) in ids_existentes
         ]
 
@@ -350,7 +419,7 @@ def interface_lista_beneficios(df, perfil_usuario):
         
         with col_btn2:
             if st.session_state.modo_exclusao_beneficios and st.session_state.processos_selecionados_beneficios:
-                if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_beneficios)})", 
+                if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_beneficios)})",
                            key="confirmar_exclusao_beneficios", type="primary"):
                     confirmar_exclusao_massa_beneficios(df, st.session_state.processos_selecionados_beneficios)
     
@@ -451,17 +520,23 @@ def interface_lista_beneficios(df, perfil_usuario):
                     current_value = beneficio_id in st.session_state.processos_selecionados_beneficios
                     
                     is_selected = st.checkbox(
-                        "",
+                        "Selecionar",
                         value=current_value,
                         key=f"check_beneficio_{beneficio_id}",
+                        label_visibility="collapsed",
                         on_change=lambda bid=beneficio_id: toggle_beneficio_selection(bid)
                     )
                 
                 with col_b1:
                     if st.button("🔓 Abrir", key=f"abrir_beneficio_id_{beneficio_id}"):
-                        st.session_state.show_beneficio_dialog = True
-                        st.session_state.beneficio_aberto_id = beneficio_id
-                        st.rerun()
+                        # Usar sistema de timestamp para requests de diálogo
+                        import time
+                        timestamp = str(int(time.time() * 1000))
+                        st.session_state[f"dialogo_beneficio_request_{timestamp}"] = {
+                            "show_beneficio_dialog": True,
+                            "beneficio_aberto_id": beneficio_id,
+                            "timestamp": timestamp
+                        }
                 
                 with col_b2: st.write(f"**{row.get('PARTE', 'N/A')}**")
                 with col_b3: st.write(row.get('Nº DO PROCESSO', 'N/A'))
@@ -478,9 +553,14 @@ def interface_lista_beneficios(df, perfil_usuario):
                 
                 with col_b1:
                     if st.button("🔓 Abrir", key=f"abrir_beneficio_id_{beneficio_id}"):
-                        st.session_state.show_beneficio_dialog = True
-                        st.session_state.beneficio_aberto_id = beneficio_id
-                        st.rerun()
+                        # Usar sistema de timestamp para requests de diálogo
+                        import time
+                        timestamp = str(int(time.time() * 1000))
+                        st.session_state[f"dialogo_beneficio_request_{timestamp}"] = {
+                            "show_beneficio_dialog": True,
+                            "beneficio_aberto_id": beneficio_id,
+                            "timestamp": timestamp
+                        }
                 
                 with col_b2: st.write(f"**{row.get('PARTE', 'N/A')}**")
                 with col_b3: st.write(row.get('Nº DO PROCESSO', 'N/A'))
@@ -532,6 +612,12 @@ def interface_lista_beneficios(df, perfil_usuario):
 
 def interface_cadastro_beneficio(df, perfil_usuario):
     """Interface para cadastrar novos benefícios, com validações e dicas."""
+    
+    # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de cadastro
+    if st.session_state.get("show_beneficio_dialog", False):
+        st.session_state.show_beneficio_dialog = False
+    if st.session_state.get("beneficio_aberto_id") is not None:
+        st.session_state.beneficio_aberto_id = None
     
     # Verificar se o usuário pode cadastrar benefícios
     if perfil_usuario not in ["Cadastrador", "Admin"]:
@@ -682,9 +768,9 @@ def interface_cadastro_beneficio(df, perfil_usuario):
         
         # Validações
         campos_obrigatorios = {
-            "Nº DO PROCESSO": processo, 
-            "PARTE": parte, 
-            "CPF": cpf, 
+            "Nº DO PROCESSO": processo,
+            "PARTE": parte,
+            "CPF": cpf,
             "ASSUNTO/TIPO DE PROCESSO": assunto_processado
         }
         campos_vazios = [nome for nome, valor in campos_obrigatorios.items() if not valor or not valor.strip()]
@@ -801,8 +887,8 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
         
         if st.button("📤 Enviar para Financeiro", type="primary", disabled=not cliente_contatado):
             # Adicionar informação de que foi contatado
-            atualizar_status_beneficio(beneficio_id, "Enviado para o financeiro", df, 
-                                     dados_adicionais={"Cliente Contatado": "Sim", 
+            atualizar_status_beneficio(beneficio_id, "Enviado para o financeiro", df,
+                                     dados_adicionais={"Cliente Contatado": "Sim",
                                                       "Data Contato SAC": datetime.now().strftime("%d/%m/%Y %H:%M"),
                                                       "Contatado Por": perfil_usuario})
 
@@ -978,7 +1064,7 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
                 data_pagamento = linha_beneficio.get(f"Parcela_{i}_Data_Pagamento", "")
                 comprovante_parcela = linha_beneficio.get(f"Parcela_{i}_Comprovante", "")
                 
-                with st.expander(f"Parcela {i} - {valor_parcela} - Status: {status_parcela}", 
+                with st.expander(f"Parcela {i} - {valor_parcela} - Status: {status_parcela}",
                                expanded=(status_parcela == "Pendente")):
                     
                     if status_parcela == "Pendente":
@@ -986,13 +1072,13 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
                         col_pag1, col_pag2 = st.columns(2)
                         
                         with col_pag1:
-                            pago_dinheiro_parcela = st.checkbox(f"Pago em dinheiro - Parcela {i}", 
+                            pago_dinheiro_parcela = st.checkbox(f"Pago em dinheiro - Parcela {i}",
                                                               key=f"dinheiro_{beneficio_id}_{i}")
                         
                         with col_pag2:
                             if not pago_dinheiro_parcela:
                                 comprovante_upload = st.file_uploader(
-                                    f"Comprovante Parcela {i}", 
+                                    f"Comprovante Parcela {i}",
                                     type=["pdf", "jpg", "png"],
                                     key=f"comp_parcela_{beneficio_id}_{i}"
                                 )
@@ -1001,8 +1087,8 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
                         
                         # Botão para confirmar pagamento da parcela
                         pode_confirmar = pago_dinheiro_parcela or comprovante_upload is not None
-                        if st.button(f"✅ Confirmar Pagamento Parcela {i}", 
-                                   key=f"confirmar_{beneficio_id}_{i}", 
+                        if st.button(f"✅ Confirmar Pagamento Parcela {i}",
+                                   key=f"confirmar_{beneficio_id}_{i}",
                                    disabled=not pode_confirmar):
                             
                             # Salvar comprovante se houver
@@ -1166,7 +1252,7 @@ def atualizar_pagamento_parcela(beneficio_id, numero_parcela, df, url_comprovant
         # Salvar no GitHub
         novo_sha = save_data_to_github_seguro(
             st.session_state.df_editado_beneficios,
-            "lista_beneficios.csv", 
+            "lista_beneficios.csv",
             "file_sha_beneficios"
         )
         
@@ -1297,7 +1383,7 @@ def interface_visualizar_dados_beneficios(df):
     st.markdown(f"#### 📊 Dados ({total_registros} registros encontrados)")
     
     colunas_exibir = [
-        "Nº DO PROCESSO", "PARTE", "Status", "Data Cadastro", 
+        "Nº DO PROCESSO", "PARTE", "Status", "Data Cadastro",
         "TIPO DE PROCESSO", "Valor do Benefício"
     ]
     colunas_disponiveis = [col for col in colunas_exibir if col in df_visualizado.columns]
@@ -1343,9 +1429,14 @@ def interface_visualizar_dados_beneficios(df):
             
             with col_b1:
                 if st.button("🔓 Abrir", key=f"vis_abrir_beneficio_id_{beneficio_id}"):
-                    st.session_state.show_beneficio_dialog = True
-                    st.session_state.beneficio_aberto_id = beneficio_id
-                    st.rerun()
+                    # Usar sistema de timestamp para requests de diálogo
+                    import time
+                    timestamp = str(int(time.time() * 1000))
+                    st.session_state[f"dialogo_beneficio_request_{timestamp}"] = {
+                        "show_beneficio_dialog": True,
+                        "beneficio_aberto_id": beneficio_id,
+                        "timestamp": timestamp
+                    }
             
             with col_b2: st.write(f"**{safe_get_value_beneficio(row, 'PARTE')}**")
             with col_b3: st.write(safe_get_value_beneficio(row, 'Nº DO PROCESSO'))
@@ -1423,7 +1514,7 @@ def confirmar_exclusao_massa_beneficios(df, processos_selecionados):
                     ~st.session_state.df_editado_beneficios["ID"].astype(str).isin(processos_selecionados_str)
                 ].reset_index(drop=True)
                 
-                # Salvar no GitHub                
+                # Salvar no GitHub
                 with st.spinner("Salvando alterações..."):
                     novo_sha = save_data_to_github_seguro(
                         st.session_state.df_editado_beneficios,
@@ -1452,6 +1543,13 @@ def confirmar_exclusao_massa_beneficios(df, processos_selecionados):
 
 def interface_visualizar_dados_beneficio(df):
     """Interface para visualizar dados de benefícios em formato de tabela limpa."""
+    
+    # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de visualização
+    if st.session_state.get("show_beneficio_dialog", False):
+        st.session_state.show_beneficio_dialog = False
+    if st.session_state.get("beneficio_aberto_id") is not None:
+        st.session_state.beneficio_aberto_id = None
+    
     if df.empty:
         st.info("ℹ️ Não há benefícios para visualizar.")
         return
@@ -1591,7 +1689,7 @@ def interface_visualizar_dados_beneficio(df):
 
     # Selecionar colunas específicas do relatório
     colunas_relatorio = [
-        "Nº DO PROCESSO", "PARTE", "TIPO DE PROCESSO", "NB", 
+        "Nº DO PROCESSO", "PARTE", "TIPO DE PROCESSO", "NB",
         "Valor Pago", "Status", "Data Cadastro", "Cadastrado Por"
     ]
     
@@ -1618,11 +1716,11 @@ def interface_visualizar_dados_beneficio(df):
         for _, beneficio in df_paginado.iterrows():
             col_processo, col_parte, col_tipo, col_nb, col_valor, col_status, col_data = st.columns([2, 2, 1.5, 1, 1.5, 1.5, 1.5])
             
-            with col_processo: 
+            with col_processo:
                 processo = safe_get_value_beneficio(beneficio, 'Nº DO PROCESSO', 'N/A')
                 st.write(f"**{processo[:18]}{'...' if len(processo) > 18 else ''}**")
             
-            with col_parte: 
+            with col_parte:
                 parte = safe_get_value_beneficio(beneficio, 'PARTE', 'N/A')
                 st.write(f"{parte[:20]}{'...' if len(parte) > 20 else ''}")
                 
@@ -1634,7 +1732,7 @@ def interface_visualizar_dados_beneficio(df):
                 nb = safe_get_value_beneficio(beneficio, 'NB', 'N/A')
                 st.write(nb)
             
-            with col_valor: 
+            with col_valor:
                 valor_pago = beneficio.get('Valor Pago', 0)
                 if valor_pago and str(valor_pago) != 'nan':
                     try:

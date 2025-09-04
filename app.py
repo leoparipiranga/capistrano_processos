@@ -1,7 +1,7 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="Capistrano Advogados", 
+    page_title="Capistrano Advogados",
     layout="wide",
     page_icon="⚖️",
     initial_sidebar_state="expanded"
@@ -77,6 +77,21 @@ def obter_dados_usuario(usuario):
         st.error(f"Erro ao obter dados do usuário: {e}")
         return None
 
+def limpar_todos_estados_dialogo():
+    """Limpa todos os estados de diálogo para evitar reabrir processos automaticamente"""
+    estados_para_limpar = [
+        "show_alvara_dialog", "processo_aberto_id",
+        "show_rpv_dialog", "rpv_aberto_id",
+        "show_beneficio_dialog", "beneficio_aberto_id"
+    ]
+    
+    for estado in estados_para_limpar:
+        if estado in st.session_state:
+            if "show_" in estado:
+                st.session_state[estado] = False
+            else:
+                st.session_state[estado] = None
+
 def mostrar_guia_utilizacao():
     """Mostra o guia de utilização do sistema."""
     st.title("📖 Guia de Utilização")
@@ -90,10 +105,10 @@ def mostrar_guia_utilizacao():
     
     # Navegação por abas
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🏠 Visão Geral", 
-        "👥 Perfis e Permissões", 
-        "📋 Processos", 
-        "🔧 Configurações", 
+        "🏠 Visão Geral",
+        "👥 Perfis e Permissões",
+        "📋 Processos",
+        "🔧 Configurações",
         "❓ FAQ"
     ])
     
@@ -145,20 +160,20 @@ def mostrar_guia_utilizacao():
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric(
-                label="📋 Tipos de Processo", 
-                value="3", 
+                label="📋 Tipos de Processo",
+                value="3",
                 help="Alvarás, RPV e Benefícios"
             )
         with col2:
             st.metric(
-                label="👥 Perfis de Usuário", 
-                value="5", 
+                label="👥 Perfis de Usuário",
+                value="5",
                 help="Admin, Cadastrador, Administrativo, Financeiro, SAC"
             )
         with col3:
             st.metric(
-                label="💳 Parcelas Máximas", 
-                value="12x", 
+                label="💳 Parcelas Máximas",
+                value="12x",
                 help="Sistema de parcelamento para benefícios"
             )
     
@@ -189,13 +204,13 @@ def mostrar_guia_utilizacao():
                 "descricao": "Responsável pelo cadastro de novos processos",
                 "permissoes": [
                     "✅ Visualizar processos",
-                    "✅ Adicionar novos processos", 
+                    "✅ Adicionar novos processos",
                     "✅ Fazer upload de anexos",
                     "✅ Excluir processos"
                 ]
             },
             "💰 Financeiro": {
-                "cor": "warning", 
+                "cor": "warning",
                 "descricao": "Acesso a informações financeiras dos processos",
                 "permissoes": [
                     "✅ Visualizar processos",
@@ -209,7 +224,7 @@ def mostrar_guia_utilizacao():
                 "descricao": "Gerenciamento administrativo geral",
                 "permissoes": [
                     "✅ Visualizar processos",
-                    "✅ Editar informações administrativas", 
+                    "✅ Editar informações administrativas",
                     "✅ Fazer upload de documentos",
                     "❌ Excluir processos"
                 ]
@@ -419,7 +434,7 @@ def mostrar_guia_utilizacao():
             {
                 "pergunta": "❓ Como faço upload de múltiplos arquivos?",
                 "resposta": """
-                1. Marque a caixa "Anexar múltiplos documentos" 
+                1. Marque a caixa "Anexar múltiplos documentos"
                 2. Clique em "Escolher arquivos"
                 3. Selecione múltiplos arquivos (Ctrl+Click no Windows)
                 4. Confirme o upload
@@ -509,7 +524,7 @@ if not st.session_state.logado:
     col1, col2, col3 = st.columns([2, 3, 2])
 
     with col2:
-        st.markdown('<div class="centered-content">', unsafe_allow_html=True)       
+        st.markdown('<div class="centered-content">', unsafe_allow_html=True)
         with st.container():
             # Logo centralizada e maior
             col_logo1, col_logo2, col_logo3 = st.columns([1, 2, 1])
@@ -556,7 +571,7 @@ if not st.session_state.logado:
                         # Limpar estados de diálogos ao fazer login para evitar pop-ups automáticos
                         dialogos_para_limpar = [
                             "show_alvara_dialog", "processo_aberto_id",
-                            "show_rpv_dialog", "rpv_aberto_id", 
+                            "show_rpv_dialog", "rpv_aberto_id",
                             "show_beneficio_dialog", "beneficio_aberto_id"
                         ]
                         for key in dialogos_para_limpar:
@@ -595,7 +610,7 @@ else:
         """Limpa todos os estados de diálogos abertos para evitar que reabram automaticamente"""
         dialogos_para_limpar = [
             "show_alvara_dialog", "processo_aberto_id",
-            "show_rpv_dialog", "rpv_aberto_id", 
+            "show_rpv_dialog", "rpv_aberto_id",
             "show_beneficio_dialog", "beneficio_aberto_id"
         ]
         
@@ -609,24 +624,31 @@ else:
     # MENU LATERAL - PROCESSOS
     with st.sidebar.expander("⚖️ Processos", expanded=True):
         if st.button("💰 Alvarás", key='processo_alvaras', use_container_width=True):
-            limpar_estados_dialogos()
+            # Só limpar estados se estiver mudando de página
+            if st.session_state.get("pagina_atual") != "processo_alvaras":
+                limpar_estados_dialogos()
             st.session_state.pagina_atual = "processo_alvaras"
             st.rerun()
         
         if st.button("📄 RPV", key='processo_rpv', use_container_width=True):
-            limpar_estados_dialogos()
+            # Só limpar estados se estiver mudando de página
+            if st.session_state.get("pagina_atual") != "processo_rpv":
+                limpar_estados_dialogos()
             st.session_state.pagina_atual = "processo_rpv"
             st.rerun()
             
         if st.button("📋 Benefícios", key='processo_beneficios', use_container_width=True):
-            limpar_estados_dialogos()
+            # Só limpar estados se estiver mudando de página  
+            if st.session_state.get("pagina_atual") != "processo_beneficios":
+                limpar_estados_dialogos()
             st.session_state.pagina_atual = "processo_beneficios"
             st.rerun()
     
     # GUIA DE UTILIZAÇÃO
     with st.sidebar.expander("📖 Guia", expanded=False):
         if st.button("📚 Guia de Utilização", key='guia_app', use_container_width=True):
-            limpar_estados_dialogos()
+            if st.session_state.get("pagina_atual") != "guia_utilizacao":
+                limpar_estados_dialogos()
             st.session_state.pagina_atual = "guia_utilizacao"
             st.rerun()
     
@@ -640,17 +662,20 @@ else:
     if is_admin:
         with st.sidebar.expander("⚙️ Configurações", expanded=False):
             if st.button("☁️ Google Drive", key='config_drive', use_container_width=True):
-                limpar_estados_dialogos()
+                if st.session_state.get("pagina_atual") != "config_drive":
+                    limpar_estados_dialogos()
                 st.session_state.pagina_atual = "config_drive"
                 st.rerun()
             
             if st.button("📋 Log de Exclusões", key='log_exclusoes', use_container_width=True):
-                limpar_estados_dialogos()
+                if st.session_state.get("pagina_atual") != "log_exclusoes":
+                    limpar_estados_dialogos()
                 st.session_state.pagina_atual = "log_exclusoes"
                 st.rerun()
                 
             if st.button("🗂️ Gerenciar Autocomplete", key='gerenciar_autocomplete', use_container_width=True):
-                limpar_estados_dialogos()
+                if st.session_state.get("pagina_atual") != "gerenciar_autocomplete":
+                    limpar_estados_dialogos()
                 st.session_state.pagina_atual = "gerenciar_autocomplete"
                 st.rerun()
 

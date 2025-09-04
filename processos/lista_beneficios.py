@@ -13,7 +13,7 @@ sys.path.append(str(project_root))
 # Importar funções do módulo de controle
 from components.functions_controle import (
     # Funções GitHub
-    get_github_api_info, load_data_from_github, 
+    get_github_api_info, load_data_from_github,
     save_data_local, save_data_to_github_seguro,
     
     # Funções de arquivo
@@ -76,11 +76,62 @@ def show():
     aba_selecionada = st.tabs(["📝 Cadastrar Benefício", "📊 Gerenciar Benefícios", "📈 Visualizar Dados"])
     
     with aba_selecionada[0]:
+        # LIMPAR diálogos apenas quando mudando para aba de cadastro E não há diálogo ativo
+        if (st.session_state.get("aba_atual_beneficios") != "cadastrar" and
+            not st.session_state.get("show_beneficio_dialog", False)):
+            st.session_state.show_beneficio_dialog = False
+            st.session_state.beneficio_aberto_id = None
+            st.session_state.aba_atual_beneficios = "cadastrar"
         interface_cadastro_beneficio(df, perfil_usuario)
     
     with aba_selecionada[1]:
+        # Marcar que estamos na aba gerenciar
+        if st.session_state.get("aba_atual_beneficios") != "gerenciar":
+            st.session_state.aba_atual_beneficios = "gerenciar"
         interface_lista_beneficios(df, perfil_usuario)
     
     with aba_selecionada[2]:
+        # LIMPAR diálogos apenas quando mudando para aba de visualização E não há diálogo ativo
+        if (st.session_state.get("aba_atual_beneficios") != "visualizar" and
+            not st.session_state.get("show_beneficio_dialog", False)):
+            st.session_state.show_beneficio_dialog = False
+            st.session_state.beneficio_aberto_id = None
+            st.session_state.aba_atual_beneficios = "visualizar"
         interface_visualizar_dados_beneficio(df)
 
+    # ====== DIÁLOGO DE BENEFÍCIOS (RENDERIZADO APÓS TODA A INTERFACE) ======
+    
+    # Verificar requests de diálogo pendentes
+    dialog_requests = [key for key in st.session_state.keys() if key.startswith("dialogo_beneficio_request_")]
+    
+    if dialog_requests:
+        # Pegar o request mais recente
+        latest_request = max(dialog_requests)
+        request_data = st.session_state[latest_request]
+        
+        # Usar dados do request
+        show_dialog = request_data["show_beneficio_dialog"]
+        beneficio_id = request_data["beneficio_aberto_id"]
+        
+        if show_dialog and beneficio_id:
+            # Limpar o request usado
+            del st.session_state[latest_request]
+            
+            # Buscar dados do processo
+            linha_processo = df[df["ID"].astype(str) == str(beneficio_id)]
+            titulo_dialog = f"Detalhes do Benefício: {linha_processo.iloc[0].get('PARTE', 'Não informado')}" if not linha_processo.empty else "Detalhes do Benefício"
+
+            @st.dialog(titulo_dialog, width="large")
+            def beneficio_dialog():
+                if not linha_processo.empty:
+                    # Importar e chamar a função de edição (só 3 parâmetros)
+                    from components.funcoes_beneficios import interface_edicao_beneficio
+                    interface_edicao_beneficio(df, beneficio_id, perfil_usuario)
+                else:
+                    st.error("❌ Benefício não encontrado.")
+                
+                if st.button("Fechar", key="fechar_dialog_beneficio"):
+                    st.rerun()
+
+            # Renderizar o diálogo
+            beneficio_dialog()

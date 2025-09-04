@@ -26,6 +26,18 @@ def safe_get_value_alvara(valor, default="Não informado"):
         return default
     return str(valor)
 
+def safe_get_field_value_alvara(linha_df, campo, default="Não informado"):
+    """
+    Função para extrair valor de um campo do DataFrame de forma segura
+    """
+    try:
+        if linha_df.empty:
+            return default
+        valor = linha_df.iloc[0].get(campo, default)
+        return safe_get_value_alvara(valor, default)
+    except (IndexError, KeyError):
+        return default
+
 def safe_format_currency_alvara(valor, default="Não informado"):
     """
     Formatar valores monetários de forma segura, tratando NaN
@@ -57,7 +69,7 @@ PERFIS_ALVARAS = {
 
 STATUS_ETAPAS_ALVARAS = {
     1: "Cadastrado",
-    2: "Enviado para o Financeiro", 
+    2: "Enviado para o Financeiro",
     3: "Financeiro - Enviado para Rodrigo",
     4: "Finalizado"
 }
@@ -91,7 +103,7 @@ def obter_orgaos_judiciais():
     orgaos_customizados = st.session_state.get("orgaos_judiciais_customizados", [])
     return list(set(ORGAOS_JUDICIAIS_DEFAULT + orgaos_customizados))
 
-def safe_get_value_alvara(data, key, default=''):
+def safe_get_field_value_alvara(data, key, default=''):
     """Obtém valor de forma segura, tratando NaN e valores None"""
     value = data.get(key, default)
     if value is None:
@@ -101,6 +113,61 @@ def safe_get_value_alvara(data, key, default=''):
     if str_value.lower() in ['nan', 'none', '', 'null']:
         return default
     return str_value
+
+def safe_get_hc_value_alvara(data, key, default=0.0):
+    """Obtém valor de honorário contratual de forma segura para Alvarás"""
+    value = data.get(key, default)
+    if value is None or value == "":
+        return default
+    try:
+        # Converter para float
+        float_value = float(value)
+        if math.isnan(float_value):
+            return default
+        return float_value
+    except (ValueError, TypeError):
+        return default
+
+def calcular_total_hc_alvara(linha_alvara):
+    """Calcula o total dos honorários contratuais (HC + HC1 + HC2) para Alvarás"""
+    hc = safe_get_hc_value_alvara(linha_alvara, "Honorarios Contratuais", 0.0)
+    hc1 = safe_get_hc_value_alvara(linha_alvara, "HC1", 0.0)
+    hc2 = safe_get_hc_value_alvara(linha_alvara, "HC2", 0.0)
+    return hc + hc1 + hc2
+
+def mostrar_detalhes_hc_alvara(linha_alvara, key_suffix=""):
+    """Mostra detalhes individuais dos honorários contratuais com opção de expandir"""
+    total_hc = calcular_total_hc_alvara(linha_alvara)
+    
+    if total_hc > 0:
+        with st.expander(f"💼 Ver Detalhes dos Honorários Contratuais (Total: R$ {total_hc:.2f})"):
+            col1, col2, col3 = st.columns(3)
+            
+            hc = safe_get_hc_value_alvara(linha_alvara, "Honorarios Contratuais", 0.0)
+            hc1 = safe_get_hc_value_alvara(linha_alvara, "HC1", 0.0)
+            hc2 = safe_get_hc_value_alvara(linha_alvara, "HC2", 0.0)
+            
+            with col1:
+                if hc > 0:
+                    st.metric("💼 HC1", f"R$ {hc:.2f}")
+                else:
+                    st.info("💼 HC1: Não informado")
+            
+            with col2:
+                if hc1 > 0:
+                    st.metric("💰 HC2", f"R$ {hc1:.2f}")
+                else:
+                    st.info("💰 HC2: Não informado")
+            
+            with col3:
+                if hc2 > 0:
+                    st.metric("📊 HC3", f"R$ {hc2:.2f}")
+                else:
+                    st.info("📊 HC3: Não informado")
+                    
+            st.success(f"💎 **Total Geral:** R$ {total_hc:.2f}")
+    else:
+        st.info("💼 Nenhum honorário contratual cadastrado para este alvará.")
 
 def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
     """Exibe informações básicas do Alvará de forma organizada e visual
@@ -149,7 +216,7 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
     </style>
     """, unsafe_allow_html=True)
     
-    status_atual = safe_get_value_alvara(linha_alvara, 'Status')
+    status_atual = safe_get_field_value_alvara(linha_alvara, 'Status')
     status_class = {
         "Cadastrado": "background-color: #fff3cd; color: #856404;",
         "Enviado para o Financeiro": "background-color: #d1ecf1; color: #0c5460;",
@@ -157,20 +224,23 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
         "Finalizado": "background-color: #d1e7dd; color: #0f5132;"
     }.get(status_atual, "background-color: #e2e3e5; color: #383d41;")
     
+    # Calcular total de honorários contratuais
+    total_hc = calcular_total_hc_alvara(linha_alvara)
+    
     st.markdown("### 📋 Resumo do Alvará")
     st.markdown(f"""
     <div class="compact-grid">
         <div class="compact-item">
             <div class="compact-label">📄 PROCESSO</div>
-            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'Processo')}</div>
+            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'Processo')}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">👤 PARTE</div>
-            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'Parte')}</div>
+            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'Parte')}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">🆔 CPF</div>
-            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'CPF')}</div>
+            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'CPF')}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">📊 STATUS</div>
@@ -180,11 +250,15 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
         </div>
         <div class="compact-item">
             <div class="compact-label">💰 PAGAMENTO</div>
-            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'Pagamento')}</div>
+            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'Pagamento')}</div>
+        </div>
+        <div class="compact-item">
+            <div class="compact-label">💼 TOTAL HC</div>
+            <div class="compact-value">R$ {total_hc:.2f}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">🏛️ ÓRGÃO</div>
-            <div class="compact-value">{safe_get_value_alvara(linha_alvara, 'Órgão Judicial')[:20]}...</div>
+            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'Órgão Judicial')[:20]}...</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -244,7 +318,7 @@ def pode_editar_status_alvaras(status_atual, perfil_usuario):
 def obter_colunas_controle():
     """Retorna lista das colunas de controle do fluxo"""
     return [
-        "Status", "Data Cadastro", "Cadastrado Por", "Comprovante Conta", 
+        "Status", "Data Cadastro", "Cadastrado Por", "Comprovante Conta",
         "PDF Alvará", "Data Envio Financeiro", "Enviado Financeiro Por",
         "Valor Total Alvara", "Valor Devido Cliente", "Valor Escritorio Contratual",
         "Valor Escritorio Sucumbencial", "Observacoes Financeiras",
@@ -277,7 +351,7 @@ def toggle_alvara_selection(alvara_id):
     
     # Remover qualquer versão duplicada (int ou str)
     st.session_state.processos_selecionados_alvaras = [
-        pid for pid in st.session_state.processos_selecionados_alvaras 
+        pid for pid in st.session_state.processos_selecionados_alvaras
         if str(pid) != alvara_id_str
     ]
     
@@ -289,11 +363,6 @@ def toggle_alvara_selection(alvara_id):
 def interface_lista_alvaras(df, perfil_usuario):
     """Lista de alvarás com paginação e modal para ações"""
     
-    # Inicializar o estado do diálogo
-    if "show_alvara_dialog" not in st.session_state:
-        st.session_state.show_alvara_dialog = False
-        st.session_state.processo_aberto_id = None
-    
     # Inicializar estado de exclusão em massa
     if "modo_exclusao_alvaras" not in st.session_state:
         st.session_state.modo_exclusao_alvaras = False
@@ -304,7 +373,7 @@ def interface_lista_alvaras(df, perfil_usuario):
     if st.session_state.processos_selecionados_alvaras:
         ids_existentes = set(df["ID"].astype(str).tolist())
         st.session_state.processos_selecionados_alvaras = [
-            pid for pid in st.session_state.processos_selecionados_alvaras 
+            pid for pid in st.session_state.processos_selecionados_alvaras
             if str(pid) in ids_existentes
         ]
 
@@ -320,22 +389,16 @@ def interface_lista_alvaras(df, perfil_usuario):
                 if st.button("🗑️ Habilitar Exclusão", key="habilitar_exclusao_alvaras"):
                     st.session_state.modo_exclusao_alvaras = True
                     st.session_state.processos_selecionados_alvaras = []
-                    # Fechar qualquer diálogo aberto
-                    if "show_alvara_dialog" in st.session_state:
-                        st.session_state.show_alvara_dialog = False
                     st.rerun()
             else:
                 if st.button("❌ Cancelar Exclusão", key="cancelar_exclusao_alvaras"):
                     st.session_state.modo_exclusao_alvaras = False
                     st.session_state.processos_selecionados_alvaras = []
-                    # Fechar qualquer diálogo aberto
-                    if "show_alvara_dialog" in st.session_state:
-                        st.session_state.show_alvara_dialog = False
                     st.rerun()
         
         with col_btn2:
             if st.session_state.modo_exclusao_alvaras and st.session_state.processos_selecionados_alvaras:
-                if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_alvaras)})", 
+                if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_alvaras)})",
                            key="confirmar_exclusao_alvaras", type="primary"):
                     confirmar_exclusao_massa_alvaras(df, st.session_state.processos_selecionados_alvaras)
 
@@ -380,7 +443,7 @@ def interface_lista_alvaras(df, perfil_usuario):
             # Usar key único para evitar reabertura de processos
             checkbox_key = f"filtro_meus_processos_{perfil_usuario}"
             mostrar_apenas_meus = st.checkbox(
-                "Mostrar apenas processos que posso editar", 
+                "Mostrar apenas processos que posso editar",
                 key=checkbox_key
             )
     
@@ -396,15 +459,7 @@ def interface_lista_alvaras(df, perfil_usuario):
     if orgao_filtro != "Todos" and "Órgão Judicial" in df.columns:
         df_filtrado = df_filtrado[df_filtrado["Órgão Judicial"] == orgao_filtro]
     
-    # Fechar qualquer diálogo aberto ao aplicar filtros para evitar reaberturas
     if mostrar_apenas_meus and perfil_usuario == "Financeiro":
-        # Verificar se o estado do filtro mudou para fechar diálogo
-        filtro_anterior = st.session_state.get("filtro_anterior_financeiro", False)
-        if filtro_anterior != mostrar_apenas_meus:
-            st.session_state.show_alvara_dialog = False
-            st.session_state.processo_aberto_id = None
-            st.session_state.filtro_anterior_financeiro = mostrar_apenas_meus
-        
         df_filtrado = df_filtrado[df_filtrado["Status"].isin(["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo"])]
     
     # Ordenar por data de cadastro mais novo
@@ -484,13 +539,18 @@ def interface_lista_alvaras(df, perfil_usuario):
                 
                 with col_abrir:
                     if st.button(f"🔓 Abrir", key=f"abrir_alvara_id_{alvara_id}"):
-                        st.session_state.show_alvara_dialog = True
-                        st.session_state.processo_aberto_id = alvara_id
-                        st.rerun()
+                        # Usar sistema de timestamp para requests de diálogo
+                        import time
+                        timestamp = str(int(time.time() * 1000))
+                        st.session_state[f"dialogo_request_{timestamp}"] = {
+                            "show_alvara_dialog": True,
+                            "processo_aberto_id": alvara_id,
+                            "timestamp": timestamp
+                        }
                 
                 with col_processo: st.write(f"**{processo.get('Processo', 'Não informado')}**")
                 with col_parte: st.write(processo.get('Parte', 'Não informado'))
-                with col_valor: st.write(safe_get_value_alvara(processo, 'Pagamento', '-'))
+                with col_valor: st.write(safe_get_field_value_alvara(processo, 'Pagamento', '-'))
                 with col_status:
                     status_atual = processo.get('Status', 'Não informado')
                     cor = {"Cadastrado": "🟡", "Enviado para o Financeiro": "🟠", "Financeiro - Enviado para Rodrigo": "🔵", "Finalizado": "🟢"}.get(status_atual, "")
@@ -500,50 +560,33 @@ def interface_lista_alvaras(df, perfil_usuario):
                 
                 with col_abrir:
                     if st.button(f"🔓 Abrir", key=f"abrir_alvara_id_{alvara_id}"):
-                        st.session_state.show_alvara_dialog = True
-                        st.session_state.processo_aberto_id = alvara_id
-                        st.rerun()
+                        # Usar sistema de timestamp para requests de diálogo
+                        import time
+                        timestamp = str(int(time.time() * 1000))
+                        st.session_state[f"dialogo_request_{timestamp}"] = {
+                            "show_alvara_dialog": True,
+                            "processo_aberto_id": alvara_id,
+                            "timestamp": timestamp
+                        }
                 
                 with col_processo: st.write(f"**{processo.get('Processo', 'Não informado')}**")
                 with col_parte: st.write(processo.get('Parte', 'Não informado'))
-                with col_valor: st.write(safe_get_value_alvara(processo, 'Pagamento', '-'))
+                with col_valor: st.write(safe_get_field_value_alvara(processo, 'Pagamento', '-'))
                 with col_status:
                     status_atual = processo.get('Status', 'Não informado')
                     cor = {"Cadastrado": "🟡", "Enviado para o Financeiro": "🟠", "Financeiro - Enviado para Rodrigo": "🔵", "Finalizado": "🟢"}.get(status_atual, "")
                     st.write(f"{cor} {status_atual}")
 
-       # --- IMPLEMENTAÇÃO COM st.dialog ---
-    if st.session_state.show_alvara_dialog:
-        alvara_id_aberto = st.session_state.processo_aberto_id
-        linha_processo = df[df["ID"].astype(str) == str(alvara_id_aberto)]
-        titulo_dialog = f"Detalhes do Alvará: {linha_processo.iloc[0].get('Processo', 'Não informado')}" if not linha_processo.empty else "Detalhes do Alvará"
-
-        @st.dialog(titulo_dialog, width="large")
-        def alvara_dialog():
-            if not linha_processo.empty:
-                status_atual = linha_processo.iloc[0].get("Status", "")
-                # Chama a função de edição que você já tem
-                interface_edicao_processo(df, alvara_id_aberto, status_atual, perfil_usuario)
-            else:
-                st.error("❌ Alvará não encontrado.")
-            
-            if st.button("Fechar", key="fechar_dialog"):
-                st.session_state.show_alvara_dialog = False
-                st.rerun()
-
-        # Chama a função para renderizar o diálogo
-        alvara_dialog()
-
-        # --- CONTROLES DE PAGINAÇÃO (EMBAIXO) ---
+        # --- CONTROLES DE PAGINAÇÃO ---
         st.markdown("---")
         col_nav1, col_nav2, col_nav3 = st.columns([3, 2, 3])
 
         with col_nav1:
             if st.session_state.current_page_alvaras > 1:
-                if st.button("<< Primeira", key="btn_primeira"):
+                if st.button("<< Primeira", key="btn_primeira_alvaras"):
                     st.session_state.current_page_alvaras = 1
                     st.rerun()
-                if st.button("< Anterior", key="btn_anterior"):
+                if st.button("< Anterior", key="btn_anterior_alvaras"):
                     st.session_state.current_page_alvaras -= 1
                     st.rerun()
 
@@ -552,10 +595,10 @@ def interface_lista_alvaras(df, perfil_usuario):
 
         with col_nav3:
             if st.session_state.current_page_alvaras < total_pages:
-                if st.button("Próxima >", key="btn_proxima"):
+                if st.button("Próxima >", key="btn_proxima_alvaras"):
                     st.session_state.current_page_alvaras += 1
                     st.rerun()
-                if st.button("Última >>", key="btn_ultima"):
+                if st.button("Última >>", key="btn_ultima_alvaras"):
                     st.session_state.current_page_alvaras = total_pages
                     st.rerun()
     else:
@@ -717,7 +760,7 @@ def interface_acoes_financeiro(df_filtrado):
             with st.expander(f"Finalizar: {processo['Processo']} - {processo['Parte']}"):
                 # Checkbox para múltiplos comprovantes
                 anexar_multiplos_comp = st.checkbox(
-                    "Anexar múltiplos comprovantes", 
+                    "Anexar múltiplos comprovantes",
                     key=f"multiplos_comprovante_{processo['Processo']}"
                 )
                 
@@ -781,6 +824,9 @@ def interface_visualizar_alvara(df, alvara_id, perfil_usuario):
         st.write(f"**Cadastrado em:** {linha_processo.get('Data Cadastro', 'Não informado')}")
         st.write(f"**Última atualização:** {linha_processo.get('Data Atualização', 'Não informado')}")
         st.write(f"**Valor:** {safe_format_currency_alvara(linha_processo.get('Valor'))}")
+    
+    # Mostrar detalhes dos honorários contratuais
+    mostrar_detalhes_hc_alvara(linha_processo, f"visualizar_{alvara_id}")
     
     # Adicionar mais visualizações de dados conforme necessário
 
@@ -859,14 +905,16 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
                     comprovante_urls = []
                     for i, arquivo in enumerate(comprovante_conta):
                         url = salvar_arquivo(arquivo, numero_processo, f"comprovante_{i+1}")
-                        comprovante_urls.append(url)
-                    comprovante_url = "; ".join(comprovante_urls)
+                        if url:  # Só adicionar se não for None
+                            comprovante_urls.append(url)
+                    comprovante_url = "; ".join(comprovante_urls) if comprovante_urls else None
                     
                     pdf_urls = []
                     for i, arquivo in enumerate(pdf_alvara):
                         url = salvar_arquivo(arquivo, numero_processo, f"alvara_{i+1}")
-                        pdf_urls.append(url)
-                    pdf_url = "; ".join(pdf_urls)
+                        if url:  # Só adicionar se não for None
+                            pdf_urls.append(url)
+                    pdf_url = "; ".join(pdf_urls) if pdf_urls else None
                 else:
                     # Salvar arquivos únicos
                     comprovante_url = salvar_arquivo(comprovante_conta, numero_processo, "comprovante")
@@ -916,13 +964,12 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
             st.markdown("---")
             
             # Controle HC com botão progressivo (FORA do formulário)
-            if st.button("➕ Adicionar HC", key=f"btn_hc_{alvara_id}"):
+            if st.button("➕ Adicionar Honorário Contratual", key=f"btn_hc_{alvara_id}"):
                 # Inicializar estado do botão HC se não existir
                 if f"hc_nivel_{alvara_id}" not in st.session_state:
                     st.session_state[f"hc_nivel_{alvara_id}"] = 0
                 
                 st.session_state[f"hc_nivel_{alvara_id}"] = (st.session_state[f"hc_nivel_{alvara_id}"] + 1) % 3
-                st.rerun()
             
             # Inicializar estado do botão HC
             if f"hc_nivel_{alvara_id}" not in st.session_state:
@@ -1018,7 +1065,7 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
                 # Campo de observações
                 observacoes_financeiras = st.text_area(
                     "📝 Observações Financeiras:",
-                    value=safe_get_value_alvara(linha_processo, "Observacoes Financeiras", ""),
+                    value=safe_get_field_value_alvara(linha_processo, "Observacoes Financeiras", ""),
                     help="Observações sobre os valores financeiros",
                     height=100
                 )
@@ -1028,7 +1075,7 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
                 
                 with col_btn1:
                     salvar_valores = st.form_submit_button(
-                        "Salvar Valores", 
+                        "Salvar Valores",
                         type="primary" if not pendente_cadastro else "secondary"
                     )
                 
@@ -1065,8 +1112,9 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
                             if nivel_hc >= 2:  # HC3 está visível
                                 st.session_state.df_editado_alvaras.loc[idx, "HC2"] = hc2_valor
                         
-                        # Salvar observações sempre
-                        st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
+                        # Salvar observações sempre (converter para string para evitar warning do pandas)
+                        observacoes_str = str(observacoes_financeiras) if observacoes_financeiras is not None else ""
+                        st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_str
                         
                         # Salvar no GitHub
                         novo_sha = save_data_to_github_seguro(
@@ -1178,13 +1226,12 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
         st.markdown("---")
         
         # Controle HC com botão progressivo (FORA do formulário)
-        if st.button("➕ Adicionar HC", key=f"btn_hc_rodrigo_{alvara_id}"):
+        if st.button("➕ Adicionar Honorário Contratual", key=f"btn_hc_rodrigo_{alvara_id}"):
             # Inicializar estado do botão HC se não existir
             if f"hc_nivel_rodrigo_{alvara_id}" not in st.session_state:
                 st.session_state[f"hc_nivel_rodrigo_{alvara_id}"] = 0
             
             st.session_state[f"hc_nivel_rodrigo_{alvara_id}"] = (st.session_state[f"hc_nivel_rodrigo_{alvara_id}"] + 1) % 3
-            st.rerun()
 
         # Inicializar estado do botão HC
         if f"hc_nivel_rodrigo_{alvara_id}" not in st.session_state:
@@ -1273,7 +1320,7 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
             # Campo de observações
             observacoes_financeiras = st.text_area(
                 "📝 Observações Financeiras:",
-                value=safe_get_value_alvara(linha_processo, "Observacoes Financeiras", ""),
+                value=safe_get_field_value_alvara(linha_processo, "Observacoes Financeiras", ""),
                 help="Observações sobre os valores financeiros",
                 height=100
             )
@@ -1440,6 +1487,13 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
     
 def interface_cadastro_alvara(df, perfil_usuario):
     """Interface para cadastrar novos alvarás"""
+    
+    # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de cadastro
+    if st.session_state.get("show_alvara_dialog", False):
+        st.session_state.show_alvara_dialog = False
+    if st.session_state.get("processo_aberto_id") is not None:
+        st.session_state.processo_aberto_id = None
+    
     if perfil_usuario not in ["Cadastrador", "Admin"]:
         st.warning("⚠️ Apenas Cadastradores e Administradores podem criar novos alvarás")
         return
@@ -1914,6 +1968,13 @@ def confirmar_exclusao_massa_alvaras(df, processos_selecionados):
 
 def interface_visualizar_dados_alvara(df):
     """Interface para visualizar dados de alvarás em formato de tabela limpa."""
+    
+    # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de visualização
+    if st.session_state.get("show_alvara_dialog", False):
+        st.session_state.show_alvara_dialog = False
+    if st.session_state.get("processo_aberto_id") is not None:
+        st.session_state.processo_aberto_id = None
+    
     if df.empty:
         st.info("ℹ️ Não há alvarás para visualizar.")
         return
@@ -2053,7 +2114,7 @@ def interface_visualizar_dados_alvara(df):
 
     # Selecionar colunas específicas do relatório
     colunas_relatorio = [
-        "Processo", "Requerente", "Órgão Judicial", "Valor do Alvará", 
+        "Processo", "Requerente", "Órgão Judicial", "Valor do Alvará",
         "Status", "Data Cadastro", "Cadastrado Por"
     ]
     
@@ -2079,23 +2140,23 @@ def interface_visualizar_dados_alvara(df):
         for _, processo in df_paginado.iterrows():
             col_processo, col_parte, col_orgao, col_valor, col_status, col_data = st.columns([2, 2, 2, 1.5, 2, 1.5])
             
-            with col_processo: 
-                processo_num = safe_get_value_alvara(processo, 'Processo', 'N/A')
+            with col_processo:
+                processo_num = safe_get_field_value_alvara(processo, 'Processo', 'N/A')
                 st.write(f"**{processo_num[:20]}{'...' if len(processo_num) > 20 else ''}**")
             
-            with col_parte: 
-                requerente = safe_get_value_alvara(processo, 'Requerente', 'N/A')
+            with col_parte:
+                requerente = safe_get_field_value_alvara(processo, 'Requerente', 'N/A')
                 st.write(f"{requerente[:25]}{'...' if len(requerente) > 25 else ''}")
                 
             with col_orgao:
-                orgao = safe_get_value_alvara(processo, 'Órgão Judicial', 'N/A')
+                orgao = safe_get_field_value_alvara(processo, 'Órgão Judicial', 'N/A')
                 st.write(f"{orgao[:20]}{'...' if len(orgao) > 20 else ''}")
             
-            with col_valor: 
+            with col_valor:
                 st.write(safe_format_currency_alvara(processo.get('Valor do Alvará')))
                 
             with col_status:
-                status_atual = safe_get_value_alvara(processo, 'Status', 'N/A')
+                status_atual = safe_get_field_value_alvara(processo, 'Status', 'N/A')
                 # Colorir status
                 if status_atual == "Finalizado":
                     st.markdown(f'<span style="color: green; font-weight: bold;">🟢 {status_atual}</span>', unsafe_allow_html=True)
@@ -2107,7 +2168,7 @@ def interface_visualizar_dados_alvara(df):
                     st.write(status_atual)
                     
             with col_data:
-                data_cadastro = safe_get_value_alvara(processo, 'Data Cadastro', 'N/A')
+                data_cadastro = safe_get_field_value_alvara(processo, 'Data Cadastro', 'N/A')
                 # Extrair apenas a data (sem horário)
                 if data_cadastro != 'N/A':
                     try:

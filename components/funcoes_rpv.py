@@ -6,8 +6,8 @@ import re
 import os
 from datetime import datetime
 from components.autocomplete_manager import (
-    inicializar_autocomplete_session, 
-    adicionar_assunto_rpv, 
+    inicializar_autocomplete_session,
+    adicionar_assunto_rpv,
     adicionar_orgao_rpv,
     campo_orgao_rpv,
     campo_assunto_rpv,
@@ -15,7 +15,7 @@ from components.autocomplete_manager import (
 )
 from components.functions_controle import (
     # Funções GitHub
-    get_github_api_info, load_data_from_github, 
+    get_github_api_info, load_data_from_github,
     save_data_local, save_data_to_github_seguro,
     
     # Funções de arquivo
@@ -35,9 +35,9 @@ from components.functions_controle import (
 
 # a) Novos Status - NOVO FLUXO DE TRABALHO
 STATUS_ETAPAS_RPV = {
-    1: "Cadastro", 
+    1: "Cadastro",
     2: "SAC - aguardando documentação",
-    3: "Administrativo - aguardando documentação", 
+    3: "Administrativo - aguardando documentação",
     4: "SAC - documentação pronta",
     5: "Administrativo - documentação pronta",
     6: "Enviado para Rodrigo",
@@ -56,14 +56,14 @@ PERFIS_RPV = {
     "Cadastrador": ["Cadastro"], # Cadastrador apenas cria e pode editar cadastros
     "Financeiro": ["Enviado para Rodrigo", "aguardando pagamento"], # Financeiro atua nos estágios finais
     "Administrativo": ["SAC - aguardando documentação", "Administrativo - aguardando documentação", "SAC - documentação pronta", "Administrativo - documentação pronta"], # Perfil administrativo
-    "SAC": ["SAC - aguardando documentação", "Administrativo - aguardando documentação", "SAC - documentação pronta", "Administrativo - documentação pronta"], # Perfil SAC  
+    "SAC": ["SAC - aguardando documentação", "Administrativo - aguardando documentação", "SAC - documentação pronta", "Administrativo - documentação pronta"], # Perfil SAC
     "Admin": list(STATUS_ETAPAS_RPV.values())  # Admin tem acesso total
 }
 
 # c) Lista de Assuntos Comuns para RPV
 ASSUNTOS_RPV = [
     "APOSENTADORIA POR INVALIDEZ",
-    "APOSENTADORIA POR IDADE", 
+    "APOSENTADORIA POR IDADE",
     "APOSENTADORIA ESPECIAL",
     "AUXILIO-DOENCA",
     "AUXILIO-ACIDENTE",
@@ -203,11 +203,11 @@ def garantir_colunas_novo_fluxo(df):
     """Garante que as colunas do novo fluxo existem no DataFrame"""
     colunas_novas = [
         "Status Secundario",
-        "SAC Documentacao Pronta", 
+        "SAC Documentacao Pronta",
         "Data SAC Documentacao",
         "SAC Responsavel",
         "Admin Documentacao Pronta",
-        "Data Admin Documentacao", 
+        "Data Admin Documentacao",
         "Admin Responsavel",
         "Validado Financeiro",
         "Data Validacao",
@@ -216,9 +216,12 @@ def garantir_colunas_novo_fluxo(df):
         "Data Recebimento",
         "Recebido Por",
         "Comprovante Pagamento",
-        "Data Pagamento", 
+        "Data Pagamento",
         "Pago Por",
-        "Data Finalizacao"
+        "Data Finalizacao",
+        "Honorarios Contratuais",
+        "HC1",
+        "HC2"
     ]
     
     for coluna in colunas_novas:
@@ -281,7 +284,7 @@ def pode_editar_qualquer_status_simultaneo(linha_rpv, perfil_usuario):
 def obter_colunas_controle_rpv():
     """Retorna lista das colunas de controle do fluxo RPV - NOVO FLUXO"""
     return [
-        "Assunto", "Solicitar Certidão", "Status", "Status Secundario", "Data Cadastro", "Cadastrado Por", 
+        "Assunto", "Solicitar Certidão", "Status", "Status Secundario", "Data Cadastro", "Cadastrado Por",
         "PDF RPV", "Data Envio", "Enviado Por", "Mês Competência",
         "SAC Documentacao Pronta", "Data SAC Documentacao", "SAC Responsavel",
         "Admin Documentacao Pronta", "Data Admin Documentacao", "Admin Responsavel",
@@ -316,7 +319,7 @@ def toggle_rpv_selection(rpv_id):
     
     # Remover qualquer versão duplicada (int ou str)
     st.session_state.processos_selecionados_rpv = [
-        pid for pid in st.session_state.processos_selecionados_rpv 
+        pid for pid in st.session_state.processos_selecionados_rpv
         if str(pid) != rpv_id_str
     ]
     
@@ -334,6 +337,15 @@ def interface_lista_rpv(df, perfil_usuario):
         st.session_state.show_rpv_dialog = False
         st.session_state.rpv_aberto_id = None
     
+    # VERIFICAR E LIMPAR ESTADOS ÓRFÃOS DE DIÁLOGO
+    # Se o diálogo está aberto mas não há ID, limpar
+    if st.session_state.get("show_rpv_dialog", False) and not st.session_state.get("rpv_aberto_id"):
+        st.session_state.show_rpv_dialog = False
+    
+    # Se há ID mas não deveria mostrar o diálogo, limpar o ID
+    if not st.session_state.get("show_rpv_dialog", False) and st.session_state.get("rpv_aberto_id"):
+        st.session_state.rpv_aberto_id = None
+    
     # Inicializar estado de exclusão em massa
     if "modo_exclusao_rpv" not in st.session_state:
         st.session_state.modo_exclusao_rpv = False
@@ -344,7 +356,7 @@ def interface_lista_rpv(df, perfil_usuario):
     if st.session_state.processos_selecionados_rpv:
         ids_existentes = set(df["ID"].astype(str).tolist())
         st.session_state.processos_selecionados_rpv = [
-            pid for pid in st.session_state.processos_selecionados_rpv 
+            pid for pid in st.session_state.processos_selecionados_rpv
             if str(pid) in ids_existentes
         ]
 
@@ -354,7 +366,7 @@ def interface_lista_rpv(df, perfil_usuario):
     
     # Verificação mais robusta de permissão para exclusão
     pode_excluir = (
-        perfil_atual in ["Admin", "Cadastrador"] or 
+        perfil_atual in ["Admin", "Cadastrador"] or
         usuario_atual == "admin" or
         perfil_usuario in ["Admin", "Cadastrador"]  # usar o perfil passado como parâmetro
     )
@@ -383,7 +395,7 @@ def interface_lista_rpv(df, perfil_usuario):
             if st.session_state.modo_exclusao_rpv:
                 num_selecionados = len(st.session_state.processos_selecionados_rpv)
                 if num_selecionados > 0:
-                    if st.button(f"🗑️ Excluir ({num_selecionados})", 
+                    if st.button(f"🗑️ Excluir ({num_selecionados})",
                                key="confirmar_exclusao_rpv", type="primary"):
                         confirmar_exclusao_massa_rpv(df, st.session_state.processos_selecionados_rpv)
                 else:
@@ -558,13 +570,18 @@ def interface_lista_rpv(df, perfil_usuario):
                 
                 with col_b2:
                     if st.button("🔓 Abrir", key=f"abrir_rpv_id_{rpv_id}"):
-                        st.session_state.show_rpv_dialog = True
-                        st.session_state.rpv_aberto_id = rpv_id
-                        st.rerun()
+                        # Usar sistema de timestamp para requests de diálogo
+                        import time
+                        timestamp = str(int(time.time() * 1000))
+                        st.session_state[f"dialogo_rpv_request_{timestamp}"] = {
+                            "show_rpv_dialog": True,
+                            "rpv_aberto_id": rpv_id,
+                            "timestamp": timestamp
+                        }
                 
                 with col_b3: st.write(f"**{safe_get_value(rpv, 'Processo', 'N/A')}**")
                 with col_b4: st.write(safe_get_value(rpv, 'Beneficiário', 'N/A'))
-                with col_b5: 
+                with col_b5:
                     valor_rpv = safe_get_value(rpv, 'Valor RPV', 'Não informado')
                     # Se for um valor numérico válido, formatar como moeda
                     try:
@@ -581,7 +598,7 @@ def interface_lista_rpv(df, perfil_usuario):
                         "Cadastro": "🔵",
                         "SAC - aguardando documentação": "🟠",
                         "Administrativo - aguardando documentação": "🟠",
-                        "SAC - documentação pronta": "🟡", 
+                        "SAC - documentação pronta": "🟡",
                         "Administrativo - documentação pronta": "🟡",
                         "Enviado para Rodrigo": "🟣",
                         "aguardando pagamento": "🔴",
@@ -603,13 +620,18 @@ def interface_lista_rpv(df, perfil_usuario):
                 
                 with col_b1:
                     if st.button("🔓 Abrir", key=f"abrir_rpv_id_{rpv_id}"):
-                        st.session_state.show_rpv_dialog = True
-                        st.session_state.rpv_aberto_id = rpv_id
-                        st.rerun()
+                        # Usar sistema de timestamp para requests de diálogo
+                        import time
+                        timestamp = str(int(time.time() * 1000))
+                        st.session_state[f"dialogo_rpv_request_{timestamp}"] = {
+                            "show_rpv_dialog": True,
+                            "rpv_aberto_id": rpv_id,
+                            "timestamp": timestamp
+                        }
                 
                 with col_b2: st.write(f"**{safe_get_value(rpv, 'Processo', 'N/A')}**")
                 with col_b3: st.write(safe_get_value(rpv, 'Beneficiário', 'N/A'))
-                with col_b4: 
+                with col_b4:
                     valor_rpv = safe_get_value(rpv, 'Valor RPV', 'Não informado')
                     # Se for um valor numérico válido, formatar como moeda
                     try:
@@ -626,7 +648,7 @@ def interface_lista_rpv(df, perfil_usuario):
                         "Cadastro": "🔵",
                         "SAC - aguardando documentação": "🟠",
                         "Administrativo - aguardando documentação": "🟠",
-                        "SAC - documentação pronta": "🟡", 
+                        "SAC - documentação pronta": "🟡",
                         "Administrativo - documentação pronta": "🟡",
                         "Enviado para Rodrigo": "🟣",
                         "aguardando pagamento": "🔴",
@@ -692,6 +714,61 @@ def safe_get_value(data, key, default=''):
     if str_value.lower() in ['nan', 'none', '', 'null']:
         return default
     return str_value
+
+def safe_get_hc_value_rpv(data, key, default=0.0):
+    """Obtém valor de honorário contratual de forma segura, tratando NaN e valores None"""
+    value = data.get(key, default)
+    if value is None or value == "":
+        return default
+    try:
+        # Converter para float
+        float_value = float(value)
+        if math.isnan(float_value):
+            return default
+        return float_value
+    except (ValueError, TypeError):
+        return default
+
+def calcular_total_hc_rpv(linha_rpv):
+    """Calcula o total dos honorários contratuais (HC + HC1 + HC2)"""
+    hc = safe_get_hc_value_rpv(linha_rpv, "Honorarios Contratuais", 0.0)
+    hc1 = safe_get_hc_value_rpv(linha_rpv, "HC1", 0.0)
+    hc2 = safe_get_hc_value_rpv(linha_rpv, "HC2", 0.0)
+    return hc + hc1 + hc2
+
+def mostrar_detalhes_hc_rpv(linha_rpv, key_suffix=""):
+    """Mostra detalhes individuais dos honorários contratuais para RPV"""
+    total_hc = calcular_total_hc_rpv(linha_rpv)
+    
+    if total_hc > 0:
+        with st.expander(f"💼 Ver Detalhes dos Honorários Contratuais (Total: R$ {total_hc:.2f})"):
+            col1, col2, col3 = st.columns(3)
+            
+            hc = safe_get_hc_value_rpv(linha_rpv, "Honorarios Contratuais", 0.0)
+            hc1 = safe_get_hc_value_rpv(linha_rpv, "HC1", 0.0)
+            hc2 = safe_get_hc_value_rpv(linha_rpv, "HC2", 0.0)
+            
+            with col1:
+                if hc > 0:
+                    st.metric("💼 HC1", f"R$ {hc:.2f}")
+                else:
+                    st.info("💼 HC1: Não informado")
+            
+            with col2:
+                if hc1 > 0:
+                    st.metric("💰 HC2", f"R$ {hc1:.2f}")
+                else:
+                    st.info("💰 HC2: Não informado")
+            
+            with col3:
+                if hc2 > 0:
+                    st.metric("📊 HC3", f"R$ {hc2:.2f}")
+                else:
+                    st.info("📊 HC3: Não informado")
+                    
+            st.success(f"💎 **Total Geral:** R$ {total_hc:.2f}")
+    else:
+        st.info("💼 Nenhum honorário contratual cadastrado para esta RPV.")
 
 def exibir_informacoes_basicas_rpv(linha_rpv, estilo="padrao"):
     """Exibe informações básicas do RPV de forma organizada e visual
@@ -770,7 +847,7 @@ def exibir_info_estilo_padrao(linha_rpv):
         status_atual = safe_get_value(linha_rpv, 'Status')
         status_class = {
             "Enviado ao Financeiro": "status-enviado",
-            "Aguardando Certidão": "status-aguardando", 
+            "Aguardando Certidão": "status-aguardando",
             "Aguardando Pagamento": "status-pagamento",
             "Pagamento Atrasado": "status-atrasado",
             "Finalizado": "status-finalizado"
@@ -876,6 +953,9 @@ def exibir_info_estilo_compacto(linha_rpv):
         "Finalizado": "background-color: #d1e7dd; color: #0f5132;"
     }.get(status_atual, "background-color: #e2e3e5; color: #383d41;")
     
+    # Calcular total de honorários contratuais
+    total_hc = calcular_total_hc_rpv(linha_rpv)
+    
     st.markdown("### 📋 Resumo do Processo")
     st.markdown(f"""
     <div class="compact-grid">
@@ -898,8 +978,12 @@ def exibir_info_estilo_compacto(linha_rpv):
             </div>
         </div>
         <div class="compact-item">
-            <div class="compact-label">💰 VALOR</div>
+            <div class="compact-label">💰 VALOR RPV</div>
             <div class="compact-value">{safe_get_value(linha_rpv, 'Valor RPV')}</div>
+        </div>
+        <div class="compact-item">
+            <div class="compact-label">💼 TOTAL HC</div>
+            <div class="compact-value">R$ {total_hc:.2f}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">🏛️ ÓRGÃO</div>
@@ -908,6 +992,9 @@ def exibir_info_estilo_compacto(linha_rpv):
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
+    
+    # Mostrar detalhes dos honorários contratuais
+    mostrar_detalhes_hc_rpv(linha_rpv, "compacto")
 
 def exibir_info_estilo_horizontal(linha_rpv):
     """Estilo horizontal - cards em linha"""
@@ -1084,7 +1171,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
             st.success(f"✅ Administrativo já marcou documentação como pronta em {linha_rpv.get('Data Admin Documentacao', 'N/A')}")
 
     # ADMIN: INTERFACE ESPECIAL PARA STATUS SIMULTÂNEOS (APENAS QUANDO AINDA AGUARDANDO)
-    elif (perfil_usuario == "Admin" and len(status_ativos) > 1 and 
+    elif (perfil_usuario == "Admin" and len(status_ativos) > 1 and
           ("SAC - aguardando documentação" in status_ativos or "Administrativo - aguardando documentação" in status_ativos)):
         col1, col2 = st.columns(2)
         
@@ -1139,7 +1226,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
         sac_finalizado = linha_rpv.get("SAC Documentacao Pronta", "") == "Sim"
         admin_finalizado = linha_rpv.get("Admin Documentacao Pronta", "") == "Sim"
         
-        if sac_finalizado and admin_finalizado:            
+        if sac_finalizado and admin_finalizado:
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("**📋 SAC:**")
@@ -1365,6 +1452,99 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
         st.markdown("---")
         st.markdown(f"🏁 **Finalizado em:** {linha_rpv.get('Data Finalizacao', 'N/A')}")
     
+    # SEÇÃO DE HONORÁRIOS CONTRATUAIS - Disponível para Financeiro e Admin
+    if perfil_usuario in ["Financeiro", "Admin"]:
+        st.markdown("---")
+        st.markdown("### 💼 Honorários Contratuais")
+        
+        with st.form(f"form_hc_rpv_{rpv_id}"):
+            col_hc1, col_hc2 = st.columns(2)
+            
+            with col_hc1:
+                honorarios_contratuais = st.number_input(
+                    "Honorário Contratual 1:",
+                    min_value=0.0,
+                    value=safe_get_hc_value_rpv(linha_rpv, "Honorarios Contratuais"),
+                    step=0.01,
+                    format="%.2f",
+                    help="Valor principal dos honorários contratuais",
+                    key=f"hc_rpv_{rpv_id}"
+                )
+                
+                # Campos HC adicionais (aparecem conforme o nível do botão)
+                hc1_valor, hc2_valor = 0.0, 0.0
+                nivel_hc = st.session_state.get(f"hc_nivel_rpv_{rpv_id}", 0)
+                
+                if nivel_hc >= 1:  # Primeira pressão: Mostrar HC2
+                    hc1_valor = st.number_input(
+                        "Honorário Contratual 2:",
+                        min_value=0.0,
+                        value=safe_get_hc_value_rpv(linha_rpv, "HC1"),
+                        step=0.01,
+                        format="%.2f",
+                        key=f"hc1_rpv_{rpv_id}"
+                    )
+                
+                if nivel_hc >= 2:  # Segunda pressão: Mostrar HC3
+                    hc2_valor = st.number_input(
+                        "Honorário Contratual 3:",
+                        min_value=0.0,
+                        value=safe_get_hc_value_rpv(linha_rpv, "HC2"),
+                        step=0.01,
+                        format="%.2f",
+                        key=f"hc2_rpv_{rpv_id}"
+                    )
+            
+            with col_hc2:
+                # Mostrar total atual
+                total_atual = calcular_total_hc_rpv(linha_rpv)
+                st.metric("Total HC Atual", f"R$ {total_atual:.2f}")
+                
+                # Botão para expandir HCs
+                expand_hc = st.form_submit_button("➕ Adicionar Honorários Contratuais", help="Clique para adicionar Honorários Contratuais, HC3...")
+                if expand_hc:
+                    nivel_atual = st.session_state.get(f"hc_nivel_rpv_{rpv_id}", 0)
+                    st.session_state[f"hc_nivel_rpv_{rpv_id}"] = min(nivel_atual + 1, 2)
+                    st.rerun()
+                
+                # Mostrar detalhamento se há HCs adicionais
+                if nivel_hc > 0:
+                    st.markdown("**Detalhamento:**")
+                    hc_principal = safe_get_hc_value_rpv(linha_rpv, "Honorarios Contratuais")
+                    st.write(f"HC1: R$ {hc_principal:.2f}")
+                    if nivel_hc >= 1:
+                        hc1_atual = safe_get_hc_value_rpv(linha_rpv, "HC1")
+                        st.write(f"HC2: R$ {hc1_atual:.2f}")
+                    if nivel_hc >= 2:
+                        hc2_atual = safe_get_hc_value_rpv(linha_rpv, "HC2")
+                        st.write(f"HC3: R$ {hc2_atual:.2f}")
+            
+            # Botão para salvar honorários
+            salvar_hc = st.form_submit_button("💾 Salvar Honorários Contratuais", type="primary")
+            
+            if salvar_hc:
+                try:
+                    idx = df[df["ID"] == rpv_id].index[0]
+                    
+                    # Salvar valores
+                    st.session_state.df_editado_rpv.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
+                    
+                    # Salvar HCs adicionais se foram preenchidos
+                    if nivel_hc >= 1:
+                        st.session_state.df_editado_rpv.loc[idx, "HC1"] = hc1_valor
+                    if nivel_hc >= 2:
+                        st.session_state.df_editado_rpv.loc[idx, "HC2"] = hc2_valor
+                    
+                    # Salvar no GitHub
+                    save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
+                    
+                    total_novo = honorarios_contratuais + hc1_valor + hc2_valor
+                    st.success(f"✅ Honorários salvos! Total: R$ {total_novo:.2f}")
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro ao salvar honorários: {str(e)}")
+    
     # OUTROS PERFIS E STATUS - VISUALIZAÇÃO APENAS
     else:
         # Mostrar status de forma informativa
@@ -1381,6 +1561,13 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
 
 def interface_visualizar_dados_rpv(df):
     """Interface melhorada para visualizar dados de RPVs em formato de tabela limpa."""
+    
+    # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de visualização
+    if st.session_state.get("show_rpv_dialog", False):
+        st.session_state.show_rpv_dialog = False
+    if st.session_state.get("rpv_aberto_id") is not None:
+        st.session_state.rpv_aberto_id = None
+    
     if df.empty:
         st.info("ℹ️ Não há RPVs para visualizar.")
         return
@@ -1532,16 +1719,16 @@ def interface_visualizar_dados_rpv(df):
         for _, row in df_paginado.iterrows():
             col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([2.5, 2, 2, 1.5, 1.5, 1.5])
             
-            with col_b1: 
+            with col_b1:
                 beneficiario = str(row.get('Beneficiário', 'N/A'))
                 st.write(f"**{beneficiario[:30]}{'...' if len(beneficiario) > 30 else ''}**")
-            with col_b2: 
+            with col_b2:
                 processo = str(row.get('Processo', 'N/A'))
                 st.write(processo[:20] + ('...' if len(processo) > 20 else ''))
-            with col_b3: 
+            with col_b3:
                 assunto = str(row.get('Assunto', 'N/A'))
                 st.write(assunto[:15] + ('...' if len(assunto) > 15 else ''))
-            with col_b4: 
+            with col_b4:
                 status = row.get('Status', 'N/A')
                 status_secundario = row.get('Status Secundario', '')
                 
@@ -1559,13 +1746,13 @@ def interface_visualizar_dados_rpv(df):
                 status_sec_str = str(status_secundario) if status_secundario is not None else ""
                 if status_sec_str and status_sec_str.strip() != "" and status_sec_str.lower() not in ['nan', 'none']:
                     st.markdown(f'<span style="color: orange; font-size: 12px;">+ {status_sec_str}</span>', unsafe_allow_html=True)
-            with col_b5: 
+            with col_b5:
                 data_cadastro = row.get('Data Cadastro')
                 if pd.isna(data_cadastro):
                     st.write("N/A")
                 else:
                     st.write(str(data_cadastro).split(' ')[0])
-            with col_b6: 
+            with col_b6:
                 st.write(str(row.get('Cadastrado Por', 'N/A'))[:10] + ('...' if len(str(row.get('Cadastrado Por', 'N/A'))) > 10 else ''))
 
         # Controles de paginação
@@ -1587,6 +1774,13 @@ def interface_visualizar_dados_rpv(df):
 
 def interface_cadastro_rpv(df, perfil_usuario):
     """Interface para cadastrar novos RPVs"""
+    
+    # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de cadastro
+    if st.session_state.get("show_rpv_dialog", False):
+        st.session_state.show_rpv_dialog = False
+    if st.session_state.get("rpv_aberto_id") is not None:
+        st.session_state.rpv_aberto_id = None
+    
     if perfil_usuario not in ["Cadastrador", "Admin"]:
         st.warning("⚠️ Apenas Cadastradores e Administradores podem criar novos RPVs")
         return
@@ -1701,14 +1895,14 @@ def interface_cadastro_rpv(df, perfil_usuario):
         # Usar keys diferentes para múltiplos vs único para evitar conflitos
         if anexar_multiplos_pdf:
             pdf_rpv = st.file_uploader(
-                "PDFs do RPV:", 
-                type=["pdf"], 
+                "PDFs do RPV:",
+                type=["pdf"],
                 accept_multiple_files=True,
                 key="pdf_rpv_multiplos"
             )
         else:
             pdf_rpv = st.file_uploader(
-                "PDF do RPV:", 
+                "PDF do RPV:",
                 type=["pdf"],
                 key="pdf_rpv_unico"
             )
@@ -1787,7 +1981,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                     "Mês Competência": mes_competencia.strftime("%d/%m/%Y") if mes_competencia else "",
                     "Observações": observacoes,
                     "Solicitar Certidão": solicitar_certidao,
-                    "Status": status_inicial, 
+                    "Status": status_inicial,
                     "Status Secundario": "",  # Novo campo para status simultâneo
                     "Data Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M"),
                     "Cadastrado Por": st.session_state.get("usuario", "Sistema"),
@@ -1796,7 +1990,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                     "SAC Documentacao Pronta": "Não",
                     "Data SAC Documentacao": "",
                     "SAC Responsavel": "",
-                    "Admin Documentacao Pronta": "Não", 
+                    "Admin Documentacao Pronta": "Não",
                     "Data Admin Documentacao": "",
                     "Admin Responsavel": "",
                     "Validado Financeiro": "Não",
@@ -1826,10 +2020,10 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 )
 
                 # Limpar campos após submissão bem-sucedida
-                for key in [processo_key, beneficiario_key, cpf_key, valor_key, obs_key, competencia_key, 
-                           certidao_key, multiplos_key, "new_rpv_banco", 
+                for key in [processo_key, beneficiario_key, cpf_key, valor_key, obs_key, competencia_key,
+                           certidao_key, multiplos_key, "new_rpv_banco",
                            "select_new_rpv_assunto", "input_novo_new_rpv_assunto",
-                           "select_new_rpv_orgao", "input_novo_new_rpv_orgao", 
+                           "select_new_rpv_orgao", "input_novo_new_rpv_orgao",
                            "pdf_rpv_unico", "pdf_rpv_multiplos"]:
                     if key in st.session_state:
                         del st.session_state[key]

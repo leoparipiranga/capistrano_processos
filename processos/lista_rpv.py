@@ -30,7 +30,7 @@ from components.funcoes_rpv import (
 # Importar funções comuns que ainda estão no módulo de controle
 from components.functions_controle import (
     # Funções GitHub
-    get_github_api_info, load_data_from_github, 
+    get_github_api_info, load_data_from_github,
     save_data_local, save_data_to_github_seguro,
     
     # Funções de arquivo
@@ -85,14 +85,65 @@ def show():
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     
     # Abas (adicionada terceira aba Visualizar Dados)
-    aba = st.tabs(["📝 Cadastrar RPVs", "📊 Gerenciar RPVs", "📈 Visualizar Dados"])
+    aba_selecionada = st.tabs(["📝 Cadastrar RPVs", "📊 Gerenciar RPVs", "📈 Visualizar Dados"])
     
-    with aba[0]:
+    with aba_selecionada[0]:
+        # LIMPAR diálogos apenas quando mudando para aba de cadastro E não há diálogo ativo
+        if (st.session_state.get("aba_atual_rpv") != "cadastrar" and
+            not st.session_state.get("show_rpv_dialog", False)):
+            st.session_state.show_rpv_dialog = False
+            st.session_state.rpv_aberto_id = None
+            st.session_state.aba_atual_rpv = "cadastrar"
         interface_cadastro_rpv(df, perfil_usuario)
     
-    with aba[1]:
+    with aba_selecionada[1]:
+        # Marcar que estamos na aba gerenciar
+        if st.session_state.get("aba_atual_rpv") != "gerenciar":
+            st.session_state.aba_atual_rpv = "gerenciar"
         interface_lista_rpv(df, perfil_usuario)
     
-    with aba[2]:
+    with aba_selecionada[2]:
+        # LIMPAR diálogos apenas quando mudando para aba de visualização E não há diálogo ativo
+        if (st.session_state.get("aba_atual_rpv") != "visualizar" and
+            not st.session_state.get("show_rpv_dialog", False)):
+            st.session_state.show_rpv_dialog = False
+            st.session_state.rpv_aberto_id = None
+            st.session_state.aba_atual_rpv = "visualizar"
         interface_visualizar_dados_rpv(df)
 
+    # ====== DIÁLOGO DE RPV (RENDERIZADO APÓS TODA A INTERFACE) ======
+    
+    # Verificar requests de diálogo pendentes
+    dialog_requests = [key for key in st.session_state.keys() if key.startswith("dialogo_rpv_request_")]
+    
+    if dialog_requests:
+        # Pegar o request mais recente
+        latest_request = max(dialog_requests)
+        request_data = st.session_state[latest_request]
+        
+        # Usar dados do request
+        show_dialog = request_data["show_rpv_dialog"]
+        rpv_id = request_data["rpv_aberto_id"]
+        
+        if show_dialog and rpv_id:
+            # Limpar o request usado
+            del st.session_state[latest_request]
+            
+            # Buscar dados do processo
+            linha_processo = df[df["ID"].astype(str) == str(rpv_id)]
+            titulo_dialog = f"Detalhes do RPV: {linha_processo.iloc[0].get('Processo', 'Não informado')}" if not linha_processo.empty else "Detalhes do RPV"
+
+            @st.dialog(titulo_dialog, width="large")
+            def rpv_dialog():
+                if not linha_processo.empty:
+                    status_atual = linha_processo.iloc[0].get("Status", "")
+                    # Chama a função de edição
+                    interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario)
+                else:
+                    st.error("❌ RPV não encontrado.")
+                
+                if st.button("Fechar", key="fechar_dialog_rpv"):
+                    st.rerun()
+
+            # Renderizar o diálogo
+            rpv_dialog()

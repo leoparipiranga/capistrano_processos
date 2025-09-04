@@ -91,7 +91,8 @@ class GoogleDriveIntegration:
         try:
             self.service = build('drive', 'v3', credentials=self.credentials)
             return True
-        except Exception:
+        except Exception as e:
+            print(f"Erro ao inicializar serviço do Google Drive: {str(e)}")
             return False
     
     def create_folder(self, folder_name, parent_folder_id=None):
@@ -107,7 +108,9 @@ class GoogleDriveIntegration:
                 
             folder = self.service.files().create(body=file_metadata).execute()
             return folder.get('id')
-        except Exception:
+        except Exception as e:
+            # Log mais detalhado do erro
+            print(f"Erro ao criar pasta '{folder_name}': {str(e)}")
             return None
     
     def find_folder(self, folder_name, parent_folder_id=None):
@@ -144,7 +147,8 @@ class GoogleDriveIntegration:
             ).execute()
             
             return file.get('id'), file.get('name')
-        except Exception:
+        except Exception as e:
+            print(f"Erro no upload do arquivo '{file_name}': {str(e)}")
             return None, None
     
     def upload_alvara_documents(self, processo, comprovante_file, pdf_file):

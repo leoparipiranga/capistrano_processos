@@ -19,8 +19,8 @@ from components.funcoes_alvaras import (
     verificar_perfil_usuario_alvaras, pode_editar_status_alvaras,
     
     # Funções de interface
-    interface_lista_alvaras, interface_anexar_documentos, 
-    interface_acoes_financeiro, interface_edicao_processo, 
+    interface_lista_alvaras, interface_anexar_documentos,
+    interface_acoes_financeiro, interface_edicao_processo,
     interface_cadastro_alvara,
     interface_visualizar_dados, interface_visualizar_alvara,
     interface_visualizar_dados_alvara
@@ -29,7 +29,7 @@ from components.funcoes_alvaras import (
 # Importar funções comuns que ainda estão no módulo de controle
 from components.functions_controle import (
     # Funções GitHub
-    get_github_api_info, load_data_from_github, 
+    get_github_api_info, load_data_from_github,
     save_data_local, save_data_to_github_seguro,
     
     # Funções de arquivo
@@ -40,7 +40,7 @@ from components.functions_controle import (
     mostrar_diferencas, validar_cpf, formatar_processo,
     
     # Funções de limpeza
-    limpar_campos_formulario, resetar_estado_processo, 
+    limpar_campos_formulario, resetar_estado_processo,
     obter_colunas_controle, inicializar_linha_vazia
 )
 
@@ -102,3 +102,40 @@ def show():
     with aba[2]:
         interface_visualizar_dados_alvara(df)
 
+    # ====== DIÁLOGO DE ALVARÁS (RENDERIZADO APÓS TODA A INTERFACE) ======
+    
+    # Verificar requests de diálogo pendentes
+    dialog_requests = [key for key in st.session_state.keys() if key.startswith("dialogo_request_")]
+    
+    if dialog_requests:
+        # Pegar o request mais recente
+        latest_request = max(dialog_requests)
+        request_data = st.session_state[latest_request]
+        
+        # Usar dados do request
+        show_dialog = request_data["show_alvara_dialog"]
+        processo_id = request_data["processo_aberto_id"]
+        
+        if show_dialog and processo_id:
+            # Limpar o request usado
+            del st.session_state[latest_request]
+            
+            # Buscar dados do processo
+            alvara_id_aberto = processo_id
+            linha_processo = df[df["ID"].astype(str) == str(alvara_id_aberto)]
+            titulo_dialog = f"Detalhes do Alvará: {linha_processo.iloc[0].get('Processo', 'Não informado')}" if not linha_processo.empty else "Detalhes do Alvará"
+
+            @st.dialog(titulo_dialog, width="large")
+            def alvara_dialog():
+                if not linha_processo.empty:
+                    status_atual = linha_processo.iloc[0].get("Status", "")
+                    # Chama a função de edição
+                    interface_edicao_processo(df, alvara_id_aberto, status_atual, perfil_usuario)
+                else:
+                    st.error("❌ Alvará não encontrado.")
+                
+                if st.button("Fechar", key="fechar_dialog_alvaras"):
+                    st.rerun()
+
+            # Renderizar o diálogo
+            alvara_dialog()

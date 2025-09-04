@@ -299,7 +299,7 @@ def inicializar_autocomplete_session():
     if not hasattr(st.session_state, 'assuntos_rpv_customizados') or st.session_state.assuntos_rpv_customizados is None:
         st.session_state.assuntos_rpv_customizados = dados.get("assuntos_rpv", []).copy()
     else:
-        # Merge com dados salvos (sem duplicatas)  
+        # Merge com dados salvos (sem duplicatas)
         existentes = set(st.session_state.assuntos_rpv_customizados)
         salvos = set(dados.get("assuntos_rpv", []))
         st.session_state.assuntos_rpv_customizados = sorted(list(existentes.union(salvos)))
@@ -313,7 +313,7 @@ def obter_orgaos_judiciais_completo():
     # Dados padrão
     ORGAOS_JUDICIAIS_BASE = [
         "COMARCA DE BELO HORIZONTE",
-        "COMARCA DE CONTAGEM", 
+        "COMARCA DE CONTAGEM",
         "COMARCA DE BETIM",
         "COMARCA DE RIBEIRÃO DAS NEVES",
         "TRIBUNAL DE JUSTIÇA DE MINAS GERAIS (TJMG)",
@@ -336,7 +336,7 @@ def obter_assuntos_beneficios_completo():
     ASSUNTOS_BENEFICIOS_BASE = [
         # Tipos de processo principais
         "LOAS",
-        "LOAS DEFICIENTE", 
+        "LOAS DEFICIENTE",
         "LOAS IDOSO",
         "APOSENTADORIA POR INVALIDEZ",
         "APOSENTADORIA POR IDADE",
@@ -368,7 +368,7 @@ def obter_assuntos_rpv_completo():
     # Dados padrão
     ASSUNTOS_RPV_BASE = [
         "APOSENTADORIA POR INVALIDEZ",
-        "APOSENTADORIA POR IDADE", 
+        "APOSENTADORIA POR IDADE",
         "APOSENTADORIA ESPECIAL",
         "AUXILIO-DOENCA",
         "AUXILIO-ACIDENTE",

@@ -36,7 +36,7 @@ PERFIS_ALVARAS = {
 
 STATUS_ETAPAS_ALVARAS = {
     1: "Cadastrado",
-    2: "Enviado para o Financeiro", 
+    2: "Enviado para o Financeiro",
     3: "Financeiro - Enviado para Rodrigo",
     4: "Finalizado"
 }
@@ -44,14 +44,14 @@ STATUS_ETAPAS_ALVARAS = {
 
 PERFIS_RPV = {
     "Admin": ["Enviado", "Certidão anexa", "Enviado para Rodrigo", "Finalizado"],
-    "Cadastrador": ["Enviado"],  
+    "Cadastrador": ["Enviado"],
     "Jurídico": ["Enviado", "Certidão anexa"],
     "Financeiro": ["Enviado", "Certidão anexa", "Enviado para Rodrigo", "Finalizado"]
 }
 
 STATUS_ETAPAS_RPV = {
     1: "Enviado",              # ← Era "Cadastrado", agora começa em "Enviado"
-    2: "Certidão anexa", 
+    2: "Certidão anexa",
     3: "Enviado para Rodrigo",
     4: "Finalizado"
 }
@@ -86,7 +86,7 @@ def verificar_perfil_usuario_alvaras():
     # Mapear perfis para os fluxos de Alvarás
     perfis_validos_alvaras = {
         "Admin": "Admin",
-        "Cadastrador": "Cadastrador", 
+        "Cadastrador": "Cadastrador",
         "Financeiro": "Financeiro"
     }
     
@@ -124,10 +124,10 @@ def pode_editar_status_rpv(status_atual, perfil_usuario):
 def obter_colunas_controle_rpv():
     """Retorna lista das colunas de controle do fluxo RPV"""
     return [
-        "Solicitar Certidão", "Status", "Data Cadastro", "Cadastrado Por", 
+        "Solicitar Certidão", "Status", "Data Cadastro", "Cadastrado Por",
         "PDF RPV", "Data Envio", "Enviado Por",
         "Certidão Anexada", "Data Certidão", "Anexado Certidão Por",
-        "Data Envio Rodrigo", "Enviado Rodrigo Por", 
+        "Data Envio Rodrigo", "Enviado Rodrigo Por",
         "Comprovante Saque", "Comprovante Pagamento", "Valor Final Escritório",
         "Data Finalização", "Finalizado Por", "HC1", "HC2", "HC3"
     ]
@@ -288,11 +288,11 @@ def load_data_from_github(filename):
             except pd.errors.ParserError as e:
                 # Se houver erro de parsing, tentar com parâmetros mais flexíveis
                 try:
-                    df = pd.read_csv(StringIO(content), sep=';', encoding='utf-8', 
+                    df = pd.read_csv(StringIO(content), sep=';', encoding='utf-8',
                                    on_bad_lines='skip')
                 except:
                     # Última tentativa com engine python mais tolerante
-                    df = pd.read_csv(StringIO(content), sep=';', encoding='utf-8', 
+                    df = pd.read_csv(StringIO(content), sep=';', encoding='utf-8',
                                    engine='python', on_bad_lines='skip')
             except Exception as e:
                 st.error(f"Erro ao fazer parse do CSV: {e}")
@@ -319,9 +319,9 @@ def criar_dataframe_vazio_por_tipo(filename):
     if filename == "lista_alvaras.csv":
         colunas_alvaras = [
             "ID",  # ← ADICIONAR ID COMO PRIMEIRA COLUNA
-            "Processo", "Parte", "CPF", "Pagamento", "Observação pagamento", 
+            "Processo", "Parte", "CPF", "Pagamento", "Observação pagamento",
             "Órgão Judicial", "Banco", "Honorários Sucumbenciais", "Observação Honorários",
-            "Status", "Data Cadastro", "Cadastrado Por", "Comprovante Conta", 
+            "Status", "Data Cadastro", "Cadastrado Por", "Comprovante Conta",
             "PDF Alvará", "Data Envio Financeiro", "Enviado Financeiro Por",
             "Data Envio Chefe", "Enviado Chefe Por", "Comprovante Recebimento",
             "Data Finalização", "Finalizado Por"
@@ -330,16 +330,16 @@ def criar_dataframe_vazio_por_tipo(filename):
     
     elif filename == "lista_rpv.csv":
         colunas_rpv = [
-            "Processo", "Beneficiário", "CPF", "Valor RPV", "Observações", "Solicitar Certidão", 
-            "Status", "ID", "Data Cadastro", "Cadastrado Por", "PDF RPV", "Data Envio", "Enviado Por", 
-            "Certidão Anexada", "Data Certidão", "Anexado Certidão Por", "Data Envio Rodrigo", 
-            "Enviado Rodrigo Por", "Comprovante Saque", "Comprovante Pagamento", "Valor Final Escritório", 
-            "Data Finalização", "Finalizado Por", "Certidão no Korbil", "Documentação Cliente OK", 
-            "Observações Valor", "Assunto", "Mês Competência", "Documentação Organizada", "Valor Líquido", 
-            "Observações Pagamento", "Status Secundario", "SAC Documentacao Pronta", "Data SAC Documentacao", 
-            "SAC Responsavel", "Admin Documentacao Pronta", "Data Admin Documentacao", "Admin Responsavel", 
-            "Validado Financeiro", "Data Validacao", "Validado Por", "Comprovante Recebimento", 
-            "Data Recebimento", "Recebido Por", "Data Pagamento", "Pago Por", "Data Finalizacao", 
+            "Processo", "Beneficiário", "CPF", "Valor RPV", "Observações", "Solicitar Certidão",
+            "Status", "ID", "Data Cadastro", "Cadastrado Por", "PDF RPV", "Data Envio", "Enviado Por",
+            "Certidão Anexada", "Data Certidão", "Anexado Certidão Por", "Data Envio Rodrigo",
+            "Enviado Rodrigo Por", "Comprovante Saque", "Comprovante Pagamento", "Valor Final Escritório",
+            "Data Finalização", "Finalizado Por", "Certidão no Korbil", "Documentação Cliente OK",
+            "Observações Valor", "Assunto", "Mês Competência", "Documentação Organizada", "Valor Líquido",
+            "Observações Pagamento", "Status Secundario", "SAC Documentacao Pronta", "Data SAC Documentacao",
+            "SAC Responsavel", "Admin Documentacao Pronta", "Data Admin Documentacao", "Admin Responsavel",
+            "Validado Financeiro", "Data Validacao", "Validado Por", "Comprovante Recebimento",
+            "Data Recebimento", "Recebido Por", "Data Pagamento", "Pago Por", "Data Finalizacao",
             "Banco", "Orgao Judicial", "Data Comprovante Recebimento", "Recebimento Por"
         ]
         return pd.DataFrame(columns=colunas_rpv)
@@ -347,12 +347,12 @@ def criar_dataframe_vazio_por_tipo(filename):
     elif filename == "lista_acompanhamento.csv":
         colunas_beneficios = [
             "ID",  # ← ADICIONAR ID
-            "Nº DO PROCESSO", "DETALHE PROCESSO", "PARTE", "CPF", 
-            "DATA DA CONCESSÃO DA LIMINAR", "PROVÁVEL PRAZO FATAL PARA CUMPRIMENTO", 
+            "Nº DO PROCESSO", "DETALHE PROCESSO", "PARTE", "CPF",
+            "DATA DA CONCESSÃO DA LIMINAR", "PROVÁVEL PRAZO FATAL PARA CUMPRIMENTO",
             "OBSERVAÇÕES", "linhas", "Status", "Data Cadastro", "Cadastrado Por",
-            "Data Envio Administrativo", "Enviado Administrativo Por", "Implantado", 
+            "Data Envio Administrativo", "Enviado Administrativo Por", "Implantado",
             "Data Implantação", "Implantado Por", "Benefício Verificado", "Percentual Cobrança",
-            "Data Envio Financeiro", "Enviado Financeiro Por", "Tipo Pagamento", 
+            "Data Envio Financeiro", "Enviado Financeiro Por", "Tipo Pagamento",
             "Comprovante Pagamento", "Valor Pago", "Data Finalização", "Finalizado Por"
         ]
         return pd.DataFrame(columns=colunas_beneficios)
@@ -429,13 +429,33 @@ def save_data_local(df, filename):
 def salvar_arquivo(arquivo, processo, tipo):
     """Salva arquivo binário (PDF, imagem) exclusivamente no Google Drive"""
     try:
+        # Verificar se o arquivo foi recebido corretamente
+        if arquivo is None:
+            st.error("❌ Nenhum arquivo foi recebido")
+            return None
+        
+        # Verificar se o arquivo tem conteúdo
+        try:
+            conteudo = arquivo.getvalue()
+            if len(conteudo) == 0:
+                st.error("❌ Arquivo está vazio")
+                return None
+        except Exception as e:
+            st.error(f"❌ Erro ao ler conteúdo do arquivo: {str(e)}")
+            return None
+        
         from components.google_drive_integration import GoogleDriveIntegration
         
         # Inicializar integração com Google Drive
         drive = GoogleDriveIntegration()
         
         if not drive.initialize_service():
-            st.error("❌ Erro na inicialização do Google Drive")
+            st.error("❌ Falha na autenticação com Google Drive. Verifique as credenciais.")
+            return None
+        
+        # Verificar se o serviço foi criado corretamente
+        if not hasattr(drive, 'service') or drive.service is None:
+            st.error("❌ Serviço do Google Drive não foi inicializado corretamente.")
             return None
         
         # Gerar nome único para o arquivo
@@ -445,8 +465,8 @@ def salvar_arquivo(arquivo, processo, tipo):
         # Obter pasta principal de alvarás
         main_folder_id = st.secrets.get("google_drive", {}).get("alvaras_folder_id")
         if not main_folder_id:
-            st.error("❌ Pasta de alvarás não configurada no secrets.toml")
-            return None
+            st.warning("⚠️ Pasta de alvarás não configurada. Upload será feito na pasta raiz.")
+            main_folder_id = None  # None = pasta raiz do Google Drive
         
         # Criar ou encontrar pasta do processo
         processo_folder_name = f"Processo_{processo}"
@@ -455,24 +475,29 @@ def salvar_arquivo(arquivo, processo, tipo):
         if not processo_folder_id:
             processo_folder_id = drive.create_folder(processo_folder_name, main_folder_id)
             if not processo_folder_id:
-                st.error("❌ Erro ao criar pasta do processo no Google Drive")
-                return None
+                st.warning(f"⚠️ Não foi possível criar a pasta '{processo_folder_name}'. Upload será feito na pasta raiz.")
+                # Se não conseguir criar pasta específica, usar pasta raiz
+                processo_folder_id = None
         
         # Fazer upload do arquivo
-        file_id, file_name = drive.upload_file(
-            arquivo.getvalue(),
-            nome_arquivo,
-            processo_folder_id,
-            arquivo.type
-        )
-        
-        if file_id:
-            # Retornar identificador único do Google Drive
-            drive_url = f"https://drive.google.com/file/d/{file_id}/view"
-            st.success(f"✅ Arquivo {arquivo.name} salvo no Google Drive!")
-            return f"Drive: {file_name} (ID: {file_id})"
-        else:
-            st.error("❌ Erro ao fazer upload para o Google Drive")
+        try:
+            file_id, file_name = drive.upload_file(
+                arquivo.getvalue(),
+                nome_arquivo,
+                processo_folder_id,
+                arquivo.type
+            )
+            
+            if file_id:
+                # Retornar identificador único do Google Drive
+                drive_url = f"https://drive.google.com/file/d/{file_id}/view"
+                st.success(f"✅ Arquivo {arquivo.name} salvo no Google Drive!")
+                return f"Drive: {file_name} (ID: {file_id})"
+            else:
+                st.error("❌ Falha no upload: O Google Drive não retornou ID do arquivo")
+                return None
+        except Exception as upload_error:
+            st.error(f"❌ Erro no upload para Google Drive: {str(upload_error)}")
             return None
             
     except Exception as e:
@@ -578,7 +603,7 @@ def resetar_estado_processo():
 def obter_colunas_controle():
     """Retorna lista das colunas de controle do fluxo"""
     return [
-        "Status", "Data Cadastro", "Cadastrado Por", "Comprovante Conta", 
+        "Status", "Data Cadastro", "Cadastrado Por", "Comprovante Conta",
         "PDF Alvará", "Data Envio Financeiro", "Enviado Financeiro Por",
         "Data Envio Rodrigo", "Enviado Rodrigo Por", "Comprovante Recebimento",
         "Data Finalização", "Finalizado Por"
@@ -621,7 +646,7 @@ def interface_lista_alvaras(df, perfil_usuario):
     
     if mostrar_apenas_meus and perfil_usuario == "Financeiro":
         df_filtrado = df_filtrado[df_filtrado["Status"].isin([
-            "Enviado para o Financeiro", 
+            "Enviado para o Financeiro",
             "Financeiro - Enviado para Chefe"
         ])]
     
@@ -632,8 +657,8 @@ def interface_lista_alvaras(df, perfil_usuario):
         id_atual = df_trabalho.loc[idx, "ID"]
         
         # Se ID é inválido, gerar novo baseado no índice
-        if (pd.isna(id_atual) or 
-            str(id_atual).strip() == "" or 
+        if (pd.isna(id_atual) or
+            str(id_atual).strip() == "" or
             str(id_atual) == "Não informado" or
             "E+" in str(id_atual) or  # Notação científica
             "e+" in str(id_atual).lower()):
@@ -799,8 +824,11 @@ def interface_anexar_documentos(df, processo):
                     path = salvar_arquivo(arquivo, processo, f"alvara_{i+1}")
                     pdf_paths.append(path)
                 
-                comprovante_path = "; ".join(comprovante_paths)
-                pdf_path = "; ".join(pdf_paths)
+                # Filtrar valores None antes do join
+                comprovante_paths_filtrados = [path for path in comprovante_paths if path is not None]
+                pdf_paths_filtrados = [path for path in pdf_paths if path is not None]
+                comprovante_path = "; ".join(comprovante_paths_filtrados) if comprovante_paths_filtrados else None
+                pdf_path = "; ".join(pdf_paths_filtrados) if pdf_paths_filtrados else None
             else:
                 comprovante_path = salvar_arquivo(comprovante_conta, processo, "comprovante")
                 pdf_path = salvar_arquivo(pdf_alvara, processo, "alvara")
@@ -869,7 +897,7 @@ def interface_acoes_financeiro(df_filtrado):
             with st.expander(f"Finalizar: {processo['Processo']} - {processo['Parte']}"):
                 # Checkbox para múltiplos comprovantes
                 anexar_multiplos_rec = st.checkbox(
-                    "Anexar múltiplos comprovantes", 
+                    "Anexar múltiplos comprovantes",
                     key=f"multiplos_recebimento_{processo['Processo']}"
                 )
                 
@@ -1053,7 +1081,7 @@ def interface_financeiro_fluxo(df):
                 with col_anexo:
                     # Checkbox para múltiplos comprovantes
                     anexar_multiplos_final = st.checkbox(
-                        "Anexar múltiplos comprovantes", 
+                        "Anexar múltiplos comprovantes",
                         key=f"multiplos_final_{processo['Processo']}"
                     )
                     
@@ -1275,7 +1303,7 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
         
         # Checkbox para múltiplos comprovantes
         anexar_multiplos_ult = st.checkbox(
-            "Anexar múltiplos comprovantes", 
+            "Anexar múltiplos comprovantes",
             key=f"multiplos_ultimo_{processo}"
         )
         
@@ -1437,7 +1465,7 @@ def interface_cadastro_alvara(df, perfil_usuario):
         
         # DEFINIR COLUNAS ESPECÍFICAS DO FORMULÁRIO
         colunas_form = [
-            "Processo", "Parte", "CPF", "Pagamento", "Observação pagamento", 
+            "Processo", "Parte", "CPF", "Pagamento", "Observação pagamento",
             "Órgão Judicial", "Banco", "Honorários Sucumbenciais", "Observação Honorários"
         ]
         
@@ -1512,7 +1540,7 @@ def interface_cadastro_alvara(df, perfil_usuario):
                 
                 elif col == "Banco":
                     opcoes_banco = [
-                        "", "BRADESCO", "CAIXA", "BANCO DO BRASIL", "ITAU", 
+                        "", "BRADESCO", "CAIXA", "BANCO DO BRASIL", "ITAU",
                         "SANTANDER", "BMG", "PAN", "INTER", "SAFRA", "Outro"
                     ]
                     banco_selecionado = st.selectbox(
@@ -1683,8 +1711,8 @@ def interface_visualizar_dados(df):
                 
                 # Filtrar apenas registros com data válida e que contém a data de hoje
                 hoje_count = len(df_temp[
-                    (df_temp["Data Cadastro"] != "Não informado") & 
-                    (df_temp["Data Cadastro"] != "") & 
+                    (df_temp["Data Cadastro"] != "Não informado") &
+                    (df_temp["Data Cadastro"] != "") &
                     (df_temp["Data Cadastro"].str.contains(hoje, na=False))
                 ])
                 st.metric("Cadastrados Hoje", hoje_count)
@@ -1734,7 +1762,7 @@ def interface_visualizar_dados(df):
             colunas_exibir = df_visualizado.columns.tolist()
         else:
             colunas_principais = [
-                "Processo", "Parte", "Pagamento", "Status", 
+                "Processo", "Parte", "Pagamento", "Status",
                 "Data Cadastro", "Cadastrado Por"
             ]
             colunas_exibir = [col for col in colunas_principais if col in df_visualizado.columns]
@@ -1841,7 +1869,7 @@ def interface_visualizar_dados(df):
                 
                 # Filtrar datas válidas
                 df_temp = df_temp[
-                    (df_temp["Data Cadastro"] != "Não informado") & 
+                    (df_temp["Data Cadastro"] != "Não informado") &
                     (df_temp["Data Cadastro"] != "") &
                     (df_temp["Data Cadastro"] != "None")
                 ]
@@ -1890,4 +1918,3 @@ def interface_visualizar_dados(df):
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
-

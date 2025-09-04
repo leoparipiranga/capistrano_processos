@@ -6,7 +6,7 @@ import streamlit as st
 from components.autocomplete_manager import (
     carregar_dados_autocomplete,
     remover_orgao_judicial,
-    remover_assunto_beneficio, 
+    remover_assunto_beneficio,
     remover_assunto_rpv,
     remover_orgao_rpv,
     obter_orgaos_judiciais_completo,
@@ -33,9 +33,9 @@ def interface_gerenciamento_autocomplete():
     
     # Tabs para cada categoria
     tab1, tab2, tab3, tab4 = st.tabs([
-        "🏛️ Órgãos Judiciais", 
-        "📄 Assuntos Benefícios", 
-        "📋 Assuntos RPV", 
+        "🏛️ Órgãos Judiciais",
+        "📄 Assuntos Benefícios",
+        "📋 Assuntos RPV",
         "🏢 Órgãos RPV"
     ])
     
