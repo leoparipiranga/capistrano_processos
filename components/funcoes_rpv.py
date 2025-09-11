@@ -1,4 +1,4 @@
-# components/funcoes_rpv.py
+﻿# components/funcoes_rpv.py
 import streamlit as st
 import pandas as pd
 import math
@@ -616,8 +616,9 @@ def interface_lista_rpv(df, perfil_usuario):
                     else:
                         st.write(f"{cor} {status_atual}")
             else:
+                # Renderização do resumo compacto solicitado: Processo + (Valor RPV, Mês Competência, Assunto, Órgão)
                 col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns([1, 2, 2, 1.5, 2])
-                
+
                 with col_b1:
                     if st.button("🔓 Abrir", key=f"abrir_rpv_id_{rpv_id}"):
                         # Usar sistema de timestamp para requests de diálogo
@@ -628,43 +629,55 @@ def interface_lista_rpv(df, perfil_usuario):
                             "rpv_aberto_id": rpv_id,
                             "timestamp": timestamp
                         }
-                
-                with col_b2: st.write(f"**{safe_get_value(rpv, 'Processo', 'N/A')}**")
-                with col_b3: st.write(safe_get_value(rpv, 'Beneficiário', 'N/A'))
-                with col_b4:
+
+                # Processo em destaque + status pequeno
+                with col_b2:
+                    processo_txt = safe_get_value(rpv, 'Processo', 'N/A')
+                    status_txt = safe_get_value(rpv, 'Status', 'N/A')
+                    st.markdown(
+                        f"**{processo_txt}**<br>"
+                        f"<span style='background:#eef2ff;padding:4px 8px;border-radius:10px;font-size:12px;color:#143d59;'>{status_txt}</span>",
+                        unsafe_allow_html=True
+                    )
+
+                # Valor RPV e Mês Competência
+                with col_b3:
                     valor_rpv = safe_get_value(rpv, 'Valor RPV', 'Não informado')
-                    # Se for um valor numérico válido, formatar como moeda
+                    mes_comp = safe_get_value(rpv, 'Mês Competência', '')
+                    # formatar valor se possível
+                    valor_display = valor_rpv
                     try:
                         valor_num = float(valor_rpv.replace('R$', '').replace(',', '.').strip())
-                        st.write(f"R$ {valor_num:,.2f}")
+                        valor_display = f"R$ {valor_num:,.2f}"
                     except:
-                        st.write(valor_rpv)
+                        valor_display = valor_rpv
+
+                    st.markdown(
+                        f"<div style='font-size:12px;color:#6c757d;'>💰 Valor</div>"
+                        f"<div style='font-weight:600'>{valor_display}</div>"
+                        f"<div style='margin-top:6px;font-size:12px;color:#6c757d;'>📅 Competência</div>"
+                        f"<div>{mes_comp}</div>",
+                        unsafe_allow_html=True
+                    )
+
+                # Assunto
+                with col_b4:
+                    assunto_txt = safe_get_value(rpv, 'Assunto', 'N/A')
+                    st.markdown(
+                        f"<div style='font-size:12px;color:#6c757d;'>📝 Assunto</div>"
+                        f"<div style='font-weight:600'>{assunto_txt}</div>",
+                        unsafe_allow_html=True
+                    )
+
+                # Órgão (truncado)
                 with col_b5:
-                    status_atual = rpv.get('Status', 'N/A')
-                    status_secundario = rpv.get('Status Secundario', '')
-                    
-                    # Cores para os diferentes status
-                    cores = {
-                        "Cadastro": "🔵",
-                        "SAC - aguardando documentação": "🟠",
-                        "Administrativo - aguardando documentação": "🟠",
-                        "SAC - documentação pronta": "🟡",
-                        "Administrativo - documentação pronta": "🟡",
-                        "Enviado para Rodrigo": "🟣",
-                        "aguardando pagamento": "🔴",
-                        "finalizado": "🟢"
-                    }
-                    
-                    cor = cores.get(status_atual, "⚫")
-                    
-                    # Se tem status simultâneo, mostrar ambos - converter para string segura
-                    status_sec_str = str(status_secundario) if status_secundario is not None else ""
-                    if status_sec_str and status_sec_str.strip() != "" and status_sec_str.lower() not in ['nan', 'none']:
-                        cor_sec = cores.get(status_sec_str, "⚫")
-                        st.write(f"{cor} {status_atual}")
-                        st.write(f"{cor_sec} {status_sec_str}")
-                    else:
-                        st.write(f"{cor} {status_atual}")
+                    orgao_txt = safe_get_value(rpv, 'Orgao Judicial', 'N/A')
+                    orgao_trunc = orgao_txt[:36] + '...' if len(orgao_txt) > 36 else orgao_txt
+                    st.markdown(
+                        f"<div style='font-size:12px;color:#6c757d;'>🏛️ Órgão</div>"
+                        f"<div style='font-weight:600'>{orgao_trunc}</div>",
+                        unsafe_allow_html=True
+                    )
 
     else:
         st.info("Nenhum RPV encontrado com os filtros aplicados.")
