@@ -26,7 +26,10 @@ from components.functions_controle import (
     mostrar_diferencas, validar_cpf, formatar_processo,
     
     # Funções de limpeza comuns
-    limpar_campos_formulario
+    limpar_campos_formulario,
+    
+    # Função de cores de status
+    obter_cor_status
 )
 
 def safe_get_value(data, key, default='Não informado'):
@@ -458,13 +461,13 @@ def interface_lista_rpv(df, perfil_usuario):
     # Calcular total de registros filtrados
     total_registros_filtrados = len(df_filtrado)
 
-    # Botões de Expandir/Recolher Todos
+    # Botões de Abrir/Fechar Todos
     if total_registros_filtrados > 0:
         st.markdown("---")
         col_exp1, col_exp2, col_exp_space = st.columns([2, 2, 6])
         
         with col_exp1:
-            if st.button("🔽 Expandir Todos", key="expandir_todos_rpv"):
+            if st.button("🔽 Abrir Todos", key="abrir_todos_rpv"):
                 # Adicionar todos os IDs dos RPVs filtrados ao set de expandidos
                 for _, processo in df_filtrado.iterrows():
                     rpv_id = processo.get("ID", "N/A")
@@ -472,7 +475,7 @@ def interface_lista_rpv(df, perfil_usuario):
                 st.rerun()
         
         with col_exp2:
-            if st.button("🔼 Recolher Todos", key="recolher_todos_rpv"):
+            if st.button("🔼 Fechar Todos", key="fechar_todos_rpv"):
                 # Limpar o set de cards expandidos
                 st.session_state.rpv_expanded_cards.clear()
                 st.rerun()
@@ -573,18 +576,6 @@ def interface_lista_rpv(df, perfil_usuario):
             card_class = "rpv-card expanded" if is_expanded else "rpv-card"
             
             with st.container():
-                # Card principal (exatamente como benefícios)
-                st.markdown(f"""
-                <div class="{card_class}">
-                    <div class="rpv-card-header">
-                        <div>
-                            <strong>📄 {safe_get_value(rpv, 'Processo', 'Não informado')}</strong><br>
-                            👤 {safe_get_value(rpv, 'Beneficiário', 'Não informado')}
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
                 # Layout com botão expandir e informações
                 col_expand, col_info = st.columns([1, 9])
                 
@@ -598,12 +589,19 @@ def interface_lista_rpv(df, perfil_usuario):
                         st.rerun()
                 
                 with col_info:
-                    # Informações resumidas (sempre visíveis)
+                    # Informações resumidas (sempre visíveis) com status colorido
+                    status_atual = safe_get_value(rpv, 'Status', 'Não informado')
+                    status_info = obter_cor_status(status_atual, "rpv")
+                    
                     st.markdown(f"""
                     <div class="rpv-info-grid">
                         <div class="info-item">
                             <div class="info-label">Valor RPV</div>
                             <div class="info-value">{safe_get_value(rpv, 'Valor RPV', 'Não informado')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Status</div>
+                            <div class="info-value">{status_info['html']}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Mês Competência</div>

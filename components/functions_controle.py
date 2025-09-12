@@ -23,6 +23,61 @@ def tratar_valor_nan(valor, default='Não informado'):
     
     return str_value
 
+def obter_cor_status(status, modulo="geral"):
+    """
+    Retorna cor e ícone padronizados para status
+    Args:
+        status: O status do processo
+        modulo: "alvaras", "beneficios", "rpv", ou "geral"
+    Returns:
+        dict com color, icon, e html_formatted
+    """
+    status_normalizado = str(status).lower().strip()
+    
+    # Cores padrão para status comuns
+    cores_padroes = {
+        # Status finalizados/concluídos (verde)
+        "finalizado": {"color": "green", "icon": "🟢", "bg": "#d4edda"},
+        "pagamento": {"color": "green", "icon": "✅", "bg": "#d4edda"},
+        "finalizada": {"color": "green", "icon": "🟢", "bg": "#d4edda"},
+        
+        # Status em andamento (azul)
+        "enviado": {"color": "blue", "icon": "🔵", "bg": "#d1ecf1"},
+        "enviado para o financeiro": {"color": "blue", "icon": "🔵", "bg": "#d1ecf1"},
+        "enviado para rodrigo": {"color": "blue", "icon": "🔵", "bg": "#d1ecf1"},
+        "certidão anexa": {"color": "blue", "icon": "🔵", "bg": "#d1ecf1"},
+        
+        # Status aguardando (laranja)
+        "cadastrado": {"color": "orange", "icon": "🟠", "bg": "#fff3cd"},
+        "aguardando": {"color": "orange", "icon": "🟡", "bg": "#fff3cd"},
+        "financeiro - enviado para rodrigo": {"color": "#DAA520", "icon": "🟡", "bg": "#fff3cd"},
+        
+        # Status atrasado/problemático (vermelho)
+        "atrasado": {"color": "red", "icon": "🔴", "bg": "#f8d7da"},
+        "cancelado": {"color": "red", "icon": "❌", "bg": "#f8d7da"},
+        
+        # Status especiais (roxo)
+        "em análise": {"color": "purple", "icon": "🟣", "bg": "#e2e3f3"},
+        "aguardando documentos": {"color": "purple", "icon": "📄", "bg": "#e2e3f3"}
+    }
+    
+    # Buscar cor correspondente
+    status_info = cores_padroes.get(status_normalizado, {
+        "color": "#666666", 
+        "icon": "⚫", 
+        "bg": "#e2e3e5"
+    })
+    
+    # Gerar HTML formatado
+    html_formatted = f'<span style="color: {status_info["color"]}; font-weight: bold;">{status_info["icon"]} {status}</span>'
+    
+    return {
+        "color": status_info["color"],
+        "icon": status_info["icon"],
+        "background": status_info["bg"],
+        "html": html_formatted
+    }
+
 # =====================================
 # CONFIGURAÇÕES DE PERFIS
 # =====================================
@@ -368,7 +423,7 @@ def save_data_to_github_seguro(df, filename, session_state_key):
         # Verificar token primeiro
         if not verificar_token_github():
             st.error("❌ Token do GitHub inválido. Salvamento cancelado.")
-            st.info("💡 Contate o administrador para renovar o token do GitHub.")
+            st.info(" Contate o administrador para renovar o token do GitHub.")
             return None
         
         # SEMPRE RECARREGAR SHA ANTES DE SALVAR
@@ -1392,9 +1447,9 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
         st.error(f"❌ Seu perfil ({perfil_usuario}) não pode editar processos com status '{status_atual}'")
         
         if perfil_usuario == "Cadastrador":
-            st.info("💡 Cadastradores só podem editar processos com status 'Cadastrado'")
+            st.info(" Cadastradores só podem editar processos com status 'Cadastrado'")
         elif perfil_usuario == "Financeiro":
-            st.info("💡 Financeiro só pode editar processos 'Enviado para o Financeiro' e 'Financeiro - Enviado para Rodrigo'")
+            st.info(" Financeiro só pode editar processos 'Enviado para o Financeiro' e 'Financeiro - Enviado para Rodrigo'")
 
 
 # Adicionar no functions_controle.py:

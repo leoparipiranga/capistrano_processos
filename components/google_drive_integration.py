@@ -67,7 +67,7 @@ class GoogleDriveIntegration:
                         st.info("🔄 Token renovado automaticamente")
                     except Exception as refresh_error:
                         st.error(f"❌ Erro ao renovar token: {refresh_error}")
-                        st.error("💡 Dica: Gere um novo refresh token na aba 'Configurações'")
+                        st.error(" Dica: Gere um novo refresh token na aba 'Configurações'")
                         return False
                 else:
                     st.error("❌ Token inválido e sem refresh token")

@@ -19,7 +19,10 @@ from components.functions_controle import (
     gerar_id_unico, garantir_coluna_id,
     
     # Funções de limpeza comuns
-    limpar_campos_formulario
+    limpar_campos_formulario,
+    
+    # Função de cores de status
+    obter_cor_status
 )
 
 def safe_get_value_beneficio(data, key, default='Não cadastrado'):
@@ -480,6 +483,28 @@ def interface_lista_beneficios(df, perfil_usuario):
                            key="confirmar_exclusao_beneficios", type="primary"):
                     confirmar_exclusao_massa_beneficios(df, st.session_state.processos_selecionados_beneficios)
 
+    # Calcular total de registros (aplicar filtros primeiro para obter contagem correta)
+    df_temp_filtrado = df_ordenado.copy()
+    
+    # Botões de Abrir/Fechar Todos
+    if len(df_temp_filtrado) > 0:
+        st.markdown("---")
+        col_exp1, col_exp2, col_exp_space = st.columns([2, 2, 6])
+        
+        with col_exp1:
+            if st.button("🔽 Abrir Todos", key="abrir_todos_beneficios"):
+                # Adicionar todos os IDs dos benefícios ao set de expandidos
+                for _, processo in df_temp_filtrado.iterrows():
+                    beneficio_id = processo.get("ID", "N/A")
+                    st.session_state.beneficios_expanded_cards.add(beneficio_id)
+                st.rerun()
+        
+        with col_exp2:
+            if st.button("🔼 Fechar Todos", key="fechar_todos_beneficios"):
+                # Limpar o set de cards expandidos
+                st.session_state.beneficios_expanded_cards.clear()
+                st.rerun()
+
     # FILTROS
     col1, col2, col3, col4 = st.columns(4)
     
@@ -542,18 +567,6 @@ def interface_lista_beneficios(df, perfil_usuario):
         card_class = "beneficio-card expanded" if is_expanded else "beneficio-card"
         
         with st.container():
-            # Card principal
-            st.markdown(f"""
-            <div class="{card_class}">
-                <div class="beneficio-card-header">
-                    <div>
-                        <strong>📄 {safe_get_value_beneficio(beneficio, 'Nº DO PROCESSO', 'Não informado')}</strong><br>
-                        👤 {safe_get_value_beneficio(beneficio, 'PARTE', 'Não informado')}
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
             # Layout com checkbox e botão expandir
             if st.session_state.modo_exclusao_beneficios:
                 col_check, col_expand, col_info = st.columns([0.3, 0.7, 9])
@@ -579,6 +592,9 @@ def interface_lista_beneficios(df, perfil_usuario):
             
             with col_info:
                 # Informações resumidas
+                status_atual = safe_get_value_beneficio(beneficio, 'Status', 'Não informado')
+                status_info = obter_cor_status(status_atual, "beneficios")
+                
                 st.markdown(f"""
                 <div class="beneficio-info-grid">
                     <div class="info-item">
@@ -587,7 +603,7 @@ def interface_lista_beneficios(df, perfil_usuario):
                     </div>
                     <div class="info-item">
                         <div class="info-label">Status</div>
-                        <div class="info-value">{safe_get_value_beneficio(beneficio, 'Status', 'Não informado')}</div>
+                        <div class="info-value">{status_info['html']}</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">Data Cadastro</div>

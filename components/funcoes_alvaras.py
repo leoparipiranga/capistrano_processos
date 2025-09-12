@@ -12,7 +12,7 @@ from components.autocomplete_manager import (
     adicionar_orgao_judicial,
     campo_orgao_judicial
 )
-from components.functions_controle import salvar_arquivo, save_data_to_github_seguro
+from components.functions_controle import salvar_arquivo, save_data_to_github_seguro, obter_cor_status
 
 # =====================================
 # FUNÇÕES AUXILIARES
@@ -1022,6 +1022,15 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
         elif finalizar_processo:
             try:
                 idx = df[df["ID"] == alvara_id].index[0]
+                status_atual = safe_get_value_alvara(linha_processo, "Status", "Não informado")
+                
+                # Verificar se é necessário comprovante PDF para finalizar
+                if status_atual == "Financeiro - Enviado para Rodrigo":
+                    comprovante_pagamento = safe_get_value_alvara(linha_processo, "Comprovante Pagamento", "")
+                    if not comprovante_pagamento or comprovante_pagamento.strip() == "":
+                        st.error("❌ Para finalizar um processo com status 'Financeiro - Enviado para Rodrigo', é necessário anexar o comprovante de pagamento em PDF.")
+                        st.info("💡 Por favor, anexe o comprovante de pagamento na aba 'Anexos' antes de finalizar.")
+                        st.stop()
                 
                 # Salvar valores finais antes de finalizar
                 st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
@@ -1901,7 +1910,7 @@ def interface_lista_alvaras(df, perfil_usuario):
         col_exp1, col_exp2, col_exp_space = st.columns([2, 2, 6])
         
         with col_exp1:
-            if st.button("🔽 Expandir Todos", key="expandir_todos_alvaras"):
+            if st.button("🔽 Abrir Todos", key="abrir_todos_alvaras"):
                 # Adicionar todos os IDs dos alvarás filtrados ao set de expandidos
                 for _, processo in df_filtrado.iterrows():
                     alvara_id = processo.get("ID", "N/A")
@@ -1909,7 +1918,7 @@ def interface_lista_alvaras(df, perfil_usuario):
                 st.rerun()
         
         with col_exp2:
-            if st.button("🔼 Recolher Todos", key="recolher_todos_alvaras"):
+            if st.button("🔼 Fechar Todos", key="fechar_todos_alvaras"):
                 # Limpar o set de cards expandidos
                 st.session_state.alvara_expanded_cards.clear()
                 st.rerun()
@@ -2013,18 +2022,6 @@ def interface_lista_alvaras(df, perfil_usuario):
             card_class = "alvara-card expanded" if is_expanded else "alvara-card"
             
             with st.container():
-                # Card principal (exatamente como benefícios)
-                st.markdown(f"""
-                <div class="{card_class}">
-                    <div class="alvara-card-header">
-                        <div>
-                            <strong>📄 {safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}</strong><br>
-                            👤 {safe_get_field_value_alvara(processo, 'Parte', 'Não informado')}
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
                 # Layout com botão expandir e informações
                 col_expand, col_info = st.columns([1, 9])
                 
@@ -2038,7 +2035,9 @@ def interface_lista_alvaras(df, perfil_usuario):
                         st.rerun()
                 
                 with col_info:
-                    # Informações resumidas (sempre visíveis)
+                    # Informações resumidas (sempre visíveis) com status colorido
+                    status_info = obter_cor_status(status_atual, "alvaras")
+                    
                     st.markdown(f"""
                     <div class="alvara-info-grid">
                         <div class="info-item">
@@ -2047,7 +2046,7 @@ def interface_lista_alvaras(df, perfil_usuario):
                         </div>
                         <div class="info-item">
                             <div class="info-label">Status</div>
-                            <div class="info-value">{status_atual}</div>
+                            <div class="info-value">{status_info['html']}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Parte</div>

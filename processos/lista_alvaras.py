@@ -19,11 +19,11 @@ from components.funcoes_alvaras import (
     verificar_perfil_usuario_alvaras, pode_editar_status_alvaras,
     
     # Funções de interface
-    interface_lista_alvaras, interface_anexar_documentos,
-    interface_acoes_financeiro, interface_edicao_processo,
-    interface_cadastro_alvara,
-    interface_visualizar_dados, interface_visualizar_alvara,
-    interface_visualizar_dados_alvara
+    interface_lista_alvaras, interface_cadastro_alvara,
+    interface_visualizar_dados, interface_visualizar_dados_alvara,
+    
+    # Funções de renderização de abas
+    render_tab_info_alvara, render_tab_acoes_alvara, render_tab_historico_alvara
 )
 
 # Importar funções comuns que ainda estão no módulo de controle
@@ -128,9 +128,20 @@ def show():
             @st.dialog(titulo_dialog, width="large")
             def alvara_dialog():
                 if not linha_processo.empty:
-                    status_atual = linha_processo.iloc[0].get("Status", "")
-                    # Chama a função de edição
-                    interface_edicao_processo(df, alvara_id_aberto, status_atual, perfil_usuario)
+                    processo = linha_processo.iloc[0]
+                    status_atual = processo.get("Status", "")
+                    
+                    # Criar abas no diálogo
+                    tab_info, tab_acoes, tab_historico = st.tabs(["📋 Info", "⚙️ Ações", "📜 Histórico"])
+                    
+                    with tab_info:
+                        render_tab_info_alvara(processo, alvara_id_aberto)
+                    
+                    with tab_acoes:
+                        render_tab_acoes_alvara(df, processo, alvara_id_aberto, status_atual, perfil_usuario)
+                    
+                    with tab_historico:
+                        render_tab_historico_alvara(processo, alvara_id_aberto)
                 else:
                     st.error("❌ Alvará não encontrado.")
                 

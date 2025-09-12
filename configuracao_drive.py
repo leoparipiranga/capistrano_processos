@@ -135,7 +135,7 @@ def _processar_token(response_url):
 
         if not credentials.refresh_token:
             st.error("❌ Refresh token não obtido")
-            st.warning("💡 Revogue o acesso em https://myaccount.google.com/permissions e tente novamente")
+            st.warning("Revogue o acesso em https://myaccount.google.com/permissions e tente novamente")
             return
 
         st.success("🎉 Tokens gerados com sucesso!")

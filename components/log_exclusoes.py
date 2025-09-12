@@ -283,7 +283,7 @@ def visualizar_log_exclusoes():
             test_log_system()
     
     with col_info:
-        st.info("💡 Use o botão de teste para verificar se o sistema está funcionando corretamente.")
+        st.info(" Use o botão de teste para verificar se o sistema está funcionando corretamente.")
     
     st.markdown("---")
     
