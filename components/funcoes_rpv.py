@@ -391,34 +391,7 @@ def interface_lista_rpv(df, perfil_usuario):
         st.info("ℹ️ Não há RPVs para visualizar.")
         return
 
-    # Cards de estatísticas
-    total_rpvs = len(df)
-    finalizados = len(df[df["Status"] == "finalizado"]) if "Status" in df.columns else 0
-    pendentes = total_rpvs - finalizados
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Total de RPVs", total_rpvs)
-    
-    with col2:
-        st.metric("Finalizados", finalizados)
-    
-    with col3:
-        st.metric("Pendentes", pendentes)
-    
-    with col4:
-        if "Data Cadastro" in df.columns:
-            hoje = datetime.now().strftime("%d/%m/%Y")
-            df_temp = df.copy()
-            df_temp["Data Cadastro"] = df_temp["Data Cadastro"].astype(str)
-            hoje_count = len(df_temp[df_temp["Data Cadastro"].str.contains(hoje, na=False)])
-        else:
-            hoje_count = 0
-        st.metric("Cadastrados Hoje", hoje_count)
-
     # Filtros
-    st.markdown("---")
     col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
     
     with col_filtro1:

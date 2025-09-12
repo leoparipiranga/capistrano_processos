@@ -880,6 +880,56 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
     if f"hc_nivel_rodrigo_tab_{alvara_id}" not in st.session_state:
         st.session_state[f"hc_nivel_rodrigo_tab_{alvara_id}"] = 0
 
+    # Seção de anexo de comprovante de recebimento/pagamento
+    st.markdown("---")
+    st.markdown("**📄 Comprovante de Recebimento/Pagamento**")
+    
+    # Verificar se já existe comprovante anexado
+    comprovante_atual = safe_get_field_value_alvara(linha_processo, "Comprovante Recebimento", "")
+    if comprovante_atual:
+        st.success("✅ Comprovante já anexado!")
+        from components.functions_controle import baixar_arquivo_drive
+        baixar_arquivo_drive(comprovante_atual, "📄 Baixar Comprovante Atual")
+    else:
+        st.warning("⚠️ Comprovante de recebimento/pagamento não anexado. Necessário para finalizar o processo.")
+    
+    # Upload de novo comprovante
+    comprovante_upload = st.file_uploader(
+        "Anexar comprovante de recebimento/pagamento (PDF):",
+        type=["pdf"],
+        key=f"comprovante_recebimento_{alvara_id}",
+        help="Anexe o comprovante de pagamento em PDF para poder finalizar o processo"
+    )
+    
+    if comprovante_upload:
+        numero_processo = safe_get_field_value_alvara(linha_processo, "Processo", "sem_numero")
+        if st.button(f"📤 Salvar Comprovante", key=f"salvar_comprovante_{alvara_id}"):
+            try:
+                # Salvar arquivo
+                comprovante_url = salvar_arquivo(comprovante_upload, numero_processo, "comprovante_recebimento")
+                
+                if comprovante_url:
+                    # Atualizar DataFrame
+                    idx = df[df["ID"] == alvara_id].index[0]
+                    st.session_state.df_editado_alvaras.loc[idx, "Comprovante Recebimento"] = comprovante_url
+                    
+                    # Salvar no GitHub
+                    novo_sha = save_data_to_github_seguro(
+                        st.session_state.df_editado_alvaras,
+                        "lista_alvaras.csv",
+                        st.session_state.file_sha_alvaras
+                    )
+                    st.session_state.file_sha_alvaras = novo_sha
+                    
+                    st.success("✅ Comprovante anexado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("❌ Erro ao salvar o comprovante.")
+            except Exception as e:
+                st.error(f"❌ Erro ao anexar comprovante: {str(e)}")
+
+    st.markdown("---")
+    
     # Formulário para valores financeiros (AGORA HABILITADOS para Rodrigo)
     with st.form(f"form_valores_rodrigo_tab_{alvara_id}"):
         st.markdown("**💰 Valores Financeiros:**")
@@ -1026,9 +1076,9 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
                 
                 # Verificar se é necessário comprovante PDF para finalizar
                 if status_atual == "Financeiro - Enviado para Rodrigo":
-                    comprovante_pagamento = safe_get_value_alvara(linha_processo, "Comprovante Pagamento", "")
-                    if not comprovante_pagamento or comprovante_pagamento.strip() == "":
-                        st.error("❌ Para finalizar um processo com status 'Financeiro - Enviado para Rodrigo', é necessário anexar o comprovante de pagamento em PDF.")
+                    comprovante_recebimento = safe_get_value_alvara(linha_processo, "Comprovante Recebimento", "")
+                    if not comprovante_recebimento or comprovante_recebimento.strip() == "":
+                        st.error("❌ Para finalizar um processo com status 'Financeiro - Enviado para Rodrigo', é necessário anexar o comprovante de recebimento/pagamento em PDF.")
                         st.info("💡 Por favor, anexe o comprovante de pagamento na aba 'Anexos' antes de finalizar.")
                         st.stop()
                 
@@ -1593,52 +1643,6 @@ def interface_visualizar_dados_alvara(df):
     if df.empty:
         st.info("ℹ️ Não há alvarás para visualizar.")
         return
-
-    # Cards de estatísticas compactos
-    total_alvaras = len(df)
-    finalizados = len(df[df["Status"] == "Finalizado"]) if "Status" in df.columns else 0
-    pendentes = total_alvaras - finalizados
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; border-radius: 8px; text-align: center; color: white; margin-bottom: 10px;">
-            <h3 style="margin: 0; font-size: 1.8em;">{}</h3>
-            <p style="margin: 3px 0 0 0; font-size: 0.9em;">Total de Alvarás</p>
-        </div>
-        """.format(total_alvaras), unsafe_allow_html=True)
-    
-    with col2:
-        taxa_finalizados = (finalizados/total_alvaras*100) if total_alvaras > 0 else 0
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 15px; border-radius: 8px; text-align: center; color: white; margin-bottom: 10px;">
-            <h3 style="margin: 0; font-size: 1.8em;">{}</h3>
-            <p style="margin: 3px 0 0 0; font-size: 0.9em;">Finalizados ({:.1f}%)</p>
-        </div>
-        """.format(finalizados, taxa_finalizados), unsafe_allow_html=True)
-    
-    with col3:
-        taxa_pendentes = (pendentes/total_alvaras*100) if total_alvaras > 0 else 0
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); padding: 15px; border-radius: 8px; text-align: center; color: #8B4513; margin-bottom: 10px;">
-            <h3 style="margin: 0; font-size: 1.8em;">{}</h3>
-            <p style="margin: 3px 0 0 0; font-size: 0.9em;">Em Andamento ({:.1f}%)</p>
-        </div>
-        """.format(pendentes, taxa_pendentes), unsafe_allow_html=True)
-    
-    with col4:
-        if "Data Cadastro" in df.columns:
-            hoje = datetime.now().strftime("%d/%m/%Y")
-            df_temp = df.copy()
-            df_temp["Data Cadastro"] = df_temp["Data Cadastro"].astype(str)
-            hoje_count = len(df_temp[df_temp["Data Cadastro"].str.contains(hoje, na=False)])
-        else:
-            hoje_count = 0
-            
-        st.markdown(f"**Cadastrados Hoje:** {hoje_count}")
-    
-    st.markdown("---")
 
     col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
     
