@@ -192,9 +192,9 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
     .compact-item {
         text-align: center;
         padding: 10px;
-        background: white;
+        background: transparent;
         border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: none;
     }
     .compact-label {
         font-size: 12px;
@@ -262,7 +262,6 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
         </div>
     </div>
     """, unsafe_allow_html=True)
-    st.markdown("---")
 
 def search_orgaos_judiciais(searchterm):
     """Função de busca para o autocomplete de órgãos judiciais"""
@@ -360,263 +359,13 @@ def toggle_alvara_selection(alvara_id):
     if st.session_state.get(checkbox_key, False):
         st.session_state.processos_selecionados_alvaras.append(alvara_id_str)
 
-def interface_lista_alvaras(df, perfil_usuario):
-    """Lista de alvarás com paginação e modal para ações"""
+def render_tab_anexos_alvara(processo, alvara_id, numero_processo):
+    """Renderiza sistema de anexos dentro da tab de ações"""
     
-    # Inicializar estado de exclusão em massa
-    if "modo_exclusao_alvaras" not in st.session_state:
-        st.session_state.modo_exclusao_alvaras = False
-    if "processos_selecionados_alvaras" not in st.session_state:
-        st.session_state.processos_selecionados_alvaras = []
+    st.markdown("#### 📎 Anexar Documentos")
     
-    # Validar consistência da lista de selecionados
-    if st.session_state.processos_selecionados_alvaras:
-        ids_existentes = set(df["ID"].astype(str).tolist())
-        st.session_state.processos_selecionados_alvaras = [
-            pid for pid in st.session_state.processos_selecionados_alvaras
-            if str(pid) in ids_existentes
-        ]
-
-    # Botão para habilitar exclusão (apenas para Admin e Cadastrador)
-    usuario_atual = st.session_state.get("usuario", "")
-    perfil_atual = st.session_state.get("perfil_usuario", "")
-    pode_excluir = (perfil_atual in ["Admin", "Cadastrador"] or usuario_atual == "admin")
-    
-    if pode_excluir:
-        col_btn1, col_btn2, col_rest = st.columns([2, 2, 6])
-        with col_btn1:
-            if not st.session_state.modo_exclusao_alvaras:
-                if st.button("🗑️ Habilitar Exclusão", key="habilitar_exclusao_alvaras"):
-                    st.session_state.modo_exclusao_alvaras = True
-                    st.session_state.processos_selecionados_alvaras = []
-                    st.rerun()
-            else:
-                if st.button("❌ Cancelar Exclusão", key="cancelar_exclusao_alvaras"):
-                    st.session_state.modo_exclusao_alvaras = False
-                    st.session_state.processos_selecionados_alvaras = []
-                    st.rerun()
-        
-        with col_btn2:
-            if st.session_state.modo_exclusao_alvaras and st.session_state.processos_selecionados_alvaras:
-                if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_alvaras)})",
-                           key="confirmar_exclusao_alvaras", type="primary"):
-                    confirmar_exclusao_massa_alvaras(df, st.session_state.processos_selecionados_alvaras)
-
-    # Filtros - agora em 5 colunas
-    col_filtro1, col_filtro2, col_filtro3, col_filtro4, col_filtro5 = st.columns(5)
-    
-    with col_filtro1:
-        if "Status" in df.columns:
-            status_filtro = st.selectbox(
-                "🔍 Filtrar por Status:",
-                ["Todos"] + list(STATUS_ETAPAS_ALVARAS.values())
-            )
-        else:
-            status_filtro = "Todos"
-    
-    with col_filtro2:
-        processo_filtro = st.text_input(
-            "🔍 Filtrar por Processo:",
-            placeholder="Digite o número do processo..."
-        )
-    
-    with col_filtro3:
-        nome_filtro = st.text_input(
-            "🔍 Filtrar por Nome:",
-            placeholder="Digite o nome da parte..."
-        )
-    
-    with col_filtro4:
-        # Filtro de órgão judicial
-        if "Órgão Judicial" in df.columns:
-            orgaos_unicos = ["Todos"] + sorted(df["Órgão Judicial"].dropna().unique().tolist())
-            orgao_filtro = st.selectbox(
-                "🔍 Filtrar por Órgão:",
-                orgaos_unicos
-            )
-        else:
-            orgao_filtro = "Todos"
-    
-    with col_filtro5:
-        mostrar_apenas_meus = False
-        if perfil_usuario == "Financeiro":
-            # Usar key único para evitar reabertura de processos
-            checkbox_key = f"filtro_meus_processos_{perfil_usuario}"
-            mostrar_apenas_meus = st.checkbox(
-                "Mostrar apenas processos que posso editar",
-                key=checkbox_key
-            )
-    
-    # Aplicar filtros
-    df_filtrado = df.copy()
-    
-    if status_filtro != "Todos" and "Status" in df.columns:
-        df_filtrado = df_filtrado[df_filtrado["Status"] == status_filtro]
-    if processo_filtro:
-        df_filtrado = df_filtrado[df_filtrado["Processo"].astype(str).str.contains(processo_filtro, case=False, na=False)]
-    if nome_filtro:
-        df_filtrado = df_filtrado[df_filtrado["Parte"].astype(str).str.contains(nome_filtro, case=False, na=False)]
-    if orgao_filtro != "Todos" and "Órgão Judicial" in df.columns:
-        df_filtrado = df_filtrado[df_filtrado["Órgão Judicial"] == orgao_filtro]
-    
-    if mostrar_apenas_meus and perfil_usuario == "Financeiro":
-        df_filtrado = df_filtrado[df_filtrado["Status"].isin(["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo"])]
-    
-    # Ordenar por data de cadastro mais novo
-    if "Data Cadastro" in df_filtrado.columns:
-        df_filtrado["Data Cadastro Temp"] = pd.to_datetime(df_filtrado["Data Cadastro"], format="%d/%m/%Y %H:%M", errors="coerce")
-        df_filtrado = df_filtrado.sort_values("Data Cadastro Temp", ascending=False, na_position="last").drop("Data Cadastro Temp", axis=1)
-    else:
-        df_filtrado = df_filtrado.sort_index(ascending=False)
-    
-    # Garantir IDs únicos
-    df_trabalho = df_filtrado.copy()
-    for idx in df_trabalho.index:
-        id_atual = df_trabalho.loc[idx, "ID"]
-        if pd.isna(id_atual) or str(id_atual).strip() == "" or "E+" in str(id_atual).upper():
-            processo_hash = hash(str(df_trabalho.loc[idx, "Processo"]))
-            novo_id = f"{idx}_{abs(processo_hash)}"
-            df_trabalho.loc[idx, "ID"] = novo_id
-            st.session_state.df_editado_alvaras.loc[idx, "ID"] = novo_id
-
-    # --- LÓGICA DE PAGINAÇÃO ---
-    if "current_page_alvaras" not in st.session_state:
-        st.session_state.current_page_alvaras = 1
-    
-    items_per_page = 20
-    total_registros = len(df_trabalho)
-    total_pages = math.ceil(total_registros / items_per_page) if items_per_page > 0 else 1
-    
-    start_idx = (st.session_state.current_page_alvaras - 1) * items_per_page
-    end_idx = start_idx + items_per_page
-    df_paginado = df_trabalho.iloc[start_idx:end_idx]
-
-    # Botão para salvar alterações pendentes
-    if "preview_novas_linhas" in st.session_state and len(st.session_state["preview_novas_linhas"]) > 0:
-        st.markdown("### 📋 Linhas Adicionadas (não salvas)")
-        if st.button("💾 Salvar Alterações", type="primary"):
-            # ... (sua lógica de salvar) ...
-            st.rerun()
-    
-    # Exibir lista com botão Abrir
-    if len(df_paginado) > 0:
-        st.markdown(f'<p style="font-size: small; color: steelblue;">Mostrando {start_idx+1} a {min(end_idx, total_registros)} de {total_registros} alvarás</p>', unsafe_allow_html=True)
-        
-        # Cabeçalhos dinâmicos baseados no modo de exclusão
-        if st.session_state.modo_exclusao_alvaras:
-            col_check, col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([0.5, 1, 2, 2, 1.5, 2])
-            with col_check: st.markdown("**☑️**")
-            with col_abrir: st.markdown("**Ação**")
-            with col_processo: st.markdown("**Processo**")
-            with col_parte: st.markdown("**Parte**")
-            with col_valor: st.markdown("**Valor**")
-            with col_status: st.markdown("**Status**")
-        else:
-            col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([1, 2, 2, 1.5, 2])
-            with col_abrir: st.markdown("**Ação**")
-            with col_processo: st.markdown("**Processo**")
-            with col_parte: st.markdown("**Parte**")
-            with col_valor: st.markdown("**Valor**")
-            with col_status: st.markdown("**Status**")
-        
-        st.markdown('<hr style="margin-top: 0.1rem; margin-bottom: 0.5rem;" />', unsafe_allow_html=True)
-        
-        for idx, processo in df_paginado.iterrows():
-            alvara_id = processo.get("ID", f"temp_{idx}")
-            
-            if st.session_state.modo_exclusao_alvaras:
-                col_check, col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([0.5, 1, 2, 2, 1.5, 2])
-                
-                with col_check:
-                    current_value = alvara_id in st.session_state.processos_selecionados_alvaras
-                    
-                    is_selected = st.checkbox(
-                        "",
-                        value=current_value,
-                        key=f"check_alvara_{alvara_id}",
-                        on_change=lambda aid=alvara_id: toggle_alvara_selection(aid)
-                    )
-                
-                with col_abrir:
-                    if st.button(f"🔓 Abrir", key=f"abrir_alvara_id_{alvara_id}"):
-                        # Usar sistema de timestamp para requests de diálogo
-                        import time
-                        timestamp = str(int(time.time() * 1000))
-                        st.session_state[f"dialogo_request_{timestamp}"] = {
-                            "show_alvara_dialog": True,
-                            "processo_aberto_id": alvara_id,
-                            "timestamp": timestamp
-                        }
-                
-                with col_processo: st.write(f"**{processo.get('Processo', 'Não informado')}**")
-                with col_parte: st.write(processo.get('Parte', 'Não informado'))
-                with col_valor: st.write(safe_get_field_value_alvara(processo, 'Pagamento', '-'))
-                with col_status:
-                    status_atual = processo.get('Status', 'Não informado')
-                    cor = {"Cadastrado": "🟡", "Enviado para o Financeiro": "🟠", "Financeiro - Enviado para Rodrigo": "🔵", "Finalizado": "🟢"}.get(status_atual, "")
-                    st.write(f"{cor} {status_atual}")
-            else:
-                col_abrir, col_processo, col_parte, col_valor, col_status = st.columns([1, 2, 2, 1.5, 2])
-                
-                with col_abrir:
-                    if st.button(f"🔓 Abrir", key=f"abrir_alvara_id_{alvara_id}"):
-                        # Usar sistema de timestamp para requests de diálogo
-                        import time
-                        timestamp = str(int(time.time() * 1000))
-                        st.session_state[f"dialogo_request_{timestamp}"] = {
-                            "show_alvara_dialog": True,
-                            "processo_aberto_id": alvara_id,
-                            "timestamp": timestamp
-                        }
-                
-                with col_processo: st.write(f"**{processo.get('Processo', 'Não informado')}**")
-                with col_parte: st.write(processo.get('Parte', 'Não informado'))
-                with col_valor: st.write(safe_get_field_value_alvara(processo, 'Pagamento', '-'))
-                with col_status:
-                    status_atual = processo.get('Status', 'Não informado')
-                    cor = {"Cadastrado": "🟡", "Enviado para o Financeiro": "🟠", "Financeiro - Enviado para Rodrigo": "🔵", "Finalizado": "🟢"}.get(status_atual, "")
-                    st.write(f"{cor} {status_atual}")
-
-        # --- CONTROLES DE PAGINAÇÃO ---
-        st.markdown("---")
-        col_nav1, col_nav2, col_nav3 = st.columns([3, 2, 3])
-
-        with col_nav1:
-            if st.session_state.current_page_alvaras > 1:
-                if st.button("<< Primeira", key="btn_primeira_alvaras"):
-                    st.session_state.current_page_alvaras = 1
-                    st.rerun()
-                if st.button("< Anterior", key="btn_anterior_alvaras"):
-                    st.session_state.current_page_alvaras -= 1
-                    st.rerun()
-
-        with col_nav2:
-            st.write(f"Página {st.session_state.current_page_alvaras} de {total_pages}")
-
-        with col_nav3:
-            if st.session_state.current_page_alvaras < total_pages:
-                if st.button("Próxima >", key="btn_proxima_alvaras"):
-                    st.session_state.current_page_alvaras += 1
-                    st.rerun()
-                if st.button("Última >>", key="btn_ultima_alvaras"):
-                    st.session_state.current_page_alvaras = total_pages
-                    st.rerun()
-    else:
-        st.info("Nenhum alvará encontrado com os filtros aplicados")
-
-def interface_anexar_documentos(df, processo):
-    """Interface para anexar comprovante e PDF do alvará"""
-    st.markdown(f"### Anexar Documentos - Processo: {processo}")
-    
-    # Buscar dados do processo
-    linha_processo = df[df["Processo"] == processo].iloc[0]
-    
-    if linha_processo["Status"] != "Cadastrado":
-        st.warning("⚠️ Este processo não está na etapa de anexação de documentos")
-        return
-    
-    # Checkbox para múltiplos anexos
-    anexar_multiplos = st.checkbox("Anexar múltiplos documentos", key=f"multiplos_alvara_{processo}")
+    # Checkbox para anexar múltiplos documentos
+    anexar_multiplos = st.checkbox("Anexar múltiplos documentos", key=f"multiplos_tab_{alvara_id}")
     
     col_doc1, col_doc2 = st.columns(2)
     
@@ -627,15 +376,15 @@ def interface_anexar_documentos(df, processo):
                 "Anexar comprovantes da conta:",
                 type=["pdf", "jpg", "jpeg", "png"],
                 accept_multiple_files=True,
-                key=f"comprovante_{processo}"
+                key=f"comprovante_tab_{numero_processo}"
             )
         else:
             comprovante_conta = st.file_uploader(
                 "Anexar comprovante da conta:",
                 type=["pdf", "jpg", "jpeg", "png"],
-                key=f"comprovante_{processo}"
+                key=f"comprovante_tab_{numero_processo}"
             )
-    
+                
     with col_doc2:
         st.markdown("**📄 PDF do Alvará**")
         if anexar_multiplos:
@@ -643,196 +392,52 @@ def interface_anexar_documentos(df, processo):
                 "Anexar PDFs do alvará:",
                 type=["pdf"],
                 accept_multiple_files=True,
-                key=f"pdf_{processo}"
+                key=f"pdf_tab_{numero_processo}"
             )
         else:
             pdf_alvara = st.file_uploader(
                 "Anexar PDF do alvará:",
                 type=["pdf"],
-                key=f"pdf_{processo}"
+                key=f"pdf_tab_{numero_processo}"
             )
     
-    # Verificar se documentos foram anexados (considerando múltiplos)
-    docs_anexados = False
-    if anexar_multiplos:
-        docs_anexados = comprovante_conta and pdf_alvara and len(comprovante_conta) > 0 and len(pdf_alvara) > 0
-    else:
-        docs_anexados = comprovante_conta and pdf_alvara
-    
-    if docs_anexados:
-        if anexar_multiplos:
-            st.success(f"✅ {len(comprovante_conta)} comprovante(s) e {len(pdf_alvara)} PDF(s) anexados!")
-        else:
-            st.success("✅ Ambos os documentos foram anexados!")
-        
-        if st.button("📤 Enviar para Financeiro", type="primary"):
-            with st.spinner("📤 Enviando documentos para o Google Drive..."):
-                try:
-                    # Upload para Google Drive
-                    from components.google_drive_integration import upload_to_google_drive
-                    
-                    success, result = upload_to_google_drive(processo, comprovante_conta, pdf_alvara)
-                    
-                    if success:
-                        st.success("✅ Documentos enviados para o Google Drive com sucesso!")
-                        
-                        # Atualizar status
-                        idx = df[df["Processo"] == processo].index[0]
-                        st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Enviado para o Financeiro"
-                        st.session_state.df_editado_alvaras.loc[idx, "Comprovante Conta"] = f"Drive: {result['comprovante_name']}"
-                        st.session_state.df_editado_alvaras.loc[idx, "PDF Alvará"] = f"Drive: {result['pdf_name']}"
-                        st.session_state.df_editado_alvaras.loc[idx, "Data Envio Financeiro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                        st.session_state.df_editado_alvaras.loc[idx, "Enviado Financeiro Por"] = st.session_state.get("usuario", "Sistema")
-                        
-                        st.success("✅ Processo enviado para o Financeiro! Arquivos salvos no Google Drive.")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ Erro no upload: {result}")
-                        # Fallback para sistema local
-                        st.warning("⚠️ Tentando salvar localmente...")
-                        from components.functions_controle import salvar_arquivo
-                        comprovante_path = salvar_arquivo(comprovante_conta, processo, "comprovante")
-                        pdf_path = salvar_arquivo(pdf_alvara, processo, "alvara")
-                        
-                        # Atualizar status com paths locais
-                        idx = df[df["Processo"] == processo].index[0]
-                        st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Enviado para o Financeiro"
-                        st.session_state.df_editado_alvaras.loc[idx, "Comprovante Conta"] = comprovante_path
-                        st.session_state.df_editado_alvaras.loc[idx, "PDF Alvará"] = pdf_path
-                        st.session_state.df_editado_alvaras.loc[idx, "Data Envio Financeiro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                        st.session_state.df_editado_alvaras.loc[idx, "Enviado Financeiro Por"] = st.session_state.get("usuario", "Sistema")
-                        
-                        st.info("✅ Processo salvo localmente e enviado para o Financeiro!")
-                        st.rerun()
-                        
-                except Exception as e:
-                    st.error(f"❌ Erro inesperado: {str(e)}")
-                    # Fallback para sistema local
-                    st.warning("⚠️ Salvando localmente...")
-                    from components.functions_controle import salvar_arquivo
-                    comprovante_path = salvar_arquivo(comprovante_conta, processo, "comprovante")
-                    pdf_path = salvar_arquivo(pdf_alvara, processo, "alvara")
-            st.rerun()
-    
-    elif comprovante_conta or pdf_alvara:
-        st.warning("⚠️ Anexe ambos os documentos para prosseguir")
-    else:
-        st.info("📋 Anexe o comprovante da conta e o PDF do alvará")
+    return comprovante_conta, pdf_alvara, anexar_multiplos
 
-def interface_acoes_financeiro(df_filtrado):
-    """Ações específicas do perfil Financeiro"""
-    
-    # Processos aguardando ação do financeiro
-    aguardando_financeiro = df_filtrado[df_filtrado["Status"] == "Enviado para o Financeiro"]
-    enviados_Rodrigo = df_filtrado[df_filtrado["Status"] == "Financeiro - Enviado para Rodrigo"]
-    
-    if len(aguardando_financeiro) > 0:
-        st.markdown("### 📤 Enviar para Rodrigo")
-        
-        for _, processo in aguardando_financeiro.iterrows():
-            with st.expander(f"Processo: {processo['Processo']} - {processo['Parte']}"):
-                col_info, col_acao = st.columns([2, 1])
-                
-                with col_info:
-                    st.write(f"**Pagamento:** {processo['Pagamento']}")
-                    
-                    # Mostrar documentos anexados
-                    if processo["Comprovante Conta"]:
-                        st.write("✅ Comprovante da conta anexado")
-                    if processo["PDF Alvará"]:
-                        st.write("✅ PDF do alvará anexado")
-                
-                with col_acao:
-                    if st.button(f"📤 Enviar para Rodrigo", key=f"enviar_Rodrigo_{processo['Processo']}"):
-                        # Atualizar status
-                        idx = df_filtrado[df_filtrado["Processo"] == processo["Processo"]].index[0]
-                        st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Financeiro - Enviado para Rodrigo"
-                        st.session_state.df_editado_alvaras.loc[idx, "Data Envio Rodrigo"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                        st.session_state.df_editado_alvaras.loc[idx, "Enviado Rodrigo Por"] = st.session_state.get("usuario", "Sistema")
-                        
-                        st.success("✅ Processo enviado para o Rodrigo!")
-                        st.rerun()
-    
-    if len(enviados_Rodrigo) > 0:
-        st.markdown("### ✅ Finalizar Processos")
-        
-        for _, processo in enviados_Rodrigo.iterrows():
-            with st.expander(f"Finalizar: {processo['Processo']} - {processo['Parte']}"):
-                # Checkbox para múltiplos comprovantes
-                anexar_multiplos_comp = st.checkbox(
-                    "Anexar múltiplos comprovantes",
-                    key=f"multiplos_comprovante_{processo['Processo']}"
-                )
-                
-                if anexar_multiplos_comp:
-                    comprovante_recebimento = st.file_uploader(
-                        "Anexar comprovantes de recebimento:",
-                        type=["pdf", "jpg", "jpeg", "png"],
-                        accept_multiple_files=True,
-                        key=f"comprovante_recebimento_{processo['Processo']}"
-                    )
-                else:
-                    comprovante_recebimento = st.file_uploader(
-                        "Anexar comprovante de recebimento:",
-                        type=["pdf", "jpg", "jpeg", "png"],
-                        key=f"comprovante_recebimento_{processo['Processo']}"
-                    )
-                
-                if comprovante_recebimento:
-                    if st.button(f"✅ Finalizar Processo", key=f"finalizar_{processo['Processo']}"):
-                        # Salvar comprovante de recebimento
-                        from components.functions_controle import salvar_arquivo
-                        recebimento_path = salvar_arquivo(comprovante_recebimento, processo['Processo'], "recebimento")
-                        
-                        # Atualizar status
-                        idx = df_filtrado[df_filtrado["Processo"] == processo["Processo"]].index[0]
-                        st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Finalizado"
-                        st.session_state.df_editado_alvaras.loc[idx, "Comprovante Recebimento"] = recebimento_path
-                        st.session_state.df_editado_alvaras.loc[idx, "Data Finalização"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                        st.session_state.df_editado_alvaras.loc[idx, "Finalizado Por"] = st.session_state.get("usuario", "Sistema")
-                        
-                        st.success("✅ Processo finalizado!")
-                        st.rerun()
+# =====================================
+# FUNÇÕES DE RENDERIZAÇÃO DE TABS
+# =====================================
 
-def interface_visualizar_alvara(df, alvara_id, perfil_usuario):
-    """Interface para visualizar dados de um alvará"""
+def render_tab_info_alvara(processo, alvara_id):
+    """Renderiza a tab de informações do alvará"""
+        
+    col_det1, col_det2 = st.columns(2)
     
-    # Verificar se o alvará existe
-    linha_processo = df[df["ID"].astype(str) == str(alvara_id)]
+    with col_det1:
+        st.markdown("**📋 Dados Básicos:**")
+        st.write(f"**CPF:** {safe_get_field_value_alvara(processo, 'CPF')}")
+        st.write(f"**Agência:** {safe_get_field_value_alvara(processo, 'Agência')}")
+        st.write(f"**Conta:** {safe_get_field_value_alvara(processo, 'Conta')}")
+        st.write(f"**Banco:** {safe_get_field_value_alvara(processo, 'Banco')}")
     
-    if len(linha_processo) == 0:
-        st.error(f"❌ Alvará com ID {alvara_id} não encontrado")
-        return
-    
-    linha_processo = linha_processo.iloc[0]
-    numero_processo = linha_processo.get("Processo", "N/A")
-    status_atual = linha_processo.get("Status", "N/A")
-    
-    st.markdown(f"### 📋 Visualizando: {numero_processo} - {linha_processo['Parte']}")
-    st.markdown(f"**ID:** {alvara_id} | **Status atual:** {status_atual}")
-    
-    # Mostrar informações básicas do processo em 3 colunas
-    col_info1, col_info2, col_info3 = st.columns(3)
-    with col_info1:
-        st.write(f"**Pagamento:** {linha_processo.get('Pagamento', 'Não informado')}")
-        st.write(f"**Parte:** {linha_processo.get('Parte', 'Não informado')}")
-        st.write(f"**CPF/CNPJ:** {linha_processo.get('CPF/CNPJ', 'Não informado')}")
-    with col_info2:
-        st.write(f"**Agência:** {linha_processo.get('Agência', 'Não informado')}")
-        st.write(f"**Conta:** {linha_processo.get('Conta', 'Não informado')}")
-    with col_info3:
-        st.write(f"**Cadastrado em:** {linha_processo.get('Data Cadastro', 'Não informado')}")
-        st.write(f"**Última atualização:** {linha_processo.get('Data Atualização', 'Não informado')}")
-        st.write(f"**Valor:** {safe_format_currency_alvara(linha_processo.get('Valor'))}")
+    with col_det2:
+        st.markdown("**💰 Valores:**")
+        st.write(f"**Valor Sacado:** {safe_format_currency_alvara(processo.get('Valor Sacado'))}")
+        st.write(f"**Valor Cliente:** {safe_format_currency_alvara(processo.get('Valor Cliente Final'))}")
+        st.write(f"**Honorários Sucumbenciais:** {safe_format_currency_alvara(processo.get('Honorarios Sucumbenciais Valor'))}")
+        st.write(f"**Prospector/Parceiro:** {safe_format_currency_alvara(processo.get('Prospector Parceiro'))}")
     
     # Mostrar detalhes dos honorários contratuais
-    mostrar_detalhes_hc_alvara(linha_processo, f"visualizar_{alvara_id}")
+    mostrar_detalhes_hc_alvara(processo, f"info_{alvara_id}")
     
-    # Adicionar mais visualizações de dados conforme necessário
+    # Observações
+    if safe_get_field_value_alvara(processo, 'Observacoes Financeiras'):
+        st.markdown("### 📝 Observações Financeiras")
+        st.info(safe_get_field_value_alvara(processo, 'Observacoes Financeiras'))
 
-def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
-    """Interface de edição baseada no status e perfil"""
+def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuario):
+    """Renderiza a tab de ações do alvará - mantém toda a lógica original"""
     
+    # Usar a função original de edição, mas sem o cabeçalho
     linha_processo_df = df[df["ID"].astype(str) == str(alvara_id)]
     
     if len(linha_processo_df) == 0:
@@ -842,48 +447,11 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
     linha_processo = linha_processo_df.iloc[0]
     numero_processo = linha_processo.get("Processo", "N/A")
     
-    # Exibir informações básicas do processo com layout compacto
-    exibir_informacoes_basicas_alvara(linha_processo, "compacto")
+    # Renderizar ações baseadas no status - usando a lógica original
     if status_atual == "Cadastrado" and perfil_usuario in ["Cadastrador", "Admin"]:
-        st.markdown("#### Anexar Documentos")
+        # Usar função auxiliar para anexos
+        comprovante_conta, pdf_alvara, anexar_multiplos = render_tab_anexos_alvara(processo, alvara_id, numero_processo)
         
-        # Checkbox para anexar múltiplos documentos
-        anexar_multiplos = st.checkbox("Anexar múltiplos documentos", key=f"multiplos_edicao_{alvara_id}")
-        
-        col_doc1, col_doc2 = st.columns(2)
-        
-        with col_doc1:
-            st.markdown("**📄 Comprovante da Conta**")
-            if anexar_multiplos:
-                comprovante_conta = st.file_uploader(
-                    "Anexar comprovantes da conta:",
-                    type=["pdf", "jpg", "jpeg", "png"],
-                    accept_multiple_files=True,
-                    key=f"comprovante_{numero_processo}"
-                )
-            else:
-                comprovante_conta = st.file_uploader(
-                    "Anexar comprovante da conta:",
-                    type=["pdf", "jpg", "jpeg", "png"],
-                    key=f"comprovante_{numero_processo}"
-                )
-                    
-        with col_doc2:
-            st.markdown("**📄 PDF do Alvará**")
-            if anexar_multiplos:
-                pdf_alvara = st.file_uploader(
-                    "Anexar PDFs do alvará:",
-                    type=["pdf"],
-                    accept_multiple_files=True,
-                    key=f"pdf_{numero_processo}"
-                )
-            else:
-                pdf_alvara = st.file_uploader(
-                    "Anexar PDF do alvará:",
-                    type=["pdf"],
-                    key=f"pdf_{numero_processo}"
-                )
-            
         # Verificar se documentos foram anexados (considerando múltiplos)
         docs_anexados = False
         if anexar_multiplos:
@@ -897,7 +465,7 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
             else:
                 st.success("✅ Ambos os documentos foram anexados!")
             
-            if st.button("📤 Enviar para Financeiro", type="primary", key=f"enviar_fin_id_{alvara_id}"):
+            if st.button("📤 Enviar para Financeiro", type="primary", key=f"enviar_fin_tab_{alvara_id}"):
                 # Salvar arquivos
                 
                 if anexar_multiplos:
@@ -938,7 +506,8 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
                     st.session_state.file_sha_alvaras = novo_sha
                     
                     st.success("✅ Processo enviado para o Financeiro!")
-                    st.session_state.show_alvara_dialog = False
+                    # Recolher o card após a ação
+                    st.session_state.alvara_expanded_cards.discard(alvara_id)
                     st.rerun()
         elif comprovante_conta or pdf_alvara:
             if anexar_multiplos:
@@ -949,514 +518,18 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
             st.info("📋 Anexe o comprovante da conta e o PDF do alvará")
     
     elif status_atual == "Enviado para o Financeiro":
-        
         # Apenas Financeiro e Admin podem preencher valores financeiros
         if perfil_usuario in ["Financeiro", "Admin"]:
-            
-            # Checkbox para controle de pendência
-            pendente_cadastro = st.checkbox(
-                "⏳ Pendente de cadastro",
-                value=linha_processo.get("Pendente de Cadastro", "") == "Sim",
-                help="Marque se os dados ainda estão pendentes de cadastro. Isso desabilitará os campos de valor.",
-                key=f"pendente_{alvara_id}"
-            )
-            
-            st.markdown("---")
-            
-            # Controle HC com botão progressivo (FORA do formulário)
-            if st.button("➕ Adicionar Honorário Contratual", key=f"btn_hc_{alvara_id}"):
-                # Inicializar estado do botão HC se não existir
-                if f"hc_nivel_{alvara_id}" not in st.session_state:
-                    st.session_state[f"hc_nivel_{alvara_id}"] = 0
-                
-                st.session_state[f"hc_nivel_{alvara_id}"] = (st.session_state[f"hc_nivel_{alvara_id}"] + 1) % 3
-            
-            # Inicializar estado do botão HC
-            if f"hc_nivel_{alvara_id}" not in st.session_state:
-                st.session_state[f"hc_nivel_{alvara_id}"] = 0
-            
-            # Formulário para valores financeiros
-            with st.form(f"form_valores_financeiros_{alvara_id}"):
-                st.markdown("**Valores Financeiros:**")
-                
-                col_val1, col_val2 = st.columns(2)
-                
-                with col_val1:
-                    valor_sacado = st.number_input(
-                        "💵 Valor Sacado (valor real atualizado):",
-                        min_value=0.0,
-                        value=float(linha_processo.get("Valor Sacado", "0") or "0"),
-                        step=0.01,
-                        format="%.2f",
-                        help="Valor real atualizado que foi sacado",
-                        disabled=pendente_cadastro
-                    )
-                    
-                    honorarios_sucumbenciais = st.number_input(
-                        "⚖️ Honorários Sucumbenciais:",
-                        min_value=0.0,
-                        value=float(linha_processo.get("Honorarios Sucumbenciais Valor", "0") or "0"),
-                        step=0.01,
-                        format="%.2f",
-                        help="Valor dos honorários sucumbenciais",
-                        disabled=pendente_cadastro
-                    )
-                
-                with col_val2:
-                    prospector_parceiro = st.number_input(
-                        "🤝 Prospector/Parceiro:",
-                        min_value=0.0,
-                        value=float(linha_processo.get("Prospector Parceiro", "0") or "0"),
-                        step=0.01,
-                        format="%.2f",
-                        help="Valor destinado ao prospector/parceiro",
-                        disabled=pendente_cadastro
-                    )
-                    
-                    valor_cliente = st.number_input(
-                        "👤 Valor do Cliente:",
-                        min_value=0.0,
-                        value=float(linha_processo.get("Valor Cliente Final", "0") or "0"),
-                        step=0.01,
-                        format="%.2f",
-                        help="Valor final destinado ao cliente",
-                        disabled=pendente_cadastro
-                    )
-                
-                # Seção de Honorários Contratuais dentro do form
-                st.markdown("---")
-                
-                honorarios_contratuais = st.number_input(
-                    "Honorário Contratual 1:",
-                    min_value=0.0,
-                    value=float(linha_processo.get("Honorarios Contratuais", "0") or "0"),
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor dos honorários contratuais principais",
-                    disabled=pendente_cadastro
-                )
-                
-                # Campos HC adicionais (aparecem conforme o nível do botão)
-                hc1_valor, hc2_valor, hc3_valor = 0.0, 0.0, 0.0
-                nivel_hc = st.session_state.get(f"hc_nivel_{alvara_id}", 0)
-                
-                if nivel_hc >= 1:  # Primeira pressão: Mostrar HC2
-                    hc1_valor = st.number_input(
-                        "Honorário Contratual 2:",
-                        min_value=0.0,
-                        value=float(linha_processo.get("HC1", "0") or "0"),
-                        step=0.01,
-                        format="%.2f",
-                        disabled=pendente_cadastro,
-                        key=f"hc2_{alvara_id}"
-                    )
-                
-                if nivel_hc >= 2:  # Segunda pressão: Mostrar HC3
-                    hc2_valor = st.number_input(
-                        "Honorário Contratual 3:",
-                        min_value=0.0,
-                        value=float(linha_processo.get("HC2", "0") or "0"),
-                        step=0.01,
-                        format="%.2f",
-                        disabled=pendente_cadastro,
-                        key=f"hc3_{alvara_id}"
-                    )
-                
-                # Campo de observações
-                observacoes_financeiras = st.text_area(
-                    "📝 Observações Financeiras:",
-                    value=safe_get_field_value_alvara(linha_processo, "Observacoes Financeiras", ""),
-                    help="Observações sobre os valores financeiros",
-                    height=100
-                )
-                
-                # Botões de ação
-                col_btn1, col_btn2 = st.columns(2)
-                
-                with col_btn1:
-                    salvar_valores = st.form_submit_button(
-                        "Salvar Valores",
-                        type="primary" if not pendente_cadastro else "secondary"
-                    )
-                
-                with col_btn2:
-                    enviar_rodrigo = st.form_submit_button(
-                        "📤 Enviar para Rodrigo",
-                        type="primary"
-                    )
-                    if pendente_cadastro:
-                        st.info("ℹ️ Processo será enviado com dados em branco para preenchimento")
-                
-                # Lógica de processamento
-                if salvar_valores:
-                    try:
-                        idx = df[df["ID"] == alvara_id].index[0]
-                        
-                        # Salvar status de pendência
-                        st.session_state.df_editado_alvaras.loc[idx, "Pendente de Cadastro"] = "Sim" if pendente_cadastro else "Não"
-                        
-                        # Salvar valores apenas se não estiver pendente
-                        if not pendente_cadastro:
-                            st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
-                            st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
-                            st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
-                            st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
-                            
-                            # Salvar honorários contratuais
-                            st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
-                            
-                            # Salvar HC adicionais se foram preenchidos
-                            nivel_hc = st.session_state.get(f"hc_nivel_{alvara_id}", 0)
-                            if nivel_hc >= 1:  # HC2 está visível
-                                st.session_state.df_editado_alvaras.loc[idx, "HC1"] = hc1_valor
-                            if nivel_hc >= 2:  # HC3 está visível
-                                st.session_state.df_editado_alvaras.loc[idx, "HC2"] = hc2_valor
-                        
-                        # Salvar observações sempre (converter para string para evitar warning do pandas)
-                        observacoes_str = str(observacoes_financeiras) if observacoes_financeiras is not None else ""
-                        st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_str
-                        
-                        # Salvar no GitHub
-                        novo_sha = save_data_to_github_seguro(
-                            st.session_state.df_editado_alvaras,
-                            "lista_alvaras.csv",
-                            st.session_state.file_sha_alvaras
-                        )
-                        st.session_state.file_sha_alvaras = novo_sha
-                        
-                        st.success("✅ Valores salvos com sucesso!")
-                        st.rerun()
-                        
-                    except Exception as e:
-                        st.error(f"❌ Erro ao salvar valores: {str(e)}")
-                
-                elif enviar_rodrigo:
-                    try:
-                        idx = df[df["ID"] == alvara_id].index[0]
-                        
-                        # Salvar valores apenas se não estiver pendente de cadastro
-                        if not pendente_cadastro:
-                            # Salvar valores finais antes de enviar
-                            st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
-                            st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
-                            st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
-                            st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
-                            st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
-                            
-                            # Salvar honorários contratuais
-                            st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
-                            
-                            # Salvar HC adicionais se foram preenchidos
-                            nivel_hc = st.session_state.get(f"hc_nivel_{alvara_id}", 0)
-                            if nivel_hc >= 1:  # HC2 está visível
-                                st.session_state.df_editado_alvaras.loc[idx, "HC1"] = hc1_valor
-                            if nivel_hc >= 2:  # HC3 está visível
-                                st.session_state.df_editado_alvaras.loc[idx, "HC2"] = hc2_valor
-                        else:
-                            # Se pendente de cadastro, enviar com valores em branco/zero
-                            st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = 0.0
-                            st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = 0.0
-                            st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = 0.0
-                            st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = 0.0
-                            st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = 0.0
-                            st.session_state.df_editado_alvaras.loc[idx, "HC1"] = 0.0
-                            st.session_state.df_editado_alvaras.loc[idx, "HC2"] = 0.0
-                            st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = ""
-                        
-                        # Atualizar status para próxima etapa
-                        st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Financeiro - Enviado para Rodrigo"
-                        st.session_state.df_editado_alvaras.loc[idx, "Data Envio Rodrigo"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                        st.session_state.df_editado_alvaras.loc[idx, "Enviado Rodrigo Por"] = st.session_state.get("usuario", "Sistema")
-                        
-                        # Manter status de pendência para que Rodrigo saiba que precisa preencher do zero
-                        if pendente_cadastro:
-                            st.session_state.df_editado_alvaras.loc[idx, "Pendente de Cadastro"] = "Sim - Enviado para Rodrigo"
-                        else:
-                            st.session_state.df_editado_alvaras.loc[idx, "Pendente de Cadastro"] = "Não"
-                        
-                        # Salvar no GitHub
-                        novo_sha = save_data_to_github_seguro(
-                            st.session_state.df_editado_alvaras,
-                            "lista_alvaras.csv",
-                            st.session_state.file_sha_alvaras
-                        )
-                        st.session_state.file_sha_alvaras = novo_sha
-                        
-                        if pendente_cadastro:
-                            st.success("✅ Processo Enviado para Rodrigo com dados em branco para preenchimento!")
-                        else:
-                            st.success("✅ Processo Enviado para Rodrigo com sucesso!")
-                        st.session_state.show_alvara_dialog = False
-                        st.rerun()
-                        
-                    except Exception as e:
-                        st.error(f"❌ Erro ao enviar para Rodrigo: {str(e)}")
-            
-            # Mostrar resumo dos valores atuais se não estiver pendente
-            if not pendente_cadastro:
-                st.markdown("---")
-                st.markdown("**📊 Resumo dos Valores Atuais:**")
-                
-                col_res1, col_res2, col_res3, col_res4 = st.columns(4)
-                
-                with col_res1:
-                    valor_atual = linha_processo.get("Valor Sacado", "0")
-                    st.metric("💵 Valor Sacado", safe_format_currency_alvara(valor_atual))
-                
-                with col_res2:
-                    honor_atual = linha_processo.get("Honorarios Sucumbenciais Valor", "0")
-                    st.metric("⚖️ Honorários", safe_format_currency_alvara(honor_atual))
-                
-                with col_res3:
-                    prosp_atual = linha_processo.get("Prospector Parceiro", "0")
-                    st.metric("🤝 Prospector", safe_format_currency_alvara(prosp_atual))
-                
-                with col_res4:
-                    cliente_atual = linha_processo.get("Valor Cliente Final", "0")
-                    st.metric("👤 Cliente", safe_format_currency_alvara(cliente_atual))
-        
+            render_tab_acoes_financeiro_alvara(df, linha_processo, alvara_id)
         else:
             st.warning("⚠️ Apenas usuários Financeiro e Admin podem gerenciar valores financeiros.")
     
     elif status_atual == "Financeiro - Enviado para Rodrigo" and perfil_usuario in ["Financeiro", "Admin"]:
-        st.markdown("**📋 Informações do processo:**")
-        st.write(f"- Enviado para Rodrigo em: {linha_processo.get('Data Envio Rodrigo', 'Não informado')}")
-        st.write(f"- Enviado por: {linha_processo.get('Enviado Rodrigo Por', 'Não informado')}")
-        
-        st.markdown("---")
-        
-        # Controle HC com botão progressivo (FORA do formulário)
-        if st.button("➕ Adicionar Honorário Contratual", key=f"btn_hc_rodrigo_{alvara_id}"):
-            # Inicializar estado do botão HC se não existir
-            if f"hc_nivel_rodrigo_{alvara_id}" not in st.session_state:
-                st.session_state[f"hc_nivel_rodrigo_{alvara_id}"] = 0
-            
-            st.session_state[f"hc_nivel_rodrigo_{alvara_id}"] = (st.session_state[f"hc_nivel_rodrigo_{alvara_id}"] + 1) % 3
-
-        # Inicializar estado do botão HC
-        if f"hc_nivel_rodrigo_{alvara_id}" not in st.session_state:
-            st.session_state[f"hc_nivel_rodrigo_{alvara_id}"] = 0
-
-        # Formulário para valores financeiros (AGORA HABILITADOS para Rodrigo)
-        with st.form(f"form_valores_rodrigo_{alvara_id}"):
-            st.markdown("**💰 Valores Financeiros:**")
-            
-            col_val1, col_val2 = st.columns(2)
-            
-            with col_val1:
-                valor_sacado = st.number_input(
-                    "💵 Valor Sacado (valor real atualizado):",
-                    min_value=0.0,
-                    value=float(linha_processo.get("Valor Sacado", "0") or "0"),
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor real atualizado que foi sacado"
-                )
-                
-                honorarios_sucumbenciais = st.number_input(
-                    "⚖️ Honorários Sucumbenciais:",
-                    min_value=0.0,
-                    value=float(linha_processo.get("Honorarios Sucumbenciais Valor", "0") or "0"),
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor dos honorários sucumbenciais"
-                )
-            
-            with col_val2:
-                prospector_parceiro = st.number_input(
-                    "🤝 Prospector/Parceiro:",
-                    min_value=0.0,
-                    value=float(linha_processo.get("Prospector Parceiro", "0") or "0"),
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor destinado ao prospector/parceiro"
-                )
-                
-                valor_cliente = st.number_input(
-                    "👤 Valor do Cliente:",
-                    min_value=0.0,
-                    value=float(linha_processo.get("Valor Cliente Final", "0") or "0"),
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor final destinado ao cliente"
-                )
-            
-            # Seção de Honorários Contratuais dentro do form
-            st.markdown("---")
-            
-            honorarios_contratuais = st.number_input(
-                "Honorário Contratual 1:",
-                min_value=0.0,
-                value=float(linha_processo.get("Honorarios Contratuais", "0") or "0"),
-                step=0.01,
-                format="%.2f",
-                help="Valor dos honorários contratuais principais"
-            )
-            
-            # Campos HC adicionais (aparecem conforme o nível do botão)
-            hc1_valor, hc2_valor, hc3_valor = 0.0, 0.0, 0.0
-            nivel_hc = st.session_state.get(f"hc_nivel_rodrigo_{alvara_id}", 0)
-            
-            if nivel_hc >= 1:  # Primeira pressão: Mostrar HC2
-                hc1_valor = st.number_input(
-                    "Honorário Contratual 2:",
-                    min_value=0.0,
-                    value=float(linha_processo.get("HC1", "0") or "0"),
-                    step=0.01,
-                    format="%.2f",
-                    key=f"hc2_rodrigo_{alvara_id}"
-                )
-            
-            if nivel_hc >= 2:  # Segunda pressão: Mostrar HC3
-                hc2_valor = st.number_input(
-                    "Honorário Contratual 3:",
-                    min_value=0.0,
-                    value=float(linha_processo.get("HC2", "0") or "0"),
-                    step=0.01,
-                    format="%.2f",
-                    key=f"hc3_rodrigo_{alvara_id}"
-                )
-            
-            # Campo de observações
-            observacoes_financeiras = st.text_area(
-                "📝 Observações Financeiras:",
-                value=safe_get_field_value_alvara(linha_processo, "Observacoes Financeiras", ""),
-                help="Observações sobre os valores financeiros",
-                height=100
-            )
-            
-            # Botões de ação
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                salvar_valores_rodrigo = st.form_submit_button(
-                    "💾 Salvar Valores",
-                    type="secondary"
-                )
-            
-            with col_btn2:
-                finalizar_processo = st.form_submit_button(
-                    "🎯 Finalizar Processo",
-                    type="primary"
-                )
-            
-            # Lógica de processamento
-            if salvar_valores_rodrigo:
-                try:
-                    idx = df[df["ID"] == alvara_id].index[0]
-                    
-                    # Salvar todos os valores
-                    st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
-                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
-                    st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
-                    st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
-                    st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
-                    
-                    # Salvar honorários contratuais
-                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
-                    
-                    # Salvar HC adicionais se foram preenchidos
-                    nivel_hc = st.session_state.get(f"hc_nivel_rodrigo_{alvara_id}", 0)
-                    if nivel_hc >= 1:  # HC2 está visível
-                        st.session_state.df_editado_alvaras.loc[idx, "HC1"] = hc1_valor
-                    if nivel_hc >= 2:  # HC3 está visível
-                        st.session_state.df_editado_alvaras.loc[idx, "HC2"] = hc2_valor
-                    
-                    # Salvar no GitHub
-                    novo_sha = save_data_to_github_seguro(
-                        st.session_state.df_editado_alvaras,
-                        "lista_alvaras.csv",
-                        st.session_state.file_sha_alvaras
-                    )
-                    st.session_state.file_sha_alvaras = novo_sha
-                    
-                    st.success("✅ Valores salvos com sucesso!")
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"❌ Erro ao salvar valores: {str(e)}")
-            
-            elif finalizar_processo:
-                try:
-                    idx = df[df["ID"] == alvara_id].index[0]
-                    
-                    # Salvar valores finais antes de finalizar
-                    st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
-                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
-                    st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
-                    st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
-                    st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
-                    
-                    # Salvar honorários contratuais
-                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
-                    
-                    # Salvar HC adicionais se foram preenchidos
-                    nivel_hc = st.session_state.get(f"hc_nivel_rodrigo_{alvara_id}", 0)
-                    if nivel_hc >= 1:
-                        st.session_state.df_editado_alvaras.loc[idx, "HC1"] = hc1_valor
-                    if nivel_hc >= 2:
-                        st.session_state.df_editado_alvaras.loc[idx, "HC2"] = hc2_valor
-                    
-                    # Atualizar status para finalizado
-                    st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Finalizado"
-                    st.session_state.df_editado_alvaras.loc[idx, "Data Finalizacao"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    st.session_state.df_editado_alvaras.loc[idx, "Finalizado Por"] = st.session_state.get("usuario", "Sistema")
-                    
-                    # Salvar no GitHub
-                    novo_sha = save_data_to_github_seguro(
-                        st.session_state.df_editado_alvaras,
-                        "lista_alvaras.csv",
-                        st.session_state.file_sha_alvaras
-                    )
-                    st.session_state.file_sha_alvaras = novo_sha
-                    
-                    st.success("✅ Processo finalizado com sucesso!")
-                    st.session_state.show_alvara_dialog = False
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"❌ Erro ao finalizar processo: {str(e)}")
+        render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id)
     
     elif status_atual == "Finalizado":
-        st.markdown("#### 🎉 Processo Finalizado")
-        st.success("✅ Este processo foi concluído com sucesso!")
-        
-        # Mostrar valores financeiros sempre (A, B, C)
-        st.markdown("**� Valores Financeiros:**")
-        col_val1, col_val2, col_val3 = st.columns(3)
-        
-        with col_val1:
-            valor_total = linha_processo.get("Valor Sacado", "")
-            st.write(f"**Valor Sacado:** {safe_format_currency_alvara(valor_total)}")
-        
-        with col_val2:
-            valor_cliente = linha_processo.get("Valor Cliente Final", "")
-            st.write(f"**Valor Cliente:** {safe_format_currency_alvara(valor_cliente)}")
-        
-        with col_val3:
-            honorarios = linha_processo.get("Honorarios Contratuais", "")
-            st.write(f"**Honorários:** {safe_format_currency_alvara(honorarios)}")
-        
-        st.markdown("---")
-        
-        col_final1, col_final2 = st.columns(2)
-        
-        with col_final1:
-            st.markdown("**� Datas importantes:**")
-            st.write(f"- Cadastrado: {linha_processo.get('Data Cadastro', 'Não informado')}")
-            st.write(f"- Enviado Financeiro: {linha_processo.get('Data Envio Financeiro', 'Não informado')}")
-            st.write(f"- Enviado Rodrigo: {linha_processo.get('Data Envio Rodrigo', 'Não informado')}")
-            st.write(f"- Finalizado: {linha_processo.get('Data Finalizacao', 'Não informado')}")
-        
-        with col_final2:
-            st.markdown("**👥 Responsáveis:**")
-            st.write(f"- Cadastrado por: {linha_processo.get('Cadastrado Por', 'Não informado')}")
-            st.write(f"- Enviado Financeiro por: {linha_processo.get('Enviado Financeiro Por', 'Não informado')}")
-            st.write(f"- Enviado Rodrigo por: {linha_processo.get('Enviado Rodrigo Por', 'Não informado')}")
-            st.write(f"- Finalizado por: {linha_processo.get('Finalizado Por', 'Não informado')}")
-        
         # Documentos anexados
-        st.markdown("**📄 Documentos anexados:**")
+        st.markdown("**📄 Documentos anexos:**")
         col_docs1, col_docs2 = st.columns(2)
         
         with col_docs1:
@@ -1469,21 +542,522 @@ def interface_edicao_processo(df, alvara_id, status_atual, perfil_usuario):
                 from components.functions_controle import baixar_arquivo_drive
                 baixar_arquivo_drive(linha_processo["PDF Alvará"], "📄 PDF Alvará")
     
-    # FALLBACK: Status não reconhecido ou sem permissão
     else:
-        # Verificar se Admin pode editar qualquer coisa (Admin tem poder total)
+        # Status não reconhecido ou sem permissão
         if perfil_usuario == "Admin":
-            st.warning("⚠️ Status não reconhecido ou não implementado. Como Admin, você pode visualizar mas não há interface de edição definida.")
+            st.warning("⚠️ Status não reconhecido ou não implementado.")
             st.info(f"Status atual: {status_atual}")
         else:
             st.error(f"❌ Seu perfil ({perfil_usuario}) não pode editar processos com status '{status_atual}'")
+
+def render_tab_historico_alvara(processo, alvara_id):
+    """Renderiza a tab de histórico do alvará"""
+    
+    st.markdown("### 📜 Histórico do Processo")
+    
+    # Timeline do processo
+    status_atual = safe_get_field_value_alvara(processo, 'Status')
+    
+    # Etapas do fluxo
+    etapas = [
+        {
+            "titulo": "📝 Cadastrado",
+            "data": safe_get_field_value_alvara(processo, 'Data Cadastro'),
+            "responsavel": safe_get_field_value_alvara(processo, 'Cadastrado Por'),
+            "concluida": True  # Sempre concluída se existe
+        },
+        {
+            "titulo": "📤 Enviado para Financeiro",
+            "data": safe_get_field_value_alvara(processo, 'Data Envio Financeiro'),
+            "responsavel": safe_get_field_value_alvara(processo, 'Enviado Financeiro Por'),
+            "concluida": status_atual in ["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"]
+        },
+        {
+            "titulo": "👨‍💼 Enviado para Rodrigo",
+            "data": safe_get_field_value_alvara(processo, 'Data Envio Rodrigo'),
+            "responsavel": safe_get_field_value_alvara(processo, 'Enviado Rodrigo Por'),
+            "concluida": status_atual in ["Financeiro - Enviado para Rodrigo", "Finalizado"]
+        },
+        {
+            "titulo": "🎯 Finalizado",
+            "data": safe_get_field_value_alvara(processo, 'Data Finalizacao'),
+            "responsavel": safe_get_field_value_alvara(processo, 'Finalizado Por'),
+            "concluida": status_atual == "Finalizado"
+        }
+    ]
+    
+    for i, etapa in enumerate(etapas):
+        if etapa["concluida"] and etapa["data"] != "Não informado":
+            # Etapa concluída
+            st.markdown(f"""
+            <div style="border-left: 4px solid #28a745; padding-left: 16px; margin-bottom: 16px;">
+                <div style="color: #28a745; font-weight: bold;">✅ {etapa["titulo"]}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">
+                    📅 {etapa["data"]}<br>
+                    👤 {etapa["responsavel"]}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        elif etapa["concluida"]:
+            # Etapa atual (sem data específica)
+            st.markdown(f"""
+            <div style="border-left: 4px solid #ffc107; padding-left: 16px; margin-bottom: 16px;">
+                <div style="color: #ffc107; font-weight: bold;">🔄 {etapa["titulo"]}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Em andamento</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Etapa futura
+            st.markdown(f"""
+            <div style="border-left: 4px solid #dee2e6; padding-left: 16px; margin-bottom: 16px;">
+                <div style="color: #6c757d; font-weight: bold;">⏳ {etapa["titulo"]}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Pendente</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+def render_tab_acoes_financeiro_alvara(df, linha_processo, alvara_id):
+    """Renderiza ações específicas para o perfil Financeiro"""
+    
+    # Checkbox para controle de pendência
+    pendente_cadastro = st.checkbox(
+        "⏳ Pendente de cadastro",
+        value=linha_processo.get("Pendente de Cadastro", "") == "Sim",
+        help="Marque se os dados ainda estão pendentes de cadastro. Isso desabilitará os campos de valor.",
+        key=f"pendente_tab_{alvara_id}"
+    )
+    
+    st.markdown("---")
+    
+    # Controle HC com botão progressivo (FORA do formulário)
+    if st.button("➕ Adicionar Honorário Contratual", key=f"btn_hc_tab_{alvara_id}"):
+        # Inicializar estado do botão HC se não existir
+        if f"hc_nivel_tab_{alvara_id}" not in st.session_state:
+            st.session_state[f"hc_nivel_tab_{alvara_id}"] = 0
+        
+        st.session_state[f"hc_nivel_tab_{alvara_id}"] = (st.session_state[f"hc_nivel_tab_{alvara_id}"] + 1) % 3
+    
+    # Inicializar estado do botão HC
+    if f"hc_nivel_tab_{alvara_id}" not in st.session_state:
+        st.session_state[f"hc_nivel_tab_{alvara_id}"] = 0
+    
+    # Formulário para valores financeiros
+    with st.form(f"form_valores_financeiros_tab_{alvara_id}"):
+        st.markdown("**Valores Financeiros:**")
+        
+        col_val1, col_val2 = st.columns(2)
+        
+        with col_val1:
+            valor_sacado = st.number_input(
+                "💵 Valor Sacado (valor real atualizado):",
+                min_value=0.0,
+                value=float(linha_processo.get("Valor Sacado", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                help="Valor real atualizado que foi sacado",
+                disabled=pendente_cadastro
+            )
             
-            if perfil_usuario == "Cadastrador":
-                st.info("💡 Cadastradores só podem editar processos com status 'Cadastrado'")
-            elif perfil_usuario == "Financeiro":
-                st.info("💡 Financeiro pode editar processos 'Enviado para o Financeiro' e 'Financeiro - Enviado para Rodrigo'")
-            elif perfil_usuario in ["Administrativo", "SAC"]:
-                st.info("💡 Seu perfil pode visualizar mas não editar processos em algumas etapas")
+            honorarios_sucumbenciais = st.number_input(
+                "⚖️ Honorários Sucumbenciais:",
+                min_value=0.0,
+                value=float(linha_processo.get("Honorarios Sucumbenciais Valor", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                help="Valor dos honorários sucumbenciais",
+                disabled=pendente_cadastro
+            )
+        
+        with col_val2:
+            prospector_parceiro = st.number_input(
+                "🤝 Prospector/Parceiro:",
+                min_value=0.0,
+                value=float(linha_processo.get("Prospector Parceiro", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                help="Valor destinado ao prospector/parceiro",
+                disabled=pendente_cadastro
+            )
+            
+            valor_cliente = st.number_input(
+                "👤 Valor do Cliente:",
+                min_value=0.0,
+                value=float(linha_processo.get("Valor Cliente Final", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                help="Valor final destinado ao cliente",
+                disabled=pendente_cadastro
+            )
+        
+        # Seção de Honorários Contratuais dentro do form
+        st.markdown("---")
+        
+        honorarios_contratuais = st.number_input(
+            "Honorário Contratual 1:",
+            min_value=0.0,
+            value=float(linha_processo.get("Honorarios Contratuais", "0") or "0"),
+            step=0.01,
+            format="%.2f",
+            help="Valor dos honorários contratuais principais",
+            disabled=pendente_cadastro
+        )
+        
+        # Campos HC adicionais (aparecem conforme o nível do botão)
+        hc1_valor, hc2_valor, hc3_valor = 0.0, 0.0, 0.0
+        nivel_hc = st.session_state.get(f"hc_nivel_tab_{alvara_id}", 0)
+        
+        if nivel_hc >= 1:  # Primeira pressão: Mostrar HC2
+            hc1_valor = st.number_input(
+                "Honorário Contratual 2:",
+                min_value=0.0,
+                value=float(linha_processo.get("HC1", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                disabled=pendente_cadastro,
+                key=f"hc2_tab_{alvara_id}"
+            )
+        
+        if nivel_hc >= 2:  # Segunda pressão: Mostrar HC3
+            hc2_valor = st.number_input(
+                "Honorário Contratual 3:",
+                min_value=0.0,
+                value=float(linha_processo.get("HC2", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                disabled=pendente_cadastro,
+                key=f"hc3_tab_{alvara_id}"
+            )
+        
+        # Campo de observações
+        observacoes_financeiras = st.text_area(
+            "📝 Observações Financeiras:",
+            value=safe_get_field_value_alvara(linha_processo, "Observacoes Financeiras", ""),
+            help="Observações sobre os valores financeiros",
+            height=100
+        )
+        
+        # Botões de ação
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            salvar_valores = st.form_submit_button(
+                "Salvar Valores",
+                type="primary" if not pendente_cadastro else "secondary"
+            )
+        
+        with col_btn2:
+            enviar_rodrigo = st.form_submit_button(
+                "📤 Enviar para Rodrigo",
+                type="primary"
+            )
+            if pendente_cadastro:
+                st.info("ℹ️ Processo será enviado com dados em branco para preenchimento")
+        
+        # Lógica de processamento (igual à original)
+        if salvar_valores:
+            try:
+                idx = df[df["ID"] == alvara_id].index[0]
+                
+                # Salvar status de pendência
+                st.session_state.df_editado_alvaras.loc[idx, "Pendente de Cadastro"] = "Sim" if pendente_cadastro else "Não"
+                
+                # Salvar valores apenas se não estiver pendente
+                if not pendente_cadastro:
+                    st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
+                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
+                    st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
+                    st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
+                    
+                    # Salvar honorários contratuais
+                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
+                    
+                    # Salvar HC adicionais se foram preenchidos
+                    nivel_hc = st.session_state.get(f"hc_nivel_tab_{alvara_id}", 0)
+                    if nivel_hc >= 1:  # HC2 está visível
+                        st.session_state.df_editado_alvaras.loc[idx, "HC1"] = hc1_valor
+                    if nivel_hc >= 2:  # HC3 está visível
+                        st.session_state.df_editado_alvaras.loc[idx, "HC2"] = hc2_valor
+                
+                # Salvar observações sempre (converter para string para evitar warning do pandas)
+                observacoes_str = str(observacoes_financeiras) if observacoes_financeiras is not None else ""
+                st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_str
+                
+                # Salvar no GitHub
+                novo_sha = save_data_to_github_seguro(
+                    st.session_state.df_editado_alvaras,
+                    "lista_alvaras.csv",
+                    st.session_state.file_sha_alvaras
+                )
+                st.session_state.file_sha_alvaras = novo_sha
+                
+                st.success("✅ Valores salvos com sucesso!")
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ Erro ao salvar valores: {str(e)}")
+        
+        elif enviar_rodrigo:
+            try:
+                idx = df[df["ID"] == alvara_id].index[0]
+                
+                # Salvar valores apenas se não estiver pendente de cadastro
+                if not pendente_cadastro:
+                    # Salvar valores finais antes de enviar
+                    st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
+                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
+                    st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
+                    st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
+                    st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
+                    
+                    # Salvar honorários contratuais
+                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
+                    
+                    # Salvar HC adicionais se foram preenchidos
+                    nivel_hc = st.session_state.get(f"hc_nivel_tab_{alvara_id}", 0)
+                    if nivel_hc >= 1:  # HC2 está visível
+                        st.session_state.df_editado_alvaras.loc[idx, "HC1"] = hc1_valor
+                    if nivel_hc >= 2:  # HC3 está visível
+                        st.session_state.df_editado_alvaras.loc[idx, "HC2"] = hc2_valor
+                else:
+                    # Se pendente de cadastro, enviar com valores em branco
+                    st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = 0.0
+                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = 0.0
+                    st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = 0.0
+                    st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = 0.0
+                    st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = 0.0
+                    st.session_state.df_editado_alvaras.loc[idx, "HC1"] = 0.0
+                    st.session_state.df_editado_alvaras.loc[idx, "HC2"] = 0.0
+                    st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = ""
+                
+                # Atualizar status para próxima etapa
+                st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Financeiro - Enviado para Rodrigo"
+                st.session_state.df_editado_alvaras.loc[idx, "Data Envio Rodrigo"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                st.session_state.df_editado_alvaras.loc[idx, "Enviado Rodrigo Por"] = st.session_state.get("usuario", "Sistema")
+                
+                # Manter status de pendência para que Rodrigo saiba que precisa preencher do zero
+                if pendente_cadastro:
+                    st.session_state.df_editado_alvaras.loc[idx, "Pendente de Cadastro"] = "Sim - Enviado para Rodrigo"
+                else:
+                    st.session_state.df_editado_alvaras.loc[idx, "Pendente de Cadastro"] = "Não"
+                
+                # Salvar no GitHub
+                novo_sha = save_data_to_github_seguro(
+                    st.session_state.df_editado_alvaras,
+                    "lista_alvaras.csv",
+                    st.session_state.file_sha_alvaras
+                )
+                st.session_state.file_sha_alvaras = novo_sha
+                
+                if pendente_cadastro:
+                    st.success("✅ Processo Enviado para Rodrigo com dados em branco para preenchimento!")
+                else:
+                    st.success("✅ Processo Enviado para Rodrigo com sucesso!")
+                
+                # Recolher o card após a ação
+                st.session_state.alvara_expanded_cards.discard(alvara_id)
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ Erro ao enviar para Rodrigo: {str(e)}")
+
+def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
+    """Renderiza ações específicas para a etapa Rodrigo"""
+    
+    st.markdown("**📋 Informações do processo:**")
+    st.write(f"- Enviado para Rodrigo em: {linha_processo.get('Data Envio Rodrigo', 'Não informado')}")
+    st.write(f"- Enviado por: {linha_processo.get('Enviado Rodrigo Por', 'Não informado')}")
+    
+    st.markdown("---")
+    
+    # Controle HC com botão progressivo (FORA do formulário)
+    if st.button("➕ Adicionar Honorário Contratual", key=f"btn_hc_rodrigo_tab_{alvara_id}"):
+        # Inicializar estado do botão HC se não existir
+        if f"hc_nivel_rodrigo_tab_{alvara_id}" not in st.session_state:
+            st.session_state[f"hc_nivel_rodrigo_tab_{alvara_id}"] = 0
+        
+        st.session_state[f"hc_nivel_rodrigo_tab_{alvara_id}"] = (st.session_state[f"hc_nivel_rodrigo_tab_{alvara_id}"] + 1) % 3
+
+    # Inicializar estado do botão HC
+    if f"hc_nivel_rodrigo_tab_{alvara_id}" not in st.session_state:
+        st.session_state[f"hc_nivel_rodrigo_tab_{alvara_id}"] = 0
+
+    # Formulário para valores financeiros (AGORA HABILITADOS para Rodrigo)
+    with st.form(f"form_valores_rodrigo_tab_{alvara_id}"):
+        st.markdown("**💰 Valores Financeiros:**")
+        
+        col_val1, col_val2 = st.columns(2)
+        
+        with col_val1:
+            valor_sacado = st.number_input(
+                "💵 Valor Sacado (valor real atualizado):",
+                min_value=0.0,
+                value=float(linha_processo.get("Valor Sacado", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                help="Valor real atualizado que foi sacado"
+            )
+            
+            honorarios_sucumbenciais = st.number_input(
+                "⚖️ Honorários Sucumbenciais:",
+                min_value=0.0,
+                value=float(linha_processo.get("Honorarios Sucumbenciais Valor", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                help="Valor dos honorários sucumbenciais"
+            )
+        
+        with col_val2:
+            prospector_parceiro = st.number_input(
+                "🤝 Prospector/Parceiro:",
+                min_value=0.0,
+                value=float(linha_processo.get("Prospector Parceiro", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                help="Valor destinado ao prospector/parceiro"
+            )
+            
+            valor_cliente = st.number_input(
+                "👤 Valor do Cliente:",
+                min_value=0.0,
+                value=float(linha_processo.get("Valor Cliente Final", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                help="Valor final destinado ao cliente"
+            )
+        
+        # Seção de Honorários Contratuais dentro do form
+        st.markdown("---")
+        
+        honorarios_contratuais = st.number_input(
+            "Honorário Contratual 1:",
+            min_value=0.0,
+            value=float(linha_processo.get("Honorarios Contratuais", "0") or "0"),
+            step=0.01,
+            format="%.2f",
+            help="Valor dos honorários contratuais principais"
+        )
+        
+        # Campos HC adicionais (aparecem conforme o nível do botão)
+        hc1_valor, hc2_valor, hc3_valor = 0.0, 0.0, 0.0
+        nivel_hc = st.session_state.get(f"hc_nivel_rodrigo_tab_{alvara_id}", 0)
+        
+        if nivel_hc >= 1:  # Primeira pressão: Mostrar HC2
+            hc1_valor = st.number_input(
+                "Honorário Contratual 2:",
+                min_value=0.0,
+                value=float(linha_processo.get("HC1", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                key=f"hc2_rodrigo_tab_{alvara_id}"
+            )
+        
+        if nivel_hc >= 2:  # Segunda pressão: Mostrar HC3
+            hc2_valor = st.number_input(
+                "Honorário Contratual 3:",
+                min_value=0.0,
+                value=float(linha_processo.get("HC2", "0") or "0"),
+                step=0.01,
+                format="%.2f",
+                key=f"hc3_rodrigo_tab_{alvara_id}"
+            )
+        
+        # Campo de observações
+        observacoes_financeiras = st.text_area(
+            "📝 Observações Financeiras:",
+            value=safe_get_field_value_alvara(linha_processo, "Observacoes Financeiras", ""),
+            help="Observações sobre os valores financeiros",
+            height=100
+        )
+        
+        # Botões de ação
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            salvar_valores_rodrigo = st.form_submit_button(
+                "💾 Salvar Valores",
+                type="secondary"
+            )
+        
+        with col_btn2:
+            finalizar_processo = st.form_submit_button(
+                "🎯 Finalizar Processo",
+                type="primary"
+            )
+        
+        # Lógica de processamento (igual à original)
+        if salvar_valores_rodrigo:
+            try:
+                idx = df[df["ID"] == alvara_id].index[0]
+                
+                # Salvar todos os valores
+                st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
+                st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
+                st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
+                st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
+                st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
+                
+                # Salvar honorários contratuais
+                st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
+                
+                # Salvar HC adicionais se foram preenchidos
+                nivel_hc = st.session_state.get(f"hc_nivel_rodrigo_tab_{alvara_id}", 0)
+                if nivel_hc >= 1:  # HC2 está visível
+                    st.session_state.df_editado_alvaras.loc[idx, "HC1"] = hc1_valor
+                if nivel_hc >= 2:  # HC3 está visível
+                    st.session_state.df_editado_alvaras.loc[idx, "HC2"] = hc2_valor
+                
+                # Salvar no GitHub
+                novo_sha = save_data_to_github_seguro(
+                    st.session_state.df_editado_alvaras,
+                    "lista_alvaras.csv",
+                    st.session_state.file_sha_alvaras
+                )
+                st.session_state.file_sha_alvaras = novo_sha
+                
+                st.success("✅ Valores salvos com sucesso!")
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ Erro ao salvar valores: {str(e)}")
+        
+        elif finalizar_processo:
+            try:
+                idx = df[df["ID"] == alvara_id].index[0]
+                
+                # Salvar valores finais antes de finalizar
+                st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
+                st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
+                st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
+                st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
+                st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
+                
+                # Salvar honorários contratuais
+                st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
+                
+                # Salvar HC adicionais se foram preenchidos
+                nivel_hc = st.session_state.get(f"hc_nivel_rodrigo_tab_{alvara_id}", 0)
+                if nivel_hc >= 1:
+                    st.session_state.df_editado_alvaras.loc[idx, "HC1"] = hc1_valor
+                if nivel_hc >= 2:
+                    st.session_state.df_editado_alvaras.loc[idx, "HC2"] = hc2_valor
+                
+                # Atualizar status para finalizado
+                st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Finalizado"
+                st.session_state.df_editado_alvaras.loc[idx, "Data Finalizacao"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                st.session_state.df_editado_alvaras.loc[idx, "Finalizado Por"] = st.session_state.get("usuario", "Sistema")
+                
+                # Salvar no GitHub
+                novo_sha = save_data_to_github_seguro(
+                    st.session_state.df_editado_alvaras,
+                    "lista_alvaras.csv",
+                    st.session_state.file_sha_alvaras
+                )
+                st.session_state.file_sha_alvaras = novo_sha
+                
+                st.success("✅ Processo finalizado com sucesso!")
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ Erro ao finalizar processo: {str(e)}")
     
 def interface_cadastro_alvara(df, perfil_usuario):
     """Interface para cadastrar novos alvarás"""
@@ -1570,10 +1144,10 @@ def interface_cadastro_alvara(df, perfil_usuario):
         for col in colunas_esquerda:
             if col == "Processo":
                 valor_raw = st.text_input(
-                    f"{col}",
+                    f"{col} *",
                     key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
                     max_chars=50,
-                    help=hints.get(col, ""),
+                    help=hints.get(col, "") + " (Campo obrigatório)",
                     placeholder="0000000-00.0000.0.00.0000"
                 )
                 if any(c.isalpha() for c in valor_raw):
@@ -1582,19 +1156,19 @@ def interface_cadastro_alvara(df, perfil_usuario):
             
             elif col == "Parte":
                 valor = st.text_input(
-                    f"{col}",
+                    f"{col} *",
                     key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
                     max_chars=100,
-                    help=hints.get(col, ""),
+                    help=hints.get(col, "") + " (Campo obrigatório)",
                     placeholder="NOME COMPLETO DA PARTE"
                 ).upper()
 
             elif col == "CPF":
                 valor_raw = st.text_input(
-                    f"{col}",
+                    f"{col} *",
                     key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
                     max_chars=14,
-                    help=hints.get(col, ""),
+                    help=hints.get(col, "") + " (Campo obrigatório)",
                     placeholder="000.000.000-00"
                 )
                 if any(c.isalpha() for c in valor_raw):
@@ -1604,7 +1178,7 @@ def interface_cadastro_alvara(df, perfil_usuario):
             elif col == "Órgão Judicial":
                 # Campo selectbox + botão usando nova interface
                 valor = campo_orgao_judicial(
-                    label=f"{col}",
+                    label=f"{col} *",
                     key_prefix=f"alvaras_{st.session_state.form_reset_counter_alvaras}"
                 )
                 
@@ -1689,47 +1263,76 @@ def interface_cadastro_alvara(df, perfil_usuario):
                         st.success(f"🆕 Novo órgão '{valor_normalizado}' salvo permanentemente!")
                     nova_linha[col] = valor_normalizado  # Usar valor normalizado
         
-        # Validações
-        cpf_valor = nova_linha.get("CPF", "")
-        cpf_numeros = ''.join([c for c in cpf_valor if c.isdigit()])
-        pagamento_valor = nova_linha.get("Pagamento", "").strip()
-        campos_obrigatorios = ["Processo", "Parte", "CPF", "Pagamento"]
-        campos_vazios = [col for col in campos_obrigatorios if not nova_linha.get(col, "").strip()]
+        # =====================================
+        # VALIDAÇÃO COMPLETA DE CAMPOS OBRIGATÓRIOS - ALVARÁ
+        # =====================================
         
+        campos_vazios = []
+        
+        # Validar campos obrigatórios
+        if not nova_linha.get("Processo", "").strip():
+            campos_vazios.append("Processo")
+        if not nova_linha.get("Parte", "").strip():
+            campos_vazios.append("Parte")
+        if not nova_linha.get("CPF", "").strip():
+            campos_vazios.append("CPF")
+        if not nova_linha.get("Pagamento", "").strip():
+            campos_vazios.append("Pagamento")
+        if not nova_linha.get("Órgão Judicial", "").strip():
+            campos_vazios.append("Órgão Judicial")
+        
+        # Se há campos vazios, exibir erro detalhado
         if campos_vazios:
-            st.error(f"❌ Preencha os campos obrigatórios: {', '.join(campos_vazios)}")
-        elif cpf_valor and len(cpf_numeros) != 11:
-            st.error("❌ CPF deve conter exatamente 11 números.")
-        elif not pagamento_valor:
-            st.error("❌ O valor do pagamento é obrigatório.")
+            if len(campos_vazios) == 1:
+                st.error(f"❌ O campo obrigatório **{campos_vazios[0]}** deve ser preenchido.")
+            else:
+                campos_texto = ", ".join(campos_vazios[:-1]) + " e " + campos_vazios[-1]
+                st.error(f"❌ Os seguintes campos obrigatórios devem ser preenchidos: **{campos_texto}**.")
+        # Validações adicionais de formato
         else:
-            # GERAR ID ÚNICO PARA NOVA LINHA
-            from components.functions_controle import gerar_id_unico
-            novo_id = gerar_id_unico(st.session_state.df_editado_alvaras, "ID")
-            nova_linha["ID"] = novo_id
+            # Validar CPF
+            cpf_valor = nova_linha.get("CPF", "")
+            cpf_numeros = ''.join([c for c in cpf_valor if c.isdigit()])
             
-            # ADICIONAR CAMPOS DE CONTROLE
-            nova_linha["Status"] = "Cadastrado"
-            nova_linha["Data Cadastro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-            nova_linha["Cadastrado Por"] = st.session_state.get("usuario", "Sistema")
-            
-            # Preencher campos vazios para todas as outras colunas do DataFrame
-            for col in df.columns:
-                if col not in nova_linha:
-                    nova_linha[col] = ""
-            
-            # Adicionar campos vazios para próximas etapas
-            linha_controle = inicializar_linha_vazia()
-            nova_linha.update(linha_controle)
-            nova_linha["Status"] = "Cadastrado"  # Sobrescrever status
-            nova_linha["Data Cadastro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
-            nova_linha["Cadastrado Por"] = st.session_state.get("usuario", "Sistema")
-            
-            # Adicionar linha ao DataFrame
-            st.session_state.df_editado_alvaras = pd.concat(
-                [st.session_state.df_editado_alvaras, pd.DataFrame([nova_linha])],
-                ignore_index=True
-            )
+            if cpf_valor and len(cpf_numeros) != 11:
+                st.error("❌ CPF deve conter exatamente 11 números.")
+            else:
+                from components.functions_controle import validar_cpf
+                
+                if cpf_valor and not validar_cpf(cpf_valor):
+                    st.error("❌ CPF inválido. Verifique e tente novamente.")
+                # Verificar se processo já existe
+                elif ("Processo" in df.columns and 
+                      nova_linha.get("Processo", "") in df["Processo"].values):
+                    st.warning(f"⚠️ Processo {nova_linha.get('Processo', '')} já cadastrado.")
+                else:
+                    # GERAR ID ÚNICO PARA NOVA LINHA
+                    from components.functions_controle import gerar_id_unico
+                    novo_id = gerar_id_unico(st.session_state.df_editado_alvaras, "ID")
+                    nova_linha["ID"] = novo_id
+                    
+                    # ADICIONAR CAMPOS DE CONTROLE
+                    nova_linha["Status"] = "Cadastrado"
+                    nova_linha["Data Cadastro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    nova_linha["Cadastrado Por"] = st.session_state.get("usuario", "Sistema")
+                    
+                    # Preencher campos vazios para todas as outras colunas do DataFrame
+                    for col in df.columns:
+                        if col not in nova_linha:
+                            nova_linha[col] = ""
+                    
+                    # Adicionar campos vazios para próximas etapas
+                    linha_controle = inicializar_linha_vazia()
+                    nova_linha.update(linha_controle)
+                    nova_linha["Status"] = "Cadastrado"  # Sobrescrever status
+                    nova_linha["Data Cadastro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    nova_linha["Cadastrado Por"] = st.session_state.get("usuario", "Sistema")
+                    
+                    # Adicionar linha ao DataFrame
+                    st.session_state.df_editado_alvaras = pd.concat(
+                        [st.session_state.df_editado_alvaras, pd.DataFrame([nova_linha])],
+                        ignore_index=True
+                    )
             
             # Guardar preview
             if "preview_novas_linhas" not in st.session_state:
@@ -1880,12 +1483,15 @@ def interface_visualizar_dados(df):
         # b) Controles de paginação
         st.markdown("---")
         col_nav1, col_nav2, col_nav3 = st.columns([3, 2, 3])
+        
         with col_nav1:
             if st.session_state.current_page_visualizar > 1:
                 if st.button("<< Primeira", key="viz_primeira"): st.session_state.current_page_visualizar = 1; st.rerun()
                 if st.button("< Anterior", key="viz_anterior"): st.session_state.current_page_visualizar -= 1; st.rerun()
+        
         with col_nav2:
             st.write(f"Página {st.session_state.current_page_visualizar} de {total_pages}")
+        
         with col_nav3:
             if st.session_state.current_page_visualizar < total_pages:
                 if st.button("Próxima >", key="viz_proxima"): st.session_state.current_page_visualizar += 1; st.rerun()
@@ -2021,13 +1627,8 @@ def interface_visualizar_dados_alvara(df):
         else:
             hoje_count = 0
             
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); padding: 15px; border-radius: 8px; text-align: center; color: #2c3e50; margin-bottom: 10px;">
-            <h3 style="margin: 0; font-size: 1.8em;">{}</h3>
-            <p style="margin: 3px 0 0 0; font-size: 0.9em;">Cadastrados Hoje</p>
-        </div>
-        """.format(hoje_count), unsafe_allow_html=True)
-
+        st.markdown(f"**Cadastrados Hoje:** {hoje_count}")
+    
     st.markdown("---")
 
     col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
@@ -2100,7 +1701,7 @@ def interface_visualizar_dados_alvara(df):
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
 
-    # Lógica de Paginação
+    # b) Lógica de Paginação
     if "current_page_visualizar_alvara" not in st.session_state:
         st.session_state.current_page_visualizar_alvara = 1
     
@@ -2205,3 +1806,334 @@ def interface_visualizar_dados_alvara(df):
                     st.rerun()
     else:
         st.info("Nenhum registro encontrado com os filtros aplicados.")
+
+# =====================================
+# FUNÇÕES DE INTERFACE PRINCIPAL - ALVARÁS
+# =====================================
+
+def interface_lista_alvaras(df, perfil_usuario):
+    """Interface principal para listar alvarás com sistema de dropdown"""
+    
+    # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de lista
+    if st.session_state.get("show_alvara_dialog", False):
+        st.session_state.show_alvara_dialog = False
+    if st.session_state.get("processo_aberto_id") is not None:
+        st.session_state.processo_aberto_id = None
+    
+    # Inicializar estado dos cards expandidos
+    if "alvara_expanded_cards" not in st.session_state:
+        st.session_state.alvara_expanded_cards = set()
+    
+    if df.empty:
+        st.info("ℹ️ Não há alvarás para visualizar.")
+        return
+
+    # Cards de estatísticas
+    total_alvaras = len(df)
+    finalizados = len(df[df["Status"] == "Finalizado"]) if "Status" in df.columns else 0
+    pendentes = total_alvaras - finalizados
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total de Alvarás", total_alvaras)
+    
+    with col2:
+        st.metric("Finalizados", finalizados)
+    
+    with col3:
+        st.metric("Pendentes", pendentes)
+    
+    with col4:
+        if "Data Cadastro" in df.columns:
+            hoje = datetime.now().strftime("%d/%m/%Y")
+            df_temp = df.copy()
+            df_temp["Data Cadastro"] = df_temp["Data Cadastro"].astype(str)
+            hoje_count = len(df_temp[df_temp["Data Cadastro"].str.contains(hoje, na=False)])
+        else:
+            hoje_count = 0
+        st.metric("Cadastrados Hoje", hoje_count)
+
+    # Filtros
+    st.markdown("---")
+    col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
+    
+    with col_filtro1:
+        status_unicos = ["Todos"] + list(df["Status"].dropna().unique()) if "Status" in df.columns else ["Todos"]
+        status_filtro = st.selectbox("Status:", options=status_unicos, key="lista_alvara_status")
+        
+    with col_filtro2:
+        usuarios_unicos = ["Todos"] + list(df["Cadastrado Por"].dropna().unique()) if "Cadastrado Por" in df.columns else ["Todos"]
+        usuario_filtro = st.selectbox("Cadastrado Por:", options=usuarios_unicos, key="lista_alvara_user")
+    
+    with col_filtro3:
+        orgaos_unicos = ["Todos"] + list(df["Órgão Judicial"].dropna().unique()) if "Órgão Judicial" in df.columns else ["Todos"]
+        orgao_filtro = st.selectbox("Órgão Judicial:", options=orgaos_unicos, key="lista_alvara_orgao")
+    
+    with col_filtro4:
+        pesquisa = st.text_input("🔎 Pesquisar:", key="lista_alvara_search")
+
+    # Aplicar filtros
+    df_filtrado = df.copy()
+    
+    if status_filtro != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Status"] == status_filtro]
+    
+    if usuario_filtro != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Cadastrado Por"] == usuario_filtro]
+        
+    if orgao_filtro != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Órgão Judicial"] == orgao_filtro]
+    
+    if pesquisa:
+        mask = pd.Series([False] * len(df_filtrado))
+        for col in ["Parte", "Processo", "CPF"]:
+            if col in df_filtrado.columns:
+                mask |= df_filtrado[col].astype(str).str.contains(pesquisa, case=False, na=False)
+        df_filtrado = df_filtrado[mask]
+
+    # Calcular total de registros filtrados
+    total_registros_filtrados = len(df_filtrado)
+
+    # Botões de Expandir/Recolher Todos
+    if total_registros_filtrados > 0:
+        st.markdown("---")
+        col_exp1, col_exp2, col_exp_space = st.columns([2, 2, 6])
+        
+        with col_exp1:
+            if st.button("🔽 Expandir Todos", key="expandir_todos_alvaras"):
+                # Adicionar todos os IDs dos alvarás filtrados ao set de expandidos
+                for _, processo in df_filtrado.iterrows():
+                    alvara_id = processo.get("ID", "N/A")
+                    st.session_state.alvara_expanded_cards.add(alvara_id)
+                st.rerun()
+        
+        with col_exp2:
+            if st.button("🔼 Recolher Todos", key="recolher_todos_alvaras"):
+                # Limpar o set de cards expandidos
+                st.session_state.alvara_expanded_cards.clear()
+                st.rerun()
+
+    # Paginação
+    if "current_page_alvaras" not in st.session_state:
+        st.session_state.current_page_alvaras = 1
+    
+    items_per_page = 10
+    total_registros = len(df_filtrado)
+    total_pages = math.ceil(total_registros / items_per_page) if items_per_page > 0 else 1
+    
+    start_idx = (st.session_state.current_page_alvaras - 1) * items_per_page
+    end_idx = start_idx + items_per_page
+    df_paginado = df_filtrado.iloc[start_idx:end_idx]
+
+    # CSS para os cards - padronizado com RPV
+    st.markdown("""
+    <style>
+    .alvara-card {
+        background: transparent !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 16px !important;
+        margin: 0 0 12px 0 !important;
+        box-shadow: none !important;
+        transition: all 0.3s ease !important;
+        overflow: hidden !important;
+    }
+    
+    .alvara-card:hover {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        border-color: transparent !important;
+    }
+    
+    .alvara-card.expanded {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+    }
+    
+    .card-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 8px !important;
+    }
+    
+    .processo-info {
+        font-weight: bold !important;
+        color: #2c3e50 !important;
+        font-size: 16px !important;
+    }
+    
+    .status-badge {
+        padding: 4px 8px !important;
+        border-radius: 12px !important;
+        font-size: 12px !important;
+        font-weight: bold !important;
+        text-align: center !important;
+    }
+    
+    .status-cadastrado { background-color: #fff3cd; color: #856404; }
+    .status-financeiro { background-color: #d1ecf1; color: #0c5460; }
+    .status-rodrigo { background-color: #d4edda; color: #155724; }
+    .status-finalizado { background-color: #d1e7dd; color: #0f5132; }
+    
+    .grid-info {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+        gap: 10px !important;
+        margin-top: 12px !important;
+    }
+    
+    .info-item {
+        font-size: 13px !important;
+    }
+    
+    .info-label {
+        color: #666 !important;
+        font-weight: 500 !important;
+    }
+    
+    .info-value {
+        color: #2c3e50 !important;
+        margin-top: 2px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Lista de Alvarás
+    if not df_paginado.empty:
+        st.markdown(f"### 📋 Lista de Alvarás ({total_registros} encontrados)")
+        
+        for _, processo in df_paginado.iterrows():
+            alvara_id = processo.get("ID", "N/A")
+            status_atual = safe_get_field_value_alvara(processo, 'Status')
+            
+            # Verificar se o card está expandido
+            is_expanded = alvara_id in st.session_state.alvara_expanded_cards
+            
+            # NOVO FORMATO COMPACTO - IGUAL AO RPV E BENEFÍCIOS
+            with st.container():
+                if not is_expanded:
+                    # Header do card
+                    col_header1, col_header2 = st.columns([3, 1])
+                    
+                    with col_header1:
+                        st.markdown(f"**📄 {safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}**")
+                        st.markdown(f"👤 {safe_get_field_value_alvara(processo, 'Parte', 'Não informado')}")
+                    
+                    with col_header2:
+                        status_class = {
+                            "Cadastrado": "status-cadastrado",
+                            "Enviado para o Financeiro": "status-financeiro",
+                            "Financeiro - Enviado para Rodrigo": "status-rodrigo",
+                            "Finalizado": "status-finalizado"
+                        }.get(status_atual, "status-cadastrado")
+                        
+                        st.markdown(f'<div class="status-badge {status_class}">{status_atual}</div>', 
+                                  unsafe_allow_html=True)
+                    
+                    # Informações resumidas em grid
+                    st.markdown(f"""
+                    <div class="grid-info">
+                        <div class="info-item">
+                            <div class="info-label">📄 Processo</div>
+                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Processo', 'Não informado')[:20]}{'...' if len(safe_get_field_value_alvara(processo, 'Processo', 'Não informado')) > 20 else ''}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">📊 Status</div>
+                            <div class="info-value">{status_atual}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">👤 Parte</div>
+                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Parte', 'Não informado')[:25]}{'...' if len(safe_get_field_value_alvara(processo, 'Parte', 'Não informado')) > 25 else ''}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">💰 Valor</div>
+                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Pagamento', 'Não informado')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">🏛️ Órgão</div>
+                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Órgão Judicial', 'Não informado')[:20]}{'...' if len(safe_get_field_value_alvara(processo, 'Órgão Judicial', 'Não informado')) > 20 else ''}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Botões de ação
+                    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 3])
+                    
+                    with col_btn1:
+                        if st.button("🔽 Expandir", key=f"expand_alvara_{alvara_id}"):
+                            st.session_state.alvara_expanded_cards.add(alvara_id)
+                            st.rerun()
+                    
+                    with col_btn2:
+                        # Verificar se o usuário pode editar este status
+                        pode_editar = pode_editar_status_alvaras(status_atual, perfil_usuario)
+                        
+                        if pode_editar:
+                            if st.button("✏️ Editar", key=f"edit_alvara_{alvara_id}", type="primary"):
+                                st.session_state.alvara_expanded_cards.add(alvara_id)
+                                st.rerun()
+                        else:
+                            if st.button("👁️ Ver", key=f"view_alvara_{alvara_id}"):
+                                st.session_state.alvara_expanded_cards.add(alvara_id)
+                                st.rerun()
+                
+                else:
+                    # Card expandido - mostrar abas
+                    
+                    # Header do card expandido
+                    col_header_exp1, col_header_exp2 = st.columns([4, 1])
+                    
+                    with col_header_exp1:
+                        st.markdown(f"### 📄 {safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}")
+                    
+                    with col_header_exp2:
+                        if st.button("🔼 Recolher", key=f"collapse_alvara_{alvara_id}"):
+                            st.session_state.alvara_expanded_cards.discard(alvara_id)
+                            st.rerun()
+                    
+                    # Tabs dentro do container expandido
+                    tab_info, tab_acoes, tab_historico = st.tabs(["📋 Info", "⚙️ Ações", "📜 Histórico"])
+                    
+                    with tab_info:
+                        render_tab_info_alvara(processo, alvara_id)
+                    
+                    with tab_acoes:
+                        render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuario)
+                    
+                    with tab_historico:
+                        render_tab_historico_alvara(processo, alvara_id)
+                    
+    else:
+        st.info("Nenhum alvará encontrado com os filtros aplicados.")
+        
+    # Controles de paginação
+    if total_registros > 0:
+        st.markdown("---")
+        col_nav1, col_nav2, col_nav3 = st.columns([3, 2, 3])
+
+        with col_nav1:
+            if st.session_state.current_page_alvaras > 1:
+                if st.button("<< Primeira", key="btn_primeira_alvaras"):
+                    st.session_state.current_page_alvaras = 1
+                    st.rerun()
+                if st.button("< Anterior", key="btn_anterior_alvaras"):
+                    st.session_state.current_page_alvaras -= 1
+                    st.rerun()
+
+        with col_nav2:
+            st.write(f"Página {st.session_state.current_page_alvaras} de {total_pages}")
+
+        with col_nav3:
+            if st.session_state.current_page_alvaras < total_pages:
+                if st.button("Próxima >", key="btn_proxima_alvaras"):
+                    st.session_state.current_page_alvaras += 1
+                    st.rerun()
+                if st.button("Última >>", key="btn_ultima_alvaras"):
+                    st.session_state.current_page_alvaras = total_pages
+                    st.rerun()
