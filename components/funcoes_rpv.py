@@ -29,6 +29,25 @@ from components.functions_controle import (
     limpar_campos_formulario
 )
 
+def safe_get_value(data, key, default='Não informado'):
+    """
+    Função para acessar valores de forma segura de um dicionário ou série pandas.
+    Retorna o valor padrão se a chave não existir ou se o valor for None/NaN.
+    """
+    if hasattr(data, 'get'):
+        value = data.get(key, default)
+    else:
+        try:
+            value = data[key] if key in data else default
+        except (KeyError, TypeError):
+            return default
+    
+    # Verificar se é NaN, None ou string vazia
+    if pd.isna(value) or value is None or value == '' or str(value).lower() in ['nan', 'none']:
+        return default
+    
+    return str(value)
+
 # =====================================
 # CONFIGURAÇÕES DE PERFIS - RPV
 # =====================================
@@ -163,6 +182,30 @@ def validar_mes_competencia(mes_competencia):
     """Valida se o mês de competência está no formato mm/yyyy"""
     if not mes_competencia:
         return True  # Campo opcional
+    
+    # Se for string, validar formato mm/yyyy
+    if isinstance(mes_competencia, str):
+        mes_competencia = mes_competencia.strip()
+        if len(mes_competencia) != 7 or mes_competencia[2] != '/':
+            return False
+        
+        try:
+            mes, ano = mes_competencia.split('/')
+            if len(mes) != 2 or len(ano) != 4:
+                return False
+            
+            mes_int = int(mes)
+            ano_int = int(ano)
+            
+            # Validar ranges
+            if not (1 <= mes_int <= 12):
+                return False
+            if not (2020 <= ano_int <= 2030):
+                return False
+                
+            return True
+        except (ValueError, IndexError):
+            return False
     
     # Se for um objeto datetime.date, não precisa validar (já está correto)
     if hasattr(mes_competencia, 'strftime'):
@@ -329,404 +372,710 @@ def toggle_rpv_selection(rpv_id):
         st.session_state.processos_selecionados_rpv.append(rpv_id_str)
 
 def interface_lista_rpv(df, perfil_usuario):
-    """Lista de RPVs com paginação e diálogo para ações"""
-    st.subheader("📊 Gerenciar RPVs")
-
-    # Inicializar o estado do diálogo
-    if "show_rpv_dialog" not in st.session_state:
+    """Interface principal para listar RPVs com sistema de dropdown"""
+    
+    # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de lista
+    if st.session_state.get("show_rpv_dialog", False):
         st.session_state.show_rpv_dialog = False
+    if st.session_state.get("rpv_aberto_id") is not None:
         st.session_state.rpv_aberto_id = None
     
-    # VERIFICAR E LIMPAR ESTADOS ÓRFÃOS DE DIÁLOGO
-    # Se o diálogo está aberto mas não há ID, limpar
-    if st.session_state.get("show_rpv_dialog", False) and not st.session_state.get("rpv_aberto_id"):
-        st.session_state.show_rpv_dialog = False
+    # Inicializar estado dos cards expandidos
+    if "rpv_expanded_cards" not in st.session_state:
+        st.session_state.rpv_expanded_cards = set()
     
-    # Se há ID mas não deveria mostrar o diálogo, limpar o ID
-    if not st.session_state.get("show_rpv_dialog", False) and st.session_state.get("rpv_aberto_id"):
-        st.session_state.rpv_aberto_id = None
-    
-    # Inicializar estado de exclusão em massa
-    if "modo_exclusao_rpv" not in st.session_state:
-        st.session_state.modo_exclusao_rpv = False
-    if "processos_selecionados_rpv" not in st.session_state:
-        st.session_state.processos_selecionados_rpv = []
-    
-    # Validar consistência da lista de selecionados
-    if st.session_state.processos_selecionados_rpv:
-        ids_existentes = set(df["ID"].astype(str).tolist())
-        st.session_state.processos_selecionados_rpv = [
-            pid for pid in st.session_state.processos_selecionados_rpv
-            if str(pid) in ids_existentes
-        ]
+    if df.empty:
+        st.info("ℹ️ Não há RPVs para visualizar.")
+        return
 
-    # Botão para habilitar exclusão (apenas para Admin e Cadastrador)
-    usuario_atual = st.session_state.get("usuario", "")
-    perfil_atual = st.session_state.get("perfil_usuario", "")
+    # Cards de estatísticas
+    total_rpvs = len(df)
+    finalizados = len(df[df["Status"] == "finalizado"]) if "Status" in df.columns else 0
+    pendentes = total_rpvs - finalizados
     
-    # Verificação mais robusta de permissão para exclusão
-    pode_excluir = (
-        perfil_atual in ["Admin", "Cadastrador"] or
-        usuario_atual == "admin" or
-        perfil_usuario in ["Admin", "Cadastrador"]  # usar o perfil passado como parâmetro
-    )
+    col1, col2, col3, col4 = st.columns(4)
     
-    if pode_excluir:
-        col_btn1, col_btn2, col_rest = st.columns([2, 2, 6])
-        with col_btn1:
-            if not st.session_state.modo_exclusao_rpv:
-                if st.button("🗑️ Habilitar Exclusão", key="habilitar_exclusao_rpv"):
-                    st.session_state.modo_exclusao_rpv = True
-                    st.session_state.processos_selecionados_rpv = []
-                    # Fechar qualquer diálogo aberto
-                    if "show_rpv_dialog" in st.session_state:
-                        st.session_state.show_rpv_dialog = False
-                    st.rerun()
-            else:
-                if st.button("❌ Cancelar Exclusão", key="cancelar_exclusao_rpv"):
-                    st.session_state.modo_exclusao_rpv = False
-                    st.session_state.processos_selecionados_rpv = []
-                    # Fechar qualquer diálogo aberto
-                    if "show_rpv_dialog" in st.session_state:
-                        st.session_state.show_rpv_dialog = False
-                    st.rerun()
-        
-        with col_btn2:
-            if st.session_state.modo_exclusao_rpv:
-                num_selecionados = len(st.session_state.processos_selecionados_rpv)
-                if num_selecionados > 0:
-                    if st.button(f"🗑️ Excluir ({num_selecionados})",
-                               key="confirmar_exclusao_rpv", type="primary"):
-                        confirmar_exclusao_massa_rpv(df, st.session_state.processos_selecionados_rpv)
-                else:
-                    # Mostrar mensagem quando nenhum item está selecionado
-                    st.write("*Selecione itens para excluir*")
+    with col1:
+        st.metric("Total de RPVs", total_rpvs)
+    
+    with col2:
+        st.metric("Finalizados", finalizados)
+    
+    with col3:
+        st.metric("Pendentes", pendentes)
+    
+    with col4:
+        if "Data Cadastro" in df.columns:
+            hoje = datetime.now().strftime("%d/%m/%Y")
+            df_temp = df.copy()
+            df_temp["Data Cadastro"] = df_temp["Data Cadastro"].astype(str)
+            hoje_count = len(df_temp[df_temp["Data Cadastro"].str.contains(hoje, na=False)])
+        else:
+            hoje_count = 0
+        st.metric("Cadastrados Hoje", hoje_count)
 
     # Filtros
-    col_filtro1, col_filtro2, col_filtro3, col_filtro4, col_filtro5 = st.columns(5)
+    st.markdown("---")
+    col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
     
     with col_filtro1:
-        status_filtro = st.selectbox(
-            "🔍 Filtrar por Status:",
-            ["Todos"] + list(STATUS_ETAPAS_RPV.values()),
-            key="rpv_status_filter"
-        )
-    
-    with col_filtro2:
-        # Filtro por mês de competência
-        meses_disponiveis = ["Todos"]
-        if "Mês Competência" in df.columns:
-            meses_unicos = df["Mês Competência"].dropna().unique()
-            meses_unicos = [m for m in meses_unicos if m and str(m) not in ['nan', 'Não informado']]
-            meses_unicos = sorted(meses_unicos, reverse=True)  # Mais recentes primeiro
-            meses_disponiveis.extend(meses_unicos)
+        status_unicos = ["Todos"] + list(df["Status"].dropna().unique()) if "Status" in df.columns else ["Todos"]
+        status_filtro = st.selectbox("Status:", options=status_unicos, key="lista_rpv_status")
         
-        mes_filtro = st.selectbox(
-            "📅 Filtrar por Mês de Competência:",
-            meses_disponiveis,
-            key="rpv_mes_filter"
-        )
+    with col_filtro2:
+        usuarios_unicos = ["Todos"] + list(df["Cadastrado Por"].dropna().unique()) if "Cadastrado Por" in df.columns else ["Todos"]
+        usuario_filtro = st.selectbox("Cadastrado Por:", options=usuarios_unicos, key="lista_rpv_user")
     
     with col_filtro3:
-        # Filtro por assunto
-        # Filtro de assunto: combina assuntos salvos + assuntos únicos do DataFrame
-        assuntos_salvos = obter_assuntos_rpv()  # Inclui novos assuntos salvos
-        assuntos_disponiveis = ["Todos"] + assuntos_salvos
-        
-        # Também incluir assuntos únicos do DataFrame atual (caso não estejam salvos ainda)
-        if "Assunto" in df.columns:
-            assuntos_df = df["Assunto"].dropna().unique()
-            assuntos_df = [a for a in assuntos_df if a and str(a) not in ['nan', 'Não informado']]
-            # Adiciona assuntos do DF que não estão na lista salva
-            for assunto in assuntos_df:
-                if assunto not in assuntos_disponiveis:
-                    assuntos_disponiveis.append(assunto)
-        
-        assuntos_disponiveis = sorted(set(assuntos_disponiveis))  # Remove duplicatas e ordena
-        assuntos_disponiveis = ["Todos"] + [a for a in assuntos_disponiveis if a != "Todos"]  # Garante "Todos" no início
-        
-        assunto_filtro = st.selectbox(
-            "Filtrar por Assunto:",
-            assuntos_disponiveis,
-            key="rpv_assunto_filter"
-        )
+        if "Orgao Judicial" in df.columns:
+            orgaos_unicos = ["Todos"] + list(df["Orgao Judicial"].dropna().unique())
+            orgao_filtro = st.selectbox("Órgão Judicial:", options=orgaos_unicos, key="lista_rpv_orgao")
+        else:
+            orgao_filtro = "Todos"
     
     with col_filtro4:
-        # Filtro de órgão: combina órgãos salvos + órgãos únicos do DataFrame
-        orgaos_salvos = obter_orgaos_rpv()  # Inclui novos órgãos salvos
-        orgaos_disponiveis = ["Todos"] + orgaos_salvos
-        
-        # Também incluir órgãos únicos do DataFrame atual (caso não estejam salvos ainda)
-        if "Orgao Judicial" in df.columns:
-            orgaos_df = df["Orgao Judicial"].dropna().unique()
-            orgaos_df = [o for o in orgaos_df if o and str(o) not in ['nan', 'Não informado']]
-            # Adiciona órgãos do DF que não estão na lista salva
-            for orgao in orgaos_df:
-                if orgao not in orgaos_disponiveis:
-                    orgaos_disponiveis.append(orgao)
-        
-        orgaos_disponiveis = sorted(set(orgaos_disponiveis))  # Remove duplicatas e ordena
-        orgaos_disponiveis = ["Todos"] + [o for o in orgaos_disponiveis if o != "Todos"]  # Garante "Todos" no início
-        
-        orgao_filtro = st.selectbox(
-            "Filtrar por Órgão:",
-            orgaos_disponiveis,
-            key="rpv_orgao_filter"
-        )
-    
-    with col_filtro5:
-        mostrar_apenas_meus = False
-        if perfil_usuario in ["SAC", "Administrativo"]:
-            mostrar_apenas_meus = st.checkbox(f"Mostrar apenas RPVs que posso editar ({perfil_usuario})")
-        elif perfil_usuario == "Financeiro":
-            mostrar_apenas_meus = st.checkbox("Mostrar apenas RPVs do Financeiro")
+        pesquisa = st.text_input("🔎 Pesquisar:", key="lista_rpv_search")
 
     # Aplicar filtros
     df_filtrado = df.copy()
+    
     if status_filtro != "Todos":
         df_filtrado = df_filtrado[df_filtrado["Status"] == status_filtro]
-    if mes_filtro != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["Mês Competência"] == mes_filtro]
     
-    # Filtro por assunto
-    if assunto_filtro != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["Assunto"] == assunto_filtro]
-    
-    # Filtro por órgão
-    if orgao_filtro != "Todos":
+    if usuario_filtro != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Cadastrado Por"] == usuario_filtro]
+        
+    if orgao_filtro != "Todos" and "Orgao Judicial" in df.columns:
         df_filtrado = df_filtrado[df_filtrado["Orgao Judicial"] == orgao_filtro]
     
-    if mostrar_apenas_meus:
-        if perfil_usuario == "SAC":
-            df_filtrado = df_filtrado[
-                (df_filtrado["Status"].isin(["SAC - aguardando documentação", "SAC - documentação pronta"])) |
-                (df_filtrado["Status Secundario"].isin(["SAC - aguardando documentação", "SAC - documentação pronta"]))
-            ]
-        elif perfil_usuario == "Administrativo":
-            df_filtrado = df_filtrado[
-                (df_filtrado["Status"].isin(["Administrativo - aguardando documentação", "Administrativo - documentação pronta"])) |
-                (df_filtrado["Status Secundario"].isin(["Administrativo - aguardando documentação", "Administrativo - documentação pronta"]))
-            ]
-        elif perfil_usuario == "Financeiro":
-            df_filtrado = df_filtrado[
-                df_filtrado["Status"].isin(["Enviado para Rodrigo", "aguardando pagamento"]) |
-                ((df_filtrado["Status"] == "SAC - documentação pronta") & (df_filtrado["Status Secundario"] == "Administrativo - documentação pronta")) |
-                ((df_filtrado["Status"] == "Administrativo - documentação pronta") & (df_filtrado["Status Secundario"] == "SAC - documentação pronta"))
-            ]
+    if pesquisa:
+        mask = pd.Series([False] * len(df_filtrado))
+        for col in ["Beneficiário", "Processo", "CPF"]:
+            if col in df_filtrado.columns:
+                mask |= df_filtrado[col].astype(str).str.contains(pesquisa, case=False, na=False)
+        df_filtrado = df_filtrado[mask]
 
-    # Lógica de Paginação
-    if "current_page_rpv" not in st.session_state:
-        st.session_state.current_page_rpv = 1
+    # Calcular total de registros filtrados
+    total_registros_filtrados = len(df_filtrado)
+
+    # Botões de Expandir/Recolher Todos
+    if total_registros_filtrados > 0:
+        st.markdown("---")
+        col_exp1, col_exp2, col_exp_space = st.columns([2, 2, 6])
+        
+        with col_exp1:
+            if st.button("🔽 Expandir Todos", key="expandir_todos_rpv"):
+                # Adicionar todos os IDs dos RPVs filtrados ao set de expandidos
+                for _, processo in df_filtrado.iterrows():
+                    rpv_id = processo.get("ID", "N/A")
+                    st.session_state.rpv_expanded_cards.add(rpv_id)
+                st.rerun()
+        
+        with col_exp2:
+            if st.button("🔼 Recolher Todos", key="recolher_todos_rpv"):
+                # Limpar o set de cards expandidos
+                st.session_state.rpv_expanded_cards.clear()
+                st.rerun()
+
+    # Paginação
+    if "current_page_rpvs" not in st.session_state:
+        st.session_state.current_page_rpvs = 1
     
-    items_per_page = 20
+    items_per_page = 10
     total_registros = len(df_filtrado)
     total_pages = math.ceil(total_registros / items_per_page) if items_per_page > 0 else 1
     
-    start_idx = (st.session_state.current_page_rpv - 1) * items_per_page
+    start_idx = (st.session_state.current_page_rpvs - 1) * items_per_page
     end_idx = start_idx + items_per_page
     df_paginado = df_filtrado.iloc[start_idx:end_idx]
 
-    # Exibir lista
+    # CSS para os cards
+    st.markdown("""
+    <style>
+    .rpv-card {
+        background: transparent !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 16px !important;
+        margin: 0 0 12px 0 !important;
+        box-shadow: none !important;
+        transition: all 0.3s ease !important;
+        overflow: hidden !important;
+    }
+    
+    .rpv-card:hover {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        border-color: transparent !important;
+    }
+    
+    .rpv-card.expanded {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+    }
+    
+    .card-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 8px !important;
+    }
+    
+    .processo-info {
+        font-weight: bold !important;
+        color: #2c3e50 !important;
+        font-size: 16px !important;
+    }
+    
+    .status-badge {
+        padding: 4px 8px !important;
+        border-radius: 12px !important;
+        font-size: 12px !important;
+        font-weight: bold !important;
+        text-align: center !important;
+    }
+    
+    .status-cadastro { background-color: #e3f2fd; color: #1976d2; }
+    .status-sac { background-color: #fff3e0; color: #f57c00; }
+    .status-admin { background-color: #f3e5f5; color: #7b1fa2; }
+    .status-rodrigo { background-color: #e8f5e8; color: #388e3c; }
+    .status-pagamento { background-color: #ffebee; color: #d32f2f; }
+    .status-finalizado { background-color: #e8f5e8; color: #2e7d32; }
+    
+    .grid-info {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+        gap: 10px !important;
+        margin-top: 12px !important;
+    }
+    
+    .info-item {
+        font-size: 13px !important;
+    }
+    
+    .info-label {
+        color: #666 !important;
+        font-weight: 500 !important;
+    }
+    
+    .info-value {
+        color: #2c3e50 !important;
+        margin-top: 2px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Lista de RPVs
     if not df_paginado.empty:
-        st.markdown(f'<p style="font-size: small; color: steelblue;">Mostrando {start_idx+1} a {min(end_idx, total_registros)} de {total_registros} RPVs</p>', unsafe_allow_html=True)
+        st.markdown(f"### 📋 Lista de RPVs ({total_registros} encontrados)")
         
-        # Cabeçalhos dinâmicos baseados no modo de exclusão
-        if st.session_state.modo_exclusao_rpv:
-            col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([0.5, 1, 2, 2, 1.5, 2])
-            with col_h1: st.markdown("**☑️**")
-            with col_h2: st.markdown("**Ação**")
-            with col_h3: st.markdown("**Processo**")
-            with col_h4: st.markdown("**Beneficiário**")
-            with col_h5: st.markdown("**Valor**")
-            with col_h6: st.markdown("**Status**")
-        else:
-            col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([1, 2, 2, 1.5, 2])
-            with col_h1: st.markdown("**Ação**")
-            with col_h2: st.markdown("**Processo**")
-            with col_h3: st.markdown("**Beneficiário**")
-            with col_h4: st.markdown("**Valor**")
-            with col_h5: st.markdown("**Status**")
-        
-        st.markdown('<hr style="margin-top: 0.1rem; margin-bottom: 0.5rem;" />', unsafe_allow_html=True)
-
-        for idx, rpv in df_paginado.iterrows():
-            rpv_id = rpv.get("ID", idx)
+        for _, rpv in df_paginado.iterrows():
+            rpv_id = rpv.get("ID", "N/A")
+            is_expanded = rpv_id in st.session_state.rpv_expanded_cards
             
-            if st.session_state.modo_exclusao_rpv:
-                col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([0.5, 1, 2, 2, 1.5, 2])
+            # Configurar estilo do card baseado no estado
+            card_class = "rpv-card expanded" if is_expanded else "rpv-card"
+            
+            with st.container():
+                if not is_expanded:
+                    st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
+                    
+                    # Header do card
+                    col_header1, col_header2 = st.columns([3, 1])
+                    
+                    with col_header1:
+                        st.markdown(f"**📄 {safe_get_value(rpv, 'Processo', 'Não informado')}**")
+                        st.markdown(f"👤 {safe_get_value(rpv, 'Beneficiário', 'Não informado')}")
+                    
+                    with col_header2:
+                        status_atual = rpv.get('Status', 'Não informado')
+                        status_class = {
+                            "Cadastro": "status-cadastro",
+                            "SAC - aguardando documentação": "status-sac",
+                            "Administrativo - aguardando documentação": "status-admin",
+                            "SAC - documentação pronta": "status-sac",
+                            "Administrativo - documentação pronta": "status-admin",
+                            "Enviado para Rodrigo": "status-rodrigo",
+                            "aguardando pagamento": "status-pagamento",
+                            "finalizado": "status-finalizado"
+                        }.get(status_atual, "status-cadastro")
+                        
+                        st.markdown(f'<div class="status-badge {status_class}">{status_atual}</div>', 
+                                  unsafe_allow_html=True)
+                    
+                    # Informações do grid
+                    st.markdown(f"""
+                    <div class="grid-info">
+                        <div class="info-item">
+                            <div class="info-label">💰 Valor RPV</div>
+                            <div class="info-value">{safe_get_value(rpv, 'Valor RPV', 'Não informado')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">📅 Mês Competência</div>
+                            <div class="info-value">{safe_get_value(rpv, 'Mês Competência', 'Não informado')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">📋 Assunto</div>
+                            <div class="info-value">{safe_get_value(rpv, 'Assunto', 'Não informado')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">🏛️ Órgão</div>
+                            <div class="info-value">{safe_get_value(rpv, 'Orgao Judicial', 'Não informado')[:20]}...</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Botão para expandir
+                    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 3])
+                    
+                    with col_btn1:
+                        if st.button("🔽 Expandir", key=f"expand_rpv_{rpv_id}"):
+                            st.session_state.rpv_expanded_cards.add(rpv_id)
+                            st.rerun()
+                    
+                    with col_btn2:
+                        # Verificar se o usuário pode editar este status
+                        status_atual = rpv.get("Status", "")
+                        pode_editar = pode_editar_status_rpv(status_atual, perfil_usuario)
+                        
+                        if pode_editar:
+                            if st.button("✏️ Editar", key=f"edit_rpv_{rpv_id}", type="primary"):
+                                st.session_state.rpv_expanded_cards.add(rpv_id)
+                                st.rerun()
+                        else:
+                            if st.button("👁️ Ver", key=f"view_rpv_{rpv_id}"):
+                                st.session_state.rpv_expanded_cards.add(rpv_id)
+                                st.rerun()
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
                 
-                with col_b1:
-                    # Seguir o padrão dos outros sistemas (alvarás/benefícios)
-                    rpv_id_str = str(rpv_id)
-                    current_value = rpv_id_str in [str(pid) for pid in st.session_state.processos_selecionados_rpv]
+                else:
+                    # Card expandido - mostrar abas
                     
-                    is_selected = st.checkbox(
-                        "Selecionar",
-                        value=current_value,
-                        key=f"check_rpv_{rpv_id}",
-                        label_visibility="collapsed",
-                        on_change=lambda rid=rpv_id: toggle_rpv_selection(rid)
-                    )
-                
-                with col_b2:
-                    if st.button("🔓 Abrir", key=f"abrir_rpv_id_{rpv_id}"):
-                        # Usar sistema de timestamp para requests de diálogo
-                        import time
-                        timestamp = str(int(time.time() * 1000))
-                        st.session_state[f"dialogo_rpv_request_{timestamp}"] = {
-                            "show_rpv_dialog": True,
-                            "rpv_aberto_id": rpv_id,
-                            "timestamp": timestamp
-                        }
-                
-                with col_b3: st.write(f"**{safe_get_value(rpv, 'Processo', 'N/A')}**")
-                with col_b4: st.write(safe_get_value(rpv, 'Beneficiário', 'N/A'))
-                with col_b5:
-                    valor_rpv = safe_get_value(rpv, 'Valor RPV', 'Não informado')
-                    # Se for um valor numérico válido, formatar como moeda
-                    try:
-                        valor_num = float(valor_rpv.replace('R$', '').replace(',', '.').strip())
-                        st.write(f"R$ {valor_num:,.2f}")
-                    except:
-                        st.write(valor_rpv)
-                with col_b6:
-                    status_atual = rpv.get('Status', 'N/A')
-                    status_secundario = rpv.get('Status Secundario', '')
+                    # Header do card expandido
+                    col_header_exp1, col_header_exp2 = st.columns([4, 1])
                     
-                    # Cores para os diferentes status
-                    cores = {
-                        "Cadastro": "🔵",
-                        "SAC - aguardando documentação": "🟠",
-                        "Administrativo - aguardando documentação": "🟠",
-                        "SAC - documentação pronta": "🟡",
-                        "Administrativo - documentação pronta": "🟡",
-                        "Enviado para Rodrigo": "🟣",
-                        "aguardando pagamento": "🔴",
-                        "finalizado": "🟢"
-                    }
+                    with col_header_exp1:
+                        st.markdown(f"### 📄 {safe_get_value(rpv, 'Processo', 'Não informado')}")
                     
-                    cor = cores.get(status_atual, "⚫")
+                    with col_header_exp2:
+                        if st.button("🔼 Recolher", key=f"collapse_rpv_{rpv_id}"):
+                            st.session_state.rpv_expanded_cards.discard(rpv_id)
+                            st.rerun()
                     
-                    # Se tem status simultâneo, mostrar ambos - converter para string segura
-                    status_sec_str = str(status_secundario) if status_secundario is not None else ""
-                    if status_sec_str and status_sec_str.strip() != "" and status_sec_str.lower() not in ['nan', 'none']:
-                        cor_sec = cores.get(status_sec_str, "⚫")
-                        st.write(f"{cor} {status_atual}")
-                        st.write(f"{cor_sec} {status_sec_str}")
-                    else:
-                        st.write(f"{cor} {status_atual}")
-            else:
-                # Renderização do resumo compacto solicitado: Processo + (Valor RPV, Mês Competência, Assunto, Órgão)
-                col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns([1, 2, 2, 1.5, 2])
-
-                with col_b1:
-                    if st.button("🔓 Abrir", key=f"abrir_rpv_id_{rpv_id}"):
-                        # Usar sistema de timestamp para requests de diálogo
-                        import time
-                        timestamp = str(int(time.time() * 1000))
-                        st.session_state[f"dialogo_rpv_request_{timestamp}"] = {
-                            "show_rpv_dialog": True,
-                            "rpv_aberto_id": rpv_id,
-                            "timestamp": timestamp
-                        }
-
-                # Processo em destaque + status pequeno
-                with col_b2:
-                    processo_txt = safe_get_value(rpv, 'Processo', 'N/A')
-                    status_txt = safe_get_value(rpv, 'Status', 'N/A')
-                    st.markdown(
-                        f"**{processo_txt}**<br>"
-                        f"<span style='background:#eef2ff;padding:4px 8px;border-radius:10px;font-size:12px;color:#143d59;'>{status_txt}</span>",
-                        unsafe_allow_html=True
-                    )
-
-                # Valor RPV e Mês Competência
-                with col_b3:
-                    valor_rpv = safe_get_value(rpv, 'Valor RPV', 'Não informado')
-                    mes_comp = safe_get_value(rpv, 'Mês Competência', '')
-                    # formatar valor se possível
-                    valor_display = valor_rpv
-                    try:
-                        valor_num = float(valor_rpv.replace('R$', '').replace(',', '.').strip())
-                        valor_display = f"R$ {valor_num:,.2f}"
-                    except:
-                        valor_display = valor_rpv
-
-                    st.markdown(
-                        f"<div style='font-size:12px;color:#6c757d;'>💰 Valor</div>"
-                        f"<div style='font-weight:600'>{valor_display}</div>"
-                        f"<div style='margin-top:6px;font-size:12px;color:#6c757d;'>📅 Competência</div>"
-                        f"<div>{mes_comp}</div>",
-                        unsafe_allow_html=True
-                    )
-
-                # Assunto
-                with col_b4:
-                    assunto_txt = safe_get_value(rpv, 'Assunto', 'N/A')
-                    st.markdown(
-                        f"<div style='font-size:12px;color:#6c757d;'>📝 Assunto</div>"
-                        f"<div style='font-weight:600'>{assunto_txt}</div>",
-                        unsafe_allow_html=True
-                    )
-
-                # Órgão (truncado)
-                with col_b5:
-                    orgao_txt = safe_get_value(rpv, 'Orgao Judicial', 'N/A')
-                    orgao_trunc = orgao_txt[:36] + '...' if len(orgao_txt) > 36 else orgao_txt
-                    st.markdown(
-                        f"<div style='font-size:12px;color:#6c757d;'>🏛️ Órgão</div>"
-                        f"<div style='font-weight:600'>{orgao_trunc}</div>",
-                        unsafe_allow_html=True
-                    )
-
+                    # Abas do RPV expandido
+                    tab_info, tab_acoes, tab_historico = st.tabs(["📋 Informações", "⚙️ Ações", "📜 Histórico"])
+                    
+                    # Definir status atual
+                    status_atual = safe_get_value(rpv, 'Status', 'Não informado')
+                    
+                    with tab_info:
+                        render_tab_info_rpv(rpv, rpv_id)
+                    
+                    with tab_acoes:
+                        render_tab_acoes_rpv(df_filtrado, rpv, rpv_id, status_atual, perfil_usuario)
+                    
+                    with tab_historico:
+                        render_tab_historico_rpv(rpv, rpv_id)
+                    
     else:
         st.info("Nenhum RPV encontrado com os filtros aplicados.")
-
-    # Implementação com st.dialog
-    if st.session_state.show_rpv_dialog:
-        rpv_id_aberto = st.session_state.rpv_aberto_id
-        linha_rpv = df[df["ID"] == rpv_id_aberto]
-        titulo = f"Detalhes do RPV: {linha_rpv.iloc[0].get('Processo', 'Não informado')}" if not linha_rpv.empty else "Detalhes do RPV"
-
-        @st.dialog(titulo, width="large")
-        def rpv_dialog():
-            if not linha_rpv.empty:
-                status_atual = linha_rpv.iloc[0].get("Status", "")
-                interface_edicao_rpv(df, rpv_id_aberto, status_atual, perfil_usuario)
-            else:
-                st.error("❌ RPV não encontrado.")
-            
-            if st.button("Fechar", key="fechar_rpv_dialog"):
-                st.session_state.show_rpv_dialog = False
-                st.rerun()
-        
-        rpv_dialog()
 
     # Controles de paginação
     if total_pages > 1:
         st.markdown("---")
         col_nav1, col_nav2, col_nav3 = st.columns([3, 2, 3])
+        
         with col_nav1:
-            if st.session_state.current_page_rpv > 1:
-                if st.button("<< Primeira", key="rpv_primeira"): st.session_state.current_page_rpv = 1; st.rerun()
-                if st.button("< Anterior", key="rpv_anterior"): st.session_state.current_page_rpv -= 1; st.rerun()
+            if st.session_state.current_page_rpvs > 1:
+                if st.button("<< Primeira", key="rpv_lista_primeira"):
+                    st.session_state.current_page_rpvs = 1
+                    st.rerun()
+                if st.button("< Anterior", key="rpv_lista_anterior"):
+                    st.session_state.current_page_rpvs -= 1
+                    st.rerun()
+        
         with col_nav2:
-            st.write(f"Página {st.session_state.current_page_rpv} de {total_pages}")
+            st.write(f"Página {st.session_state.current_page_rpvs} de {total_pages}")
+        
         with col_nav3:
-            if st.session_state.current_page_rpv < total_pages:
-                if st.button("Próxima >", key="rpv_proxima"): st.session_state.current_page_rpv += 1; st.rerun()
-                if st.button("Última >>", key="rpv_ultima"): st.session_state.current_page_rpv = total_pages; st.rerun()
+            if st.session_state.current_page_rpvs < total_pages:
+                if st.button("Próxima >", key="rpv_lista_proxima"):
+                    st.session_state.current_page_rpvs += 1
+                    st.rerun()
+                if st.button("Última >>", key="rpv_lista_ultima"):
+                    st.session_state.current_page_rpvs = total_pages
+                    st.rerun()
 
-def safe_get_value(data, key, default=''):
-    """Obtém valor de forma segura, tratando NaN e valores None"""
-    value = data.get(key, default)
-    if value is None:
-        return default
-    # Converter para string e verificar se não é 'nan'
-    str_value = str(value)
-    if str_value.lower() in ['nan', 'none', '', 'null']:
-        return default
-    return str_value
+def render_tab_info_rpv(processo, rpv_id):
+    """Renderiza a tab de informações do RPV"""
+        
+    col_det1, col_det2 = st.columns(2)
+    
+    with col_det1:
+        st.markdown("**📋 Dados Básicos:**")
+        st.write(f"**CPF:** {safe_get_value(processo, 'CPF')}")
+        st.write(f"**Agência:** {safe_get_value(processo, 'Agência')}")
+        st.write(f"**Conta:** {safe_get_value(processo, 'Conta')}")
+        st.write(f"**Banco:** {safe_get_value(processo, 'Banco')}")
+    
+    with col_det2:
+        st.markdown("**💰 Valores:**")
+        st.write(f"**Valor RPV:** {safe_get_value(processo, 'Valor RPV')}")
+        st.write(f"**Mês Competência:** {safe_get_value(processo, 'Mês Competência')}")
+        st.write(f"**Assunto:** {safe_get_value(processo, 'Assunto')}")
+        st.write(f"**Órgão Judicial:** {safe_get_value(processo, 'Orgao Judicial')}")
+    
+    # Mostrar detalhes dos honorários contratuais
+    mostrar_detalhes_hc_rpv(processo, f"info_{rpv_id}")
+    
+    # Observações
+    if safe_get_value(processo, 'Observações'):
+        st.markdown("### 📝 Observações")
+        st.info(safe_get_value(processo, 'Observações'))
+
+def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
+    """Renderiza a tab de ações do RPV - mantém toda a lógica original"""
+    
+    # Usar a função original de edição, mas sem o cabeçalho
+    linha_processo_df = df[df["ID"].astype(str) == str(rpv_id)]
+    
+    if len(linha_processo_df) == 0:
+        st.error(f"❌ RPV com ID {rpv_id} não encontrado")
+        return
+    
+    linha_processo = linha_processo_df.iloc[0]
+    numero_processo = linha_processo.get("Processo", "N/A")
+    
+    # Renderizar ações baseadas no status - usando a lógica original da interface_edicao_rpv
+    if status_atual == "Cadastro" and perfil_usuario in ["Cadastrador", "Admin"]:
+        st.info("Após finalizar o cadastro, este RPV será enviado para os perfis SAC e Administrativo.")
+        
+        if st.button("✅ Finalizar Cadastro e Enviar", type="primary", key=f"finalizar_cadastro_tab_{rpv_id}"):
+            idx = df[df["ID"] == rpv_id].index[0]
+            
+            # Iniciar status simultâneo
+            st.session_state.df_editado_rpv = iniciar_status_simultaneo(
+                st.session_state.df_editado_rpv,
+                rpv_id,
+                "SAC - aguardando documentação",
+                "Administrativo - aguardando documentação"
+            )
+            
+            # Adicionar data de envio
+            now = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
+            st.session_state.df_editado_rpv.loc[idx, "Data Envio"] = now
+            st.session_state.df_editado_rpv.loc[idx, "Enviado Por"] = str(st.session_state.get("usuario", "Sistema"))
+            
+            save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
+            st.session_state.rpv_expanded_cards.discard(rpv_id)
+            st.success("✅ RPV enviado simultaneamente para SAC e Administrativo!")
+            st.rerun()
+    
+    elif (perfil_usuario in ["SAC", "Admin"]) and ("SAC - aguardando documentação" in obter_status_simultaneo_ativo(linha_processo)):
+        st.info("Marque quando a documentação SAC estiver pronta.")
+        
+        # Verificar se já está marcado
+        sac_doc_pronta = linha_processo.get("SAC Documentacao Pronta", "") == "Sim"
+        
+        if not sac_doc_pronta:
+            if st.checkbox("✅ Documentação SAC pronta", key=f"sac_doc_tab_{rpv_id}"):
+                if st.button("🔄 Marcar SAC como Pronto", type="primary", key=f"marcar_sac_tab_{rpv_id}"):
+                    idx = df[df["ID"] == rpv_id].index[0]
+                    
+                    # Atualizar status SAC (sempre no status principal)
+                    st.session_state.df_editado_rpv.loc[idx, "Status"] = "SAC - documentação pronta"
+                    st.session_state.df_editado_rpv.loc[idx, "SAC Documentacao Pronta"] = "Sim"
+                    st.session_state.df_editado_rpv.loc[idx, "Data SAC Documentacao"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
+                    st.session_state.df_editado_rpv.loc[idx, "SAC Responsavel"] = str(st.session_state.get("usuario", "Sistema"))
+                    
+                    save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
+                    st.session_state.rpv_expanded_cards.discard(rpv_id)
+                    st.success("✅ Status SAC atualizado!")
+                    st.rerun()
+        else:
+            st.success(f"✅ SAC já marcou documentação como pronta em {linha_processo.get('Data SAC Documentacao', 'N/A')}")
+    
+    elif (perfil_usuario in ["Administrativo", "Admin"]) and ("Administrativo - aguardando documentação" in obter_status_simultaneo_ativo(linha_processo)):
+        st.info("Marque quando a documentação Administrativa estiver pronta.")
+        
+        # Verificar se já está marcado
+        admin_doc_pronta = linha_processo.get("Admin Documentacao Pronta", "") == "Sim"
+        
+        if not admin_doc_pronta:
+            if st.checkbox("✅ Documentação Administrativa pronta", key=f"admin_doc_tab_{rpv_id}"):
+                if st.button("🔄 Marcar Administrativo como Pronto", type="primary", key=f"marcar_admin_tab_{rpv_id}"):
+                    idx = df[df["ID"] == rpv_id].index[0]
+                    
+                    # Atualizar status Administrativo (sempre no status secundário)
+                    st.session_state.df_editado_rpv.loc[idx, "Status Secundario"] = "Administrativo - documentação pronta"
+                    st.session_state.df_editado_rpv.loc[idx, "Admin Documentacao Pronta"] = "Sim"
+                    st.session_state.df_editado_rpv.loc[idx, "Data Admin Documentacao"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
+                    st.session_state.df_editado_rpv.loc[idx, "Admin Responsavel"] = str(st.session_state.get("usuario", "Sistema"))
+                    
+                    save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
+                    st.session_state.rpv_expanded_cards.discard(rpv_id)
+                    st.success("✅ Status Administrativo atualizado!")
+                    st.rerun()
+        else:
+            st.success(f"✅ Administrativo já marcou documentação como pronta em {linha_processo.get('Data Admin Documentacao', 'N/A')}")
+    
+    # SEÇÃO DE HONORÁRIOS CONTRATUAIS - Disponível para Financeiro e Admin
+    if perfil_usuario in ["Financeiro", "Admin"]:
+        st.markdown("---")
+        st.markdown("### 💼 Honorários Contratuais")
+        
+        with st.form(f"form_hc_rpv_tab_{rpv_id}"):
+            col_hc1, col_hc2 = st.columns(2)
+            
+            with col_hc1:
+                honorarios_contratuais = st.number_input(
+                    "Honorário Contratual 1:",
+                    min_value=0.0,
+                    value=safe_get_hc_value_rpv(linha_processo, "Honorarios Contratuais"),
+                    step=0.01,
+                    format="%.2f",
+                    help="Valor principal dos honorários contratuais",
+                    key=f"hc_rpv_tab_{rpv_id}"
+                )
+                
+                # Campos HC adicionais
+                hc1_valor, hc2_valor = 0.0, 0.0
+                nivel_hc = st.session_state.get(f"hc_nivel_rpv_tab_{rpv_id}", 0)
+                
+                if nivel_hc >= 1:
+                    hc1_valor = st.number_input(
+                        "Honorário Contratual 2:",
+                        min_value=0.0,
+                        value=safe_get_hc_value_rpv(linha_processo, "HC1"),
+                        step=0.01,
+                        format="%.2f",
+                        key=f"hc1_rpv_tab_{rpv_id}"
+                    )
+                
+                if nivel_hc >= 2:
+                    hc2_valor = st.number_input(
+                        "Honorário Contratual 3:",
+                        min_value=0.0,
+                        value=safe_get_hc_value_rpv(linha_processo, "HC2"),
+                        step=0.01,
+                        format="%.2f",
+                        key=f"hc2_rpv_tab_{rpv_id}"
+                    )
+            
+            with col_hc2:
+                # Mostrar total atual
+                total_atual = calcular_total_hc_rpv(linha_processo)
+                st.metric("Total HC Atual", f"R$ {total_atual:.2f}")
+                
+                # Mostrar detalhamento se há HCs adicionais
+                if nivel_hc > 0:
+                    st.markdown("**Detalhamento:**")
+                    hc_principal = safe_get_hc_value_rpv(linha_processo, "Honorarios Contratuais")
+                    st.write(f"HC1: R$ {hc_principal:.2f}")
+                    if nivel_hc >= 1:
+                        hc1_atual = safe_get_hc_value_rpv(linha_processo, "HC1")
+                        st.write(f"HC2: R$ {hc1_atual:.2f}")
+                    if nivel_hc >= 2:
+                        hc2_atual = safe_get_hc_value_rpv(linha_processo, "HC2")
+                        st.write(f"HC3: R$ {hc2_atual:.2f}")
+            
+            # Botão para salvar honorários
+            salvar_hc = st.form_submit_button("💾 Salvar Honorários Contratuais", type="primary")
+            
+            if salvar_hc:
+                try:
+                    idx = df[df["ID"] == rpv_id].index[0]
+                    
+                    # Salvar valores
+                    st.session_state.df_editado_rpv.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
+                    
+                    # Salvar HCs adicionais se foram preenchidos
+                    if nivel_hc >= 1:
+                        st.session_state.df_editado_rpv.loc[idx, "HC1"] = hc1_valor
+                    if nivel_hc >= 2:
+                        st.session_state.df_editado_rpv.loc[idx, "HC2"] = hc2_valor
+                    
+                    # Salvar no GitHub
+                    save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
+                    
+                    total_novo = honorarios_contratuais + hc1_valor + hc2_valor
+                    st.success(f"✅ Honorários salvos! Total: R$ {total_novo:.2f}")
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro ao salvar honorários: {str(e)}")
+    
+    # Botão para expandir HCs (fora do form)
+    if perfil_usuario in ["Financeiro", "Admin"]:
+        if st.button("➕ Adicionar Honorários Contratuais", key=f"btn_hc_tab_{rpv_id}"):
+            nivel_atual = st.session_state.get(f"hc_nivel_rpv_tab_{rpv_id}", 0)
+            st.session_state[f"hc_nivel_rpv_tab_{rpv_id}"] = min(nivel_atual + 1, 2)
+            st.rerun()
+    
+    # Outros status e ações...
+    if status_atual not in ["Cadastro"] and not pode_editar_status_rpv(status_atual, perfil_usuario):
+        st.info(f"Status Atual: {status_atual}")
+        if perfil_usuario != "Admin":
+            st.warning(f"⚠️ Seu perfil ({perfil_usuario}) não pode editar este status.")
+
+def render_tab_historico_rpv(processo, rpv_id):
+    """Renderiza a tab de histórico do RPV"""
+    
+    st.markdown("### 📜 Histórico do Processo")
+    
+    # Timeline do processo
+    status_atual = safe_get_value(processo, 'Status')
+    
+    # Etapas do fluxo RPV
+    etapas = [
+        {
+            "titulo": "📝 Cadastrado",
+            "data": safe_get_value(processo, 'Data Cadastro'),
+            "responsavel": safe_get_value(processo, 'Cadastrado Por'),
+            "concluida": True  # Sempre concluída se existe
+        },
+        {
+            "titulo": "📤 Enviado para SAC/Administrativo",
+            "data": safe_get_value(processo, 'Data Envio'),
+            "responsavel": safe_get_value(processo, 'Enviado Por'),
+            "concluida": status_atual not in ["Cadastro"]
+        },
+        {
+            "titulo": "📋 SAC - Documentação Pronta",
+            "data": safe_get_value(processo, 'Data SAC Documentacao'),
+            "responsavel": safe_get_value(processo, 'SAC Responsavel'),
+            "concluida": safe_get_value(processo, 'SAC Documentacao Pronta') == "Sim"
+        },
+        {
+            "titulo": "🏢 Administrativo - Documentação Pronta",
+            "data": safe_get_value(processo, 'Data Admin Documentacao'),
+            "responsavel": safe_get_value(processo, 'Admin Responsavel'),
+            "concluida": safe_get_value(processo, 'Admin Documentacao Pronta') == "Sim"
+        },
+        {
+            "titulo": "💰 Validado pelo Financeiro",
+            "data": safe_get_value(processo, 'Data Validacao'),
+            "responsavel": safe_get_value(processo, 'Validado Por'),
+            "concluida": safe_get_value(processo, 'Validado Financeiro') == "Sim"
+        },
+        {
+            "titulo": "📨 Comprovante de Recebimento",
+            "data": safe_get_value(processo, 'Data Recebimento'),
+            "responsavel": safe_get_value(processo, 'Recebido Por'),
+            "concluida": safe_get_value(processo, 'Comprovante Recebimento') != ""
+        },
+        {
+            "titulo": "🎯 Finalizado",
+            "data": safe_get_value(processo, 'Data Finalizacao'),
+            "responsavel": safe_get_value(processo, 'Finalizado Por'),
+            "concluida": status_atual == "finalizado"
+        }
+    ]
+    
+    for i, etapa in enumerate(etapas):
+        if etapa["concluida"] and etapa["data"] != "Não informado":
+            # Etapa concluída
+            st.markdown(f"""
+            <div style="border-left: 4px solid #28a745; padding-left: 16px; margin-bottom: 16px;">
+                <div style="color: #28a745; font-weight: bold;">✅ {etapa["titulo"]}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">
+                    📅 {etapa["data"]}<br>
+                    👤 {etapa["responsavel"]}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        elif etapa["concluida"]:
+            # Etapa atual (sem data específica)
+            st.markdown(f"""
+            <div style="border-left: 4px solid #ffc107; padding-left: 16px; margin-bottom: 16px;">
+                <div style="color: #ffc107; font-weight: bold;">🔄 {etapa["titulo"]}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Em andamento</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Etapa futura
+            st.markdown(f"""
+            <div style="border-left: 4px solid #dee2e6; padding-left: 16px; margin-bottom: 16px;">
+                <div style="color: #6c757d; font-weight: bold;">⏳ {etapa["titulo"]}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Pendente</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+def confirmar_exclusao_massa_rpv(df, processos_selecionados):
+    """Função para confirmar exclusão em massa de RPVs"""
+    
+    @st.dialog("🗑️ Confirmar Exclusão em Massa", width="large")
+    def dialog_confirmacao():
+        st.error("⚠️ **ATENÇÃO:** Esta ação não pode ser desfeita!")
+        
+        # Mostrar processos que serão excluídos
+        st.markdown(f"### Você está prestes a excluir **{len(processos_selecionados)}** processo(s):")
+        
+        # Converter IDs para string para garantir comparação correta
+        processos_selecionados_str = [str(pid) for pid in processos_selecionados]
+        processos_para_excluir = df[df["ID"].astype(str).isin(processos_selecionados_str)]
+        
+        for _, processo in processos_para_excluir.iterrows():
+            st.markdown(f"- **{processo.get('Processo', 'Não informado')}** - {processo.get('Beneficiário', 'Não informado')}")
+        
+        st.markdown("---")
+        
+        col_conf, col_canc = st.columns(2)
+        
+        with col_conf:
+            if st.button("✅ Confirmar Exclusão", type="primary", use_container_width=True):
+                # Importar sistema de log
+                from components.log_exclusoes import registrar_exclusao
+                
+                usuario_atual = st.session_state.get("usuario", "Sistema")
+                
+                # Registrar cada exclusão no log
+                for _, processo in processos_para_excluir.iterrows():
+                    registrar_exclusao(
+                        tipo_processo="RPV",
+                        processo_numero=processo.get('Processo', 'Não informado'),
+                        dados_excluidos=processo,
+                        usuario=usuario_atual
+                    )
+                
+                # Converter IDs para o mesmo tipo para garantir comparação
+                processos_selecionados_str = [str(pid) for pid in processos_selecionados]
+                
+                # Remover processos do DataFrame
+                st.session_state.df_editado_rpv = st.session_state.df_editado_rpv[
+                    ~st.session_state.df_editado_rpv["ID"].astype(str).isin(processos_selecionados_str)
+                ].reset_index(drop=True)
+                
+                # Salvar no GitHub
+                with st.spinner("Salvando alterações..."):
+                    novo_sha = save_data_to_github_seguro(
+                        st.session_state.df_editado_rpv,
+                        "lista_rpv.csv",
+                        "file_sha_rpv"
+                    )
+                
+                if novo_sha:
+                    st.session_state.file_sha_rpv = novo_sha
+                    st.success(f"✅ {len(processos_selecionados)} processo(s) excluído(s) com sucesso!")
+                    
+                    # Resetar estado de exclusão
+                    st.session_state.modo_exclusao_rpv = False
+                    st.session_state.processos_selecionados_rpv = []
+                    
+                    st.rerun()
+                else:
+                    st.error("❌ Erro ao salvar. Exclusão cancelada.")
+        
+        with col_canc:
+            if st.button("❌ Cancelar", use_container_width=True):
+                st.rerun()
+    
+    dialog_confirmacao()
 
 def safe_get_hc_value_rpv(data, key, default=0.0):
     """Obtém valor de honorário contratual de forma segura, tratando NaN e valores None"""
@@ -933,9 +1282,9 @@ def exibir_info_estilo_compacto(linha_rpv):
     .compact-item {
         text-align: center;
         padding: 10px;
-        background: white;
+        background: transparent;
         border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: none;
     }
     .compact-label {
         font-size: 12px;
@@ -1836,14 +2185,8 @@ def interface_cadastro_rpv(df, perfil_usuario):
         
         st.markdown("---")
 
-    st.subheader("📝 Cadastrar Novo RPV")
-
-    # Remover formulário para permitir que file_uploader funcione corretamente
-    # O problema é que st.form não funciona bem com accept_multiple_files=True
-    
     col1, col2 = st.columns(2)
     
-    # Usar chaves únicas para manter estado
     processo_key = "new_rpv_processo"
     beneficiario_key = "new_rpv_beneficiario"
     cpf_key = "new_rpv_cpf"
@@ -1854,13 +2197,13 @@ def interface_cadastro_rpv(df, perfil_usuario):
     competencia_key = "new_rpv_competencia"
     
     with col1:
-        processo = st.text_input("Número do Processo:", key=processo_key)
-        beneficiario = st.text_input("Beneficiário:", key=beneficiario_key)
-        cpf = st.text_input("CPF:", key=cpf_key)
+        processo = st.text_input("Número do Processo: *", key=processo_key)
+        beneficiario = st.text_input("Beneficiário: *", key=beneficiario_key)
+        cpf = st.text_input("CPF: *", key=cpf_key)
         
         # Campo Assunto com nova interface
         assunto_selecionado = campo_assunto_rpv(
-            label="Assunto:",
+            label="Assunto: *",
             key_prefix="new_rpv_assunto"
         )
         
@@ -1869,7 +2212,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
         
         # Campo Órgão Judicial com nova interface
         orgao_selecionado = campo_orgao_rpv(
-            label="Órgão Judicial:",
+            label="Órgão Judicial: *",
             key_prefix="new_rpv_orgao"
         )
         
@@ -1877,29 +2220,53 @@ def interface_cadastro_rpv(df, perfil_usuario):
         orgao_final = orgao_selecionado if orgao_selecionado else ""
         
         solicitar_certidao = st.selectbox(
-            "Solicitar Certidão?",
+            "Solicitar Certidão? *",
             options=["Sim", "Não"],
             key=certidao_key
         )
         
         # Campo Banco
         banco_rpv = st.selectbox(
-            "Banco:",
+            "Banco: *",
             options=["CEF", "BB"],
             key="new_rpv_banco"
         )
         
         # Novo campo: Mês de Competência
-        mes_competencia = st.date_input(
-            "Mês de Competência:",
-            value=None,
-            help="Selecione o mês e ano de competência",
-            format="DD/MM/YYYY",
+        mes_competencia_raw = st.text_input(
+            "Mês de Competência: *",
+            value="",
+            help="Digite no formato mm/yyyy (ex: 12/2024)",
+            placeholder="mm/yyyy",
+            max_chars=7,
             key=competencia_key
         )
+        
+        # Processar e validar formato mm/yyyy
+        mes_competencia = None
+        if mes_competencia_raw:
+            # Remover espaços e garantir formato
+            mes_competencia_limpo = mes_competencia_raw.strip()
+            # Verificar se tem o formato básico mm/yyyy
+            if len(mes_competencia_limpo) == 7 and mes_competencia_limpo[2] == '/':
+                try:
+                    mes, ano = mes_competencia_limpo.split('/')
+                    if len(mes) == 2 and len(ano) == 4 and mes.isdigit() and ano.isdigit():
+                        mes_int = int(mes)
+                        ano_int = int(ano)
+                        if 1 <= mes_int <= 12 and 2020 <= ano_int <= 2030:
+                            mes_competencia = mes_competencia_limpo
+                        else:
+                            st.warning("⚠️ Mês deve ser entre 01-12 e ano entre 2020-2030")
+                    else:
+                        st.warning("⚠️ Use apenas números no formato mm/yyyy")
+                except:
+                    st.warning("⚠️ Formato inválido. Use mm/yyyy (ex: 12/2024)")
+            elif mes_competencia_limpo:
+                st.warning("⚠️ Formato deve ser mm/yyyy (ex: 12/2024)")
     
     with col2:
-        valor_rpv = st.text_input("Valor da RPV (R$):", key=valor_key)
+        valor_rpv = st.text_input("Valor da RPV (R$): *", key=valor_key)
         observacoes = st.text_area("Observações:", height=125, key=obs_key)
         
         # Checkbox para anexar múltiplos PDFs
@@ -1908,14 +2275,14 @@ def interface_cadastro_rpv(df, perfil_usuario):
         # Usar keys diferentes para múltiplos vs único para evitar conflitos
         if anexar_multiplos_pdf:
             pdf_rpv = st.file_uploader(
-                "PDFs do RPV:",
+                "PDFs do RPV: *",
                 type=["pdf"],
                 accept_multiple_files=True,
                 key="pdf_rpv_multiplos"
             )
         else:
             pdf_rpv = st.file_uploader(
-                "PDF do RPV:",
+                "PDF do RPV: *",
                 type=["pdf"],
                 key="pdf_rpv_unico"
             )
@@ -1942,18 +2309,61 @@ def interface_cadastro_rpv(df, perfil_usuario):
                     st.success(f"🆕 Novo órgão '{orgao_processado}' salvo permanentemente!")
             orgao_final = orgao_processado
         
-        # Validação principal considerando múltiplos ou único arquivo
+        # =====================================
+        # VALIDAÇÃO COMPLETA DE CAMPOS OBRIGATÓRIOS
+        # =====================================
+        
+        campos_vazios = []
+        
+        # Validar campos de texto obrigatórios
+        if not processo or processo.strip() == "":
+            campos_vazios.append("Número do Processo")
+        if not beneficiario or beneficiario.strip() == "":
+            campos_vazios.append("Beneficiário")
+        if not cpf or cpf.strip() == "":
+            campos_vazios.append("CPF")
+        if not valor_rpv or valor_rpv.strip() == "":
+            campos_vazios.append("Valor da RPV")
+        if not assunto_final or assunto_final.strip() == "":
+            campos_vazios.append("Assunto")
+        if not orgao_final or orgao_final.strip() == "":
+            campos_vazios.append("Órgão Judicial")
+        
+        # Validar banco (já vem selecionado por padrão, mas verificar)
+        if "new_rpv_banco" not in st.session_state or not st.session_state.new_rpv_banco:
+            campos_vazios.append("Banco")
+        else:
+            banco_rpv = st.session_state.new_rpv_banco
+        
+        # Validar mês de competência
+        if not mes_competencia:
+            campos_vazios.append("Mês de Competência")
+        
+        # Validar solicitar certidão (já vem selecionado por padrão, mas verificar)
+        if not solicitar_certidao:
+            campos_vazios.append("Solicitar Certidão")
+        
+        # Validar PDF(s)
         pdf_valido = False
         if anexar_multiplos_pdf:
-            pdf_valido = pdf_rpv and len(pdf_rpv) > 0
-        else:
-            pdf_valido = pdf_rpv is not None
-        
-        if not processo or not beneficiario or not pdf_valido:
-            if anexar_multiplos_pdf:
-                st.error("❌ Preencha os campos Processo, Beneficiário e anexe pelo menos um PDF do RPV.")
+            if pdf_rpv and len(pdf_rpv) > 0:
+                pdf_valido = True
             else:
-                st.error("❌ Preencha os campos Processo, Beneficiário e anexe o PDF do RPV.")
+                campos_vazios.append("PDFs do RPV")
+        else:
+            if pdf_rpv is not None:
+                pdf_valido = True
+            else:
+                campos_vazios.append("PDF do RPV")
+        
+        # Se há campos vazios, exibir erro detalhado
+        if campos_vazios:
+            if len(campos_vazios) == 1:
+                st.error(f"❌ O campo obrigatório **{campos_vazios[0]}** deve ser preenchido.")
+            else:
+                campos_texto = ", ".join(campos_vazios[:-1]) + " e " + campos_vazios[-1]
+                st.error(f"❌ Os seguintes campos obrigatórios devem ser preenchidos: **{campos_texto}**.")
+        # Validações adicionais de formato
         elif mes_competencia and not validar_mes_competencia(mes_competencia):
             st.error("❌ Mês de competência deve estar no formato mm/yyyy (ex: 12/2024).")
         else:
