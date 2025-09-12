@@ -1934,16 +1934,15 @@ def interface_lista_alvaras(df, perfil_usuario):
         border-radius: 8px;
         padding: 12px;
         margin-bottom: 8px;
-        background-color: #fafbfc;
+        background-color: transparent;
         transition: all 0.3s ease;
     }
     .alvara-card:hover {
         border-color: #0066cc;
         box-shadow: 0 2px 8px rgba(0,102,204,0.15);
-        background-color: #f8f9ff;
     }
     .alvara-card.expanded {
-        background-color: #f0f4ff;
+        background-color: transparent;
         border-color: #0066cc;
         border-width: 2px;
         box-shadow: 0 4px 12px rgba(0,102,204,0.2);
