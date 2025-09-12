@@ -489,82 +489,69 @@ def interface_lista_rpv(df, perfil_usuario):
     end_idx = start_idx + items_per_page
     df_paginado = df_filtrado.iloc[start_idx:end_idx]
 
-    # CSS para os cards
+    # CSS para cards dropdown (exatamente igual ao benefícios)
     st.markdown("""
     <style>
     .rpv-card {
-        background: transparent !important;
-        border: none !important;
-        border-radius: 8px !important;
-        padding: 16px !important;
-        margin: 0 0 12px 0 !important;
-        box-shadow: none !important;
-        transition: all 0.3s ease !important;
-        overflow: hidden !important;
+        border: none;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 8px;
+        background-color: transparent;
+        transition: all 0.3s ease;
     }
-    
     .rpv-card:hover {
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-        border-color: transparent !important;
+        border-color: transparent;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    
     .rpv-card.expanded {
-        display: none !important;
-        visibility: hidden !important;
-        height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: none !important;
-        background: transparent !important;
+        background-color: transparent;
+        border-color: transparent;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
-    
-    .card-header {
-        display: flex !important;
-        justify-content: space-between !important;
-        align-items: center !important;
-        margin-bottom: 8px !important;
+    .rpv-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
     }
-    
-    .processo-info {
-        font-weight: bold !important;
-        color: #2c3e50 !important;
-        font-size: 16px !important;
+    .rpv-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 8px;
+        margin-top: 8px;
     }
-    
-    .status-badge {
-        padding: 4px 8px !important;
-        border-radius: 12px !important;
-        font-size: 12px !important;
-        font-weight: bold !important;
-        text-align: center !important;
-    }
-    
-    .status-cadastro { background-color: #e3f2fd; color: #1976d2; }
-    .status-sac { background-color: #fff3e0; color: #f57c00; }
-    .status-admin { background-color: #f3e5f5; color: #7b1fa2; }
-    .status-rodrigo { background-color: #e8f5e8; color: #388e3c; }
-    .status-pagamento { background-color: #ffebee; color: #d32f2f; }
-    .status-finalizado { background-color: #e8f5e8; color: #2e7d32; }
-    
-    .grid-info {
-        display: grid !important;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
-        gap: 10px !important;
-        margin-top: 12px !important;
-    }
-    
     .info-item {
-        font-size: 13px !important;
+        background: transparent;
+        padding: 6px 8px;
+        border-radius: 4px;
+        border-left: 3px solid #0066cc;
     }
-    
     .info-label {
-        color: #666 !important;
-        font-weight: 500 !important;
+        font-size: 0.8em;
+        color: #666;
+        font-weight: bold;
     }
-    
     .info-value {
-        color: #2c3e50 !important;
-        margin-top: 2px !important;
+        font-size: 0.9em;
+        color: #333;
+    }
+    .tab-button {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 8px 16px;
+        margin-right: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .tab-button:hover {
+        background: #e9ecef;
+    }
+    .tab-button.active {
+        background: #0066cc;
+        color: white;
+        border-color: #0066cc;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -573,101 +560,67 @@ def interface_lista_rpv(df, perfil_usuario):
     if not df_paginado.empty:
         st.markdown(f"### 📋 Lista de RPVs ({total_registros} encontrados)")
         
+        # Renderizar cards
         for _, rpv in df_paginado.iterrows():
             rpv_id = rpv.get("ID", "N/A")
             is_expanded = rpv_id in st.session_state.rpv_expanded_cards
             
-            # Configurar estilo do card baseado no estado
             card_class = "rpv-card expanded" if is_expanded else "rpv-card"
             
             with st.container():
-                if not is_expanded:
-                    st.markdown(f'<div class="{card_class}">', unsafe_allow_html=True)
-                    
-                    # Header do card
-                    col_header1, col_header2 = st.columns([3, 1])
-                    
-                    with col_header1:
-                        st.markdown(f"**📄 {safe_get_value(rpv, 'Processo', 'Não informado')}**")
-                        st.markdown(f"👤 {safe_get_value(rpv, 'Beneficiário', 'Não informado')}")
-                    
-                    with col_header2:
-                        status_atual = rpv.get('Status', 'Não informado')
-                        status_class = {
-                            "Cadastro": "status-cadastro",
-                            "SAC - aguardando documentação": "status-sac",
-                            "Administrativo - aguardando documentação": "status-admin",
-                            "SAC - documentação pronta": "status-sac",
-                            "Administrativo - documentação pronta": "status-admin",
-                            "Enviado para Rodrigo": "status-rodrigo",
-                            "aguardando pagamento": "status-pagamento",
-                            "finalizado": "status-finalizado"
-                        }.get(status_atual, "status-cadastro")
-                        
-                        st.markdown(f'<div class="status-badge {status_class}">{status_atual}</div>', 
-                                  unsafe_allow_html=True)
-                    
-                    # Informações do grid
+                # Card principal (exatamente como benefícios)
+                st.markdown(f"""
+                <div class="{card_class}">
+                    <div class="rpv-card-header">
+                        <div>
+                            <strong>📄 {safe_get_value(rpv, 'Processo', 'Não informado')}</strong><br>
+                            👤 {safe_get_value(rpv, 'Beneficiário', 'Não informado')}
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Layout com botão expandir e informações
+                col_expand, col_info = st.columns([1, 9])
+                
+                with col_expand:
+                    expand_text = "▼ Fechar" if is_expanded else "▶ Abrir"
+                    if st.button(expand_text, key=f"expand_rpv_{rpv_id}"):
+                        if is_expanded:
+                            st.session_state.rpv_expanded_cards.discard(rpv_id)
+                        else:
+                            st.session_state.rpv_expanded_cards.add(rpv_id)
+                        st.rerun()
+                
+                with col_info:
+                    # Informações resumidas (sempre visíveis)
                     st.markdown(f"""
-                    <div class="grid-info">
+                    <div class="rpv-info-grid">
                         <div class="info-item">
-                            <div class="info-label">💰 Valor RPV</div>
+                            <div class="info-label">Valor RPV</div>
                             <div class="info-value">{safe_get_value(rpv, 'Valor RPV', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">📅 Mês Competência</div>
+                            <div class="info-label">Mês Competência</div>
                             <div class="info-value">{safe_get_value(rpv, 'Mês Competência', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">📋 Assunto</div>
+                            <div class="info-label">Assunto</div>
                             <div class="info-value">{safe_get_value(rpv, 'Assunto', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">🏛️ Órgão</div>
-                            <div class="info-value">{safe_get_value(rpv, 'Orgao Judicial', 'Não informado')[:20]}...</div>
+                            <div class="info-label">Órgão</div>
+                            <div class="info-value">{safe_get_value(rpv, 'Orgao Judicial', 'Não informado')}</div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-                    
-                    # Botão para expandir
-                    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 3])
-                    
-                    with col_btn1:
-                        if st.button("🔽 Expandir", key=f"expand_rpv_{rpv_id}"):
-                            st.session_state.rpv_expanded_cards.add(rpv_id)
-                            st.rerun()
-                    
-                    with col_btn2:
-                        # Verificar se o usuário pode editar este status
-                        status_atual = rpv.get("Status", "")
-                        pode_editar = pode_editar_status_rpv(status_atual, perfil_usuario)
-                        
-                        if pode_editar:
-                            if st.button("✏️ Editar", key=f"edit_rpv_{rpv_id}", type="primary"):
-                                st.session_state.rpv_expanded_cards.add(rpv_id)
-                                st.rerun()
-                        else:
-                            if st.button("👁️ Ver", key=f"view_rpv_{rpv_id}"):
-                                st.session_state.rpv_expanded_cards.add(rpv_id)
-                                st.rerun()
-                    
-                    st.markdown('</div>', unsafe_allow_html=True)
                 
-                else:
-                    # Card expandido - mostrar abas
+                # Conteúdo expandido (tabs)
+                if is_expanded:
+                    st.markdown("---")
+                    st.markdown(f"### 📄 {safe_get_value(rpv, 'Processo', 'Não informado')}")
                     
-                    # Header do card expandido
-                    col_header_exp1, col_header_exp2 = st.columns([4, 1])
-                    
-                    with col_header_exp1:
-                        st.markdown(f"### 📄 {safe_get_value(rpv, 'Processo', 'Não informado')}")
-                    
-                    with col_header_exp2:
-                        if st.button("🔼 Recolher", key=f"collapse_rpv_{rpv_id}"):
-                            st.session_state.rpv_expanded_cards.discard(rpv_id)
-                            st.rerun()
-                    
-                    # Abas do RPV expandido
+                    # Tabs
                     tab_info, tab_acoes, tab_historico = st.tabs(["📋 Informações", "⚙️ Ações", "📜 Histórico"])
                     
                     # Definir status atual

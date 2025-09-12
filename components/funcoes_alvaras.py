@@ -1926,80 +1926,69 @@ def interface_lista_alvaras(df, perfil_usuario):
     end_idx = start_idx + items_per_page
     df_paginado = df_filtrado.iloc[start_idx:end_idx]
 
-    # CSS para os cards - padronizado com RPV
+    # CSS para cards dropdown (exatamente igual ao benefícios)
     st.markdown("""
     <style>
     .alvara-card {
-        background: transparent !important;
-        border: none !important;
-        border-radius: 8px !important;
-        padding: 16px !important;
-        margin: 0 0 12px 0 !important;
-        box-shadow: none !important;
-        transition: all 0.3s ease !important;
-        overflow: hidden !important;
+        border: none;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 8px;
+        background-color: transparent;
+        transition: all 0.3s ease;
     }
-    
     .alvara-card:hover {
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-        border-color: transparent !important;
+        border-color: transparent;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    
     .alvara-card.expanded {
-        display: none !important;
-        visibility: hidden !important;
-        height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        border: none !important;
-        background: transparent !important;
+        background-color: transparent;
+        border-color: transparent;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
-    
-    .card-header {
-        display: flex !important;
-        justify-content: space-between !important;
-        align-items: center !important;
-        margin-bottom: 8px !important;
+    .alvara-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
     }
-    
-    .processo-info {
-        font-weight: bold !important;
-        color: #2c3e50 !important;
-        font-size: 16px !important;
+    .alvara-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 8px;
+        margin-top: 8px;
     }
-    
-    .status-badge {
-        padding: 4px 8px !important;
-        border-radius: 12px !important;
-        font-size: 12px !important;
-        font-weight: bold !important;
-        text-align: center !important;
-    }
-    
-    .status-cadastrado { background-color: #fff3cd; color: #856404; }
-    .status-financeiro { background-color: #d1ecf1; color: #0c5460; }
-    .status-rodrigo { background-color: #d4edda; color: #155724; }
-    .status-finalizado { background-color: #d1e7dd; color: #0f5132; }
-    
-    .grid-info {
-        display: grid !important;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
-        gap: 10px !important;
-        margin-top: 12px !important;
-    }
-    
     .info-item {
-        font-size: 13px !important;
+        background: transparent;
+        padding: 6px 8px;
+        border-radius: 4px;
+        border-left: 3px solid #0066cc;
     }
-    
     .info-label {
-        color: #666 !important;
-        font-weight: 500 !important;
+        font-size: 0.8em;
+        color: #666;
+        font-weight: bold;
     }
-    
     .info-value {
-        color: #2c3e50 !important;
-        margin-top: 2px !important;
+        font-size: 0.9em;
+        color: #333;
+    }
+    .tab-button {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 8px 16px;
+        margin-right: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .tab-button:hover {
+        background: #e9ecef;
+    }
+    .tab-button.active {
+        background: #0066cc;
+        color: white;
+        border-color: #0066cc;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -2008,6 +1997,7 @@ def interface_lista_alvaras(df, perfil_usuario):
     if not df_paginado.empty:
         st.markdown(f"### 📋 Lista de Alvarás ({total_registros} encontrados)")
         
+        # Renderizar cards
         for _, processo in df_paginado.iterrows():
             alvara_id = processo.get("ID", "N/A")
             status_atual = safe_get_field_value_alvara(processo, 'Status')
@@ -2015,90 +2005,67 @@ def interface_lista_alvaras(df, perfil_usuario):
             # Verificar se o card está expandido
             is_expanded = alvara_id in st.session_state.alvara_expanded_cards
             
-            # NOVO FORMATO COMPACTO - IGUAL AO RPV E BENEFÍCIOS
+            card_class = "alvara-card expanded" if is_expanded else "alvara-card"
+            
             with st.container():
-                if not is_expanded:
-                    # Header do card
-                    col_header1, col_header2 = st.columns([3, 1])
-                    
-                    with col_header1:
-                        st.markdown(f"**📄 {safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}**")
-                        st.markdown(f"👤 {safe_get_field_value_alvara(processo, 'Parte', 'Não informado')}")
-                    
-                    with col_header2:
-                        status_class = {
-                            "Cadastrado": "status-cadastrado",
-                            "Enviado para o Financeiro": "status-financeiro",
-                            "Financeiro - Enviado para Rodrigo": "status-rodrigo",
-                            "Finalizado": "status-finalizado"
-                        }.get(status_atual, "status-cadastrado")
-                        
-                        st.markdown(f'<div class="status-badge {status_class}">{status_atual}</div>', 
-                                  unsafe_allow_html=True)
-                    
-                    # Informações resumidas em grid
+                # Card principal (exatamente como benefícios)
+                st.markdown(f"""
+                <div class="{card_class}">
+                    <div class="alvara-card-header">
+                        <div>
+                            <strong>📄 {safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}</strong><br>
+                            👤 {safe_get_field_value_alvara(processo, 'Parte', 'Não informado')}
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Layout com botão expandir e informações
+                col_expand, col_info = st.columns([1, 9])
+                
+                with col_expand:
+                    expand_text = "▼ Fechar" if is_expanded else "▶ Abrir"
+                    if st.button(expand_text, key=f"expand_alvara_{alvara_id}"):
+                        if is_expanded:
+                            st.session_state.alvara_expanded_cards.discard(alvara_id)
+                        else:
+                            st.session_state.alvara_expanded_cards.add(alvara_id)
+                        st.rerun()
+                
+                with col_info:
+                    # Informações resumidas (sempre visíveis)
                     st.markdown(f"""
-                    <div class="grid-info">
+                    <div class="alvara-info-grid">
                         <div class="info-item">
-                            <div class="info-label">📄 Processo</div>
-                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Processo', 'Não informado')[:20]}{'...' if len(safe_get_field_value_alvara(processo, 'Processo', 'Não informado')) > 20 else ''}</div>
+                            <div class="info-label">Número do Processo</div>
+                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">📊 Status</div>
+                            <div class="info-label">Status</div>
                             <div class="info-value">{status_atual}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">👤 Parte</div>
-                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Parte', 'Não informado')[:25]}{'...' if len(safe_get_field_value_alvara(processo, 'Parte', 'Não informado')) > 25 else ''}</div>
+                            <div class="info-label">Parte</div>
+                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Parte', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">💰 Valor</div>
+                            <div class="info-label">Valor</div>
                             <div class="info-value">{safe_get_field_value_alvara(processo, 'Pagamento', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">🏛️ Órgão</div>
-                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Órgão Judicial', 'Não informado')[:20]}{'...' if len(safe_get_field_value_alvara(processo, 'Órgão Judicial', 'Não informado')) > 20 else ''}</div>
+                            <div class="info-label">Órgão</div>
+                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Órgão Judicial', 'Não informado')}</div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-                    
-                    # Botões de ação
-                    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 3])
-                    
-                    with col_btn1:
-                        if st.button("🔽 Expandir", key=f"expand_alvara_{alvara_id}"):
-                            st.session_state.alvara_expanded_cards.add(alvara_id)
-                            st.rerun()
-                    
-                    with col_btn2:
-                        # Verificar se o usuário pode editar este status
-                        pode_editar = pode_editar_status_alvaras(status_atual, perfil_usuario)
-                        
-                        if pode_editar:
-                            if st.button("✏️ Editar", key=f"edit_alvara_{alvara_id}", type="primary"):
-                                st.session_state.alvara_expanded_cards.add(alvara_id)
-                                st.rerun()
-                        else:
-                            if st.button("👁️ Ver", key=f"view_alvara_{alvara_id}"):
-                                st.session_state.alvara_expanded_cards.add(alvara_id)
-                                st.rerun()
                 
-                else:
-                    # Card expandido - mostrar abas
+                # Conteúdo expandido (tabs)
+                if is_expanded:
+                    st.markdown("---")
+                    st.markdown(f"### 📄 {safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}")
                     
-                    # Header do card expandido
-                    col_header_exp1, col_header_exp2 = st.columns([4, 1])
-                    
-                    with col_header_exp1:
-                        st.markdown(f"### 📄 {safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}")
-                    
-                    with col_header_exp2:
-                        if st.button("🔼 Recolher", key=f"collapse_alvara_{alvara_id}"):
-                            st.session_state.alvara_expanded_cards.discard(alvara_id)
-                            st.rerun()
-                    
-                    # Tabs dentro do container expandido
-                    tab_info, tab_acoes, tab_historico = st.tabs(["📋 Info", "⚙️ Ações", "📜 Histórico"])
+                    # Tabs
+                    tab_info, tab_acoes, tab_historico = st.tabs(["📋 Informações", "⚙️ Ações", "📜 Histórico"])
                     
                     with tab_info:
                         render_tab_info_alvara(processo, alvara_id)
