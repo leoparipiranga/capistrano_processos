@@ -493,21 +493,23 @@ def interface_lista_rpv(df, perfil_usuario):
     st.markdown("""
     <style>
     .rpv-card {
-        border: none;
+        border: 1px solid #e0e6ed;
         border-radius: 8px;
         padding: 12px;
         margin-bottom: 8px;
-        background-color: transparent;
+        background-color: #fafbfc;
         transition: all 0.3s ease;
     }
     .rpv-card:hover {
-        border-color: transparent;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        border-color: #0066cc;
+        box-shadow: 0 2px 8px rgba(0,102,204,0.15);
+        background-color: #f8f9ff;
     }
     .rpv-card.expanded {
-        background-color: transparent;
-        border-color: transparent;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        background-color: #f0f4ff;
+        border-color: #0066cc;
+        border-width: 2px;
+        box-shadow: 0 4px 12px rgba(0,102,204,0.2);
     }
     .rpv-card-header {
         display: flex;
@@ -522,10 +524,14 @@ def interface_lista_rpv(df, perfil_usuario):
         margin-top: 8px;
     }
     .info-item {
-        background: transparent;
+        background: rgba(255,255,255,0.7);
         padding: 6px 8px;
         border-radius: 4px;
         border-left: 3px solid #0066cc;
+    }
+    .expanded .info-item {
+        background: rgba(255,255,255,0.9);
+        border-left: 3px solid #0055aa;
     }
     .info-label {
         font-size: 0.8em;

@@ -112,9 +112,9 @@ def exibir_informacoes_basicas_beneficio(linha_beneficio, estilo="compacto"):
     .compact-item {
         text-align: center;
         padding: 10px;
-        background: white;
+        background: transparent;
         border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: none;
     }
     .compact-label {
         font-size: 12px;
@@ -353,43 +353,101 @@ def toggle_beneficio_selection(beneficio_id):
 # =====================================
 
 def interface_lista_beneficios(df, perfil_usuario):
-    """Lista de benefícios com paginação, filtros aprimorados e diálogo para ações."""
+    """Lista de benefícios com cards expansíveis estilo dropdown."""
     
-    # ORDENAR por data de cadastro mais recente, com NAs no final
+    # CSS para cards dropdown (igual ao alvarás)
+    st.markdown("""
+    <style>
+    .beneficio-card {
+        border: 1px solid #e0e6ed;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 8px;
+        background-color: #fafbfc;
+        transition: all 0.3s ease;
+    }
+    .beneficio-card:hover {
+        border-color: #0066cc;
+        box-shadow: 0 2px 8px rgba(0,102,204,0.15);
+        background-color: #f8f9ff;
+    }
+    .beneficio-card.expanded {
+        background-color: #f0f4ff;
+        border-color: #0066cc;
+        border-width: 2px;
+        box-shadow: 0 4px 12px rgba(0,102,204,0.2);
+    }
+    .beneficio-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+    }
+    .beneficio-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .info-item {
+        background: rgba(255,255,255,0.7);
+        padding: 6px 8px;
+        border-radius: 4px;
+        border-left: 3px solid #0066cc;
+    }
+    .expanded .info-item {
+        background: rgba(255,255,255,0.9);
+        border-left: 3px solid #0055aa;
+    }
+    .info-label {
+        font-size: 0.8em;
+        color: #666;
+        font-weight: bold;
+    }
+    .info-value {
+        font-size: 0.9em;
+        color: #333;
+    }
+    .tab-button {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 8px 16px;
+        margin-right: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .tab-button:hover {
+        background: #e9ecef;
+    }
+    .tab-button.active {
+        background: #0066cc;
+        color: white;
+        border-color: #0066cc;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ORDENAR por data de cadastro mais recente
     df_ordenado = df.copy()
     if "Data Cadastro" in df_ordenado.columns:
-        # Converte para datetime para ordenar corretamente, tratando erros
         df_ordenado["_data_cadastro_dt"] = pd.to_datetime(
             df_ordenado["Data Cadastro"], format='%d/%m/%Y %H:%M', errors='coerce'
         )
-        # Ordena por data (decrescente) e coloca os valores nulos (NaT) no final
         df_ordenado = df_ordenado.sort_values(
             by="_data_cadastro_dt", ascending=False, na_position='last'
         ).drop(columns=["_data_cadastro_dt"])
 
-    # Inicializar estado do diálogo e paginação APENAS se não existirem
-    if "show_beneficio_dialog" not in st.session_state:
-        st.session_state.show_beneficio_dialog = False
-    if "beneficio_aberto_id" not in st.session_state:
-        st.session_state.beneficio_aberto_id = None
-    if "current_page_beneficios" not in st.session_state:
-        st.session_state.current_page_beneficios = 1
-    
-    # VERIFICAR E LIMPAR ESTADOS ÓRFÃOS DE DIÁLOGO
-    # Se o diálogo está aberto mas não há ID, limpar
-    if st.session_state.get("show_beneficio_dialog", False) and not st.session_state.get("beneficio_aberto_id"):
-        st.session_state.show_beneficio_dialog = False
-    
-    # Se há ID mas não deveria mostrar o diálogo, limpar o ID
-    if not st.session_state.get("show_beneficio_dialog", False) and st.session_state.get("beneficio_aberto_id"):
-        st.session_state.beneficio_aberto_id = None
-    
+    # Inicializar estado dos cards expansíveis
+    if "beneficios_expanded_cards" not in st.session_state:
+        st.session_state.beneficios_expanded_cards = set()
+
     # Inicializar estado de exclusão em massa
     if "modo_exclusao_beneficios" not in st.session_state:
         st.session_state.modo_exclusao_beneficios = False
     if "processos_selecionados_beneficios" not in st.session_state:
         st.session_state.processos_selecionados_beneficios = []
-    
+
     # Validar consistência da lista de selecionados
     if st.session_state.processos_selecionados_beneficios:
         ids_existentes = set(df["ID"].astype(str).tolist())
@@ -398,7 +456,7 @@ def interface_lista_beneficios(df, perfil_usuario):
             if str(pid) in ids_existentes
         ]
 
-    # Botão para habilitar exclusão (apenas para Admin e Cadastrador)
+    # Botões de exclusão em massa
     usuario_atual = st.session_state.get("usuario", "")
     perfil_atual = st.session_state.get("perfil_usuario", "")
     pode_excluir = (perfil_atual in ["Admin", "Cadastrador"] or usuario_atual == "admin")
@@ -422,7 +480,7 @@ def interface_lista_beneficios(df, perfil_usuario):
                 if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_beneficios)})",
                            key="confirmar_exclusao_beneficios", type="primary"):
                     confirmar_exclusao_massa_beneficios(df, st.session_state.processos_selecionados_beneficios)
-    
+
     # FILTROS
     col1, col2, col3, col4 = st.columns(4)
     
@@ -435,7 +493,6 @@ def interface_lista_beneficios(df, perfil_usuario):
         )
     
     with col2:
-        # Filtro por tipo de processo
         tipos_unicos = ["Todos"] + list(df["TIPO DE PROCESSO"].dropna().unique())
         filtro_tipo = st.selectbox(
             "Tipo de Processo:",
@@ -444,7 +501,6 @@ def interface_lista_beneficios(df, perfil_usuario):
         )
     
     with col3:
-        # Filtro por assunto (se a coluna existir)
         if "ASSUNTO" in df.columns:
             assuntos_unicos = ["Todos"] + list(df["ASSUNTO"].dropna().unique())
             filtro_assunto = st.selectbox(
@@ -473,142 +529,305 @@ def interface_lista_beneficios(df, perfil_usuario):
             df_filtrado["Nº DO PROCESSO"].str.contains(filtro_busca, case=False, na=False)
         ]
 
-    # Lógica de Paginação
-    items_per_page = 20
-    total_registros = len(df_filtrado)
-    total_pages = math.ceil(total_registros / items_per_page) if items_per_page > 0 else 1
-    
-    if st.session_state.current_page_beneficios > total_pages:
-        st.session_state.current_page_beneficios = 1
+    if df_filtrado.empty:
+        st.info("Nenhum benefício encontrado com os filtros aplicados.")
+        return
 
-    start_idx = (st.session_state.current_page_beneficios - 1) * items_per_page
-    end_idx = start_idx + items_per_page
-    df_paginado = df_filtrado.iloc[start_idx:end_idx]
+    st.markdown(f"**{len(df_filtrado)} benefício(s) encontrado(s)**")
 
-    # Exibir lista
-    if not df_paginado.empty:
-        st.markdown(f'<p style="font-size: small; color: steelblue;">Mostrando {start_idx+1} a {min(end_idx, total_registros)} de {total_registros} benefícios</p>', unsafe_allow_html=True)
+    # Renderizar cards
+    for _, beneficio in df_filtrado.iterrows():
+        beneficio_id = beneficio.get("ID")
+        is_expanded = beneficio_id in st.session_state.beneficios_expanded_cards
         
-        # Cabeçalhos dinâmicos baseados no modo de exclusão
-        if st.session_state.modo_exclusao_beneficios:
-            col_check, col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([0.5, 1, 3, 2, 2, 2, 2])
-            with col_check: st.markdown("**☑️**")
-            with col_h1: st.markdown("**Ação**")
-            with col_h2: st.markdown("**Parte**")
-            with col_h3: st.markdown("**Processo**")
-            with col_h4: st.markdown("**Tipo**")
-            with col_h5: st.markdown("**Status**")
-            with col_h6: st.markdown("**Data Cadastro**")
-        else:
-            col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([1, 3, 2, 2, 2, 2])
-            with col_h1: st.markdown("**Ação**")
-            with col_h2: st.markdown("**Parte**")
-            with col_h3: st.markdown("**Processo**")
-            with col_h4: st.markdown("**Tipo**")
-            with col_h5: st.markdown("**Status**")
-            with col_h6: st.markdown("**Data Cadastro**")
+        card_class = "beneficio-card expanded" if is_expanded else "beneficio-card"
         
-        st.markdown('<hr style="margin-top: 0.1rem; margin-bottom: 0.5rem;" />', unsafe_allow_html=True)
-
-        for _, row in df_paginado.iterrows():
-            beneficio_id = row.get("ID")
+        with st.container():
+            # Card principal
+            st.markdown(f"""
+            <div class="{card_class}">
+                <div class="beneficio-card-header">
+                    <div>
+                        <strong>📄 {safe_get_value_beneficio(beneficio, 'Nº DO PROCESSO', 'Não informado')}</strong><br>
+                        👤 {safe_get_value_beneficio(beneficio, 'PARTE', 'Não informado')}
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
+            # Layout com checkbox e botão expandir
             if st.session_state.modo_exclusao_beneficios:
-                col_check, col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([0.5, 1, 3, 2, 2, 2, 2])
+                col_check, col_expand, col_info = st.columns([0.3, 0.7, 9])
                 
                 with col_check:
-                    current_value = beneficio_id in st.session_state.processos_selecionados_beneficios
-                    
-                    is_selected = st.checkbox(
-                        "Selecionar",
-                        value=current_value,
-                        key=f"check_beneficio_{beneficio_id}",
-                        label_visibility="collapsed",
-                        on_change=lambda bid=beneficio_id: toggle_beneficio_selection(bid)
+                    checkbox_key = f"beneficio_select_{beneficio_id}"
+                    if st.checkbox("", key=checkbox_key, label_visibility="collapsed"):
+                        if beneficio_id not in st.session_state.processos_selecionados_beneficios:
+                            st.session_state.processos_selecionados_beneficios.append(beneficio_id)
+                    elif beneficio_id in st.session_state.processos_selecionados_beneficios:
+                        st.session_state.processos_selecionados_beneficios.remove(beneficio_id)
+            else:
+                col_expand, col_info = st.columns([1, 9])
+            
+            with col_expand if not st.session_state.modo_exclusao_beneficios else col_expand:
+                expand_text = "▼ Fechar" if is_expanded else "▶ Abrir"
+                if st.button(expand_text, key=f"expand_beneficio_{beneficio_id}"):
+                    if is_expanded:
+                        st.session_state.beneficios_expanded_cards.discard(beneficio_id)
+                    else:
+                        st.session_state.beneficios_expanded_cards.add(beneficio_id)
+                    st.rerun()
+            
+            with col_info:
+                # Informações resumidas
+                st.markdown(f"""
+                <div class="beneficio-info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Tipo de Processo</div>
+                        <div class="info-value">{safe_get_value_beneficio(beneficio, 'TIPO DE PROCESSO', 'Não informado')}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Status</div>
+                        <div class="info-value">{safe_get_value_beneficio(beneficio, 'Status', 'Não informado')}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Data Cadastro</div>
+                        <div class="info-value">{safe_get_value_beneficio(beneficio, 'Data Cadastro', 'Não informado')[:16]}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">CPF</div>
+                        <div class="info-value">{safe_get_value_beneficio(beneficio, 'CPF', 'Não informado')[:11]}...</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Conteúdo expandido (tabs)
+            if is_expanded:
+                st.markdown("---")
+                st.markdown(f"### 📄 {safe_get_value_beneficio(beneficio, 'Nº DO PROCESSO', 'Não informado')}")
+                
+                # Tabs
+                tab_info, tab_acoes, tab_historico = st.tabs(["📋 Informações", "⚙️ Ações", "📜 Histórico"])
+                
+                with tab_info:
+                    render_tab_info_beneficio(beneficio, beneficio_id)
+                
+                with tab_acoes:
+                    render_tab_acoes_beneficio(df, beneficio, beneficio_id, 
+                                             safe_get_value_beneficio(beneficio, 'Status'), perfil_usuario)
+                
+                with tab_historico:
+                    render_tab_historico_beneficio(beneficio, beneficio_id)
+
+def render_tab_info_beneficio(processo, beneficio_id):
+    """Renderiza a tab de informações do Benefício"""
+        
+    col_det1, col_det2 = st.columns(2)
+    
+    with col_det1:
+        st.markdown("**📋 Dados Básicos:**")
+        st.write(f"**CPF:** {safe_get_value_beneficio(processo, 'CPF')}")
+        st.write(f"**Parte:** {safe_get_value_beneficio(processo, 'PARTE')}")
+        st.write(f"**Tipo de Processo:** {safe_get_value_beneficio(processo, 'TIPO DE PROCESSO')}")
+        if "ASSUNTO" in processo:
+            st.write(f"**Assunto:** {safe_get_value_beneficio(processo, 'ASSUNTO')}")
+    
+    with col_det2:
+        st.markdown("**💰 Valores e Documentos:**")
+        if "VALOR" in processo:
+            st.write(f"**Valor:** {safe_get_value_beneficio(processo, 'VALOR')}")
+        if "BENEFÍCIO" in processo:
+            st.write(f"**Benefício:** {safe_get_value_beneficio(processo, 'BENEFÍCIO')}")
+        if "ESPÉCIE" in processo:
+            st.write(f"**Espécie:** {safe_get_value_beneficio(processo, 'ESPÉCIE')}")
+        if "STATUS BENEFÍCIO" in processo:
+            st.write(f"**Status Benefício:** {safe_get_value_beneficio(processo, 'STATUS BENEFÍCIO')}")
+    
+    # Mostrar detalhes dos honorários contratuais
+    mostrar_detalhes_hc_beneficio(processo, f"info_{beneficio_id}")
+    
+    # Observações
+    if safe_get_value_beneficio(processo, 'OBSERVAÇÕES', '') != 'Não cadastrado':
+        st.markdown("### 📝 Observações")
+        st.info(safe_get_value_beneficio(processo, 'OBSERVAÇÕES'))
+
+def render_tab_acoes_beneficio(df, processo, beneficio_id, status_atual, perfil_usuario):
+    """Renderiza a tab de ações do Benefício - mantém toda a lógica original"""
+    
+    # Usar a função original de edição, mas sem o cabeçalho
+    linha_processo_df = df[df["ID"].astype(str) == str(beneficio_id)]
+    
+    if len(linha_processo_df) == 0:
+        st.error(f"❌ Benefício com ID {beneficio_id} não encontrado")
+        return
+    
+    linha_processo = linha_processo_df.iloc[0]
+    numero_processo = linha_processo.get("Nº DO PROCESSO", "N/A")
+    
+    # Renderizar ações baseadas no status - usando lógica simples para benefícios
+    st.info(f"**Status Atual:** {status_atual}")
+    
+    # Seção de Honorários Contratuais - Disponível para todos os perfis autorizados
+    if perfil_usuario in ["Financeiro", "Admin", "Cadastrador"]:
+        st.markdown("---")
+        st.markdown("### 💼 Honorários Contratuais")
+        
+        with st.form(f"form_hc_beneficio_tab_{beneficio_id}"):
+            col_hc1, col_hc2 = st.columns(2)
+            
+            with col_hc1:
+                honorarios_contratuais = st.number_input(
+                    "Honorário Contratual 1:",
+                    min_value=0.0,
+                    value=safe_get_hc_value_beneficio(linha_processo, "Honorarios Contratuais"),
+                    step=0.01,
+                    format="%.2f",
+                    help="Valor principal dos honorários contratuais",
+                    key=f"hc_beneficio_tab_{beneficio_id}"
+                )
+                
+                # Campos HC adicionais
+                hc1_valor, hc2_valor = 0.0, 0.0
+                nivel_hc = st.session_state.get(f"hc_nivel_beneficio_tab_{beneficio_id}", 0)
+                
+                if nivel_hc >= 1:
+                    hc1_valor = st.number_input(
+                        "Honorário Contratual 2:",
+                        min_value=0.0,
+                        value=safe_get_hc_value_beneficio(linha_processo, "HC1"),
+                        step=0.01,
+                        format="%.2f",
+                        key=f"hc1_beneficio_tab_{beneficio_id}"
                     )
                 
-                with col_b1:
-                    if st.button("🔓 Abrir", key=f"abrir_beneficio_id_{beneficio_id}"):
-                        # Usar sistema de timestamp para requests de diálogo
-                        import time
-                        timestamp = str(int(time.time() * 1000))
-                        st.session_state[f"dialogo_beneficio_request_{timestamp}"] = {
-                            "show_beneficio_dialog": True,
-                            "beneficio_aberto_id": beneficio_id,
-                            "timestamp": timestamp
-                        }
-                
-                with col_b2: st.write(f"**{row.get('PARTE', 'N/A')}**")
-                with col_b3: st.write(row.get('Nº DO PROCESSO', 'N/A'))
-                with col_b4: st.write(row.get('TIPO DE PROCESSO', 'N/A'))
-                with col_b5: st.write(row.get('Status', 'N/A'))
-                with col_b6:
-                    data_cadastro = row.get('Data Cadastro')
-                    if pd.isna(data_cadastro):
-                        st.write("N/A")
-                    else:
-                        st.write(str(data_cadastro).split(' ')[0])
-            else:
-                col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns([1, 3, 2, 2, 2, 2])
-                
-                with col_b1:
-                    if st.button("🔓 Abrir", key=f"abrir_beneficio_id_{beneficio_id}"):
-                        # Usar sistema de timestamp para requests de diálogo
-                        import time
-                        timestamp = str(int(time.time() * 1000))
-                        st.session_state[f"dialogo_beneficio_request_{timestamp}"] = {
-                            "show_beneficio_dialog": True,
-                            "beneficio_aberto_id": beneficio_id,
-                            "timestamp": timestamp
-                        }
-                
-                with col_b2: st.write(f"**{row.get('PARTE', 'N/A')}**")
-                with col_b3: st.write(row.get('Nº DO PROCESSO', 'N/A'))
-                with col_b4: st.write(row.get('TIPO DE PROCESSO', 'N/A'))
-                with col_b5: st.write(row.get('Status', 'N/A'))
-                with col_b6:
-                    data_cadastro = row.get('Data Cadastro')
-                    if pd.isna(data_cadastro):
-                        st.write("N/A")
-                    else:
-                        st.write(str(data_cadastro).split(' ')[0])
-    else:
-        st.info("Nenhum benefício encontrado com os filtros aplicados.")
-
-
-    # Implementação com st.dialog
-    if st.session_state.get("show_beneficio_dialog"):
-        beneficio_id_aberto = st.session_state.beneficio_aberto_id
-        linha_beneficio = df[df["ID"] == beneficio_id_aberto]
-        titulo = f"Detalhes do Benefício: {linha_beneficio.iloc[0].get('PARTE', 'N/A')}" if not linha_beneficio.empty else "Detalhes do Benefício"
-
-        @st.dialog(titulo, width="large")
-        def beneficio_dialog():
-            if not linha_beneficio.empty:
-                interface_edicao_beneficio(df, beneficio_id_aberto, perfil_usuario)
-            else:
-                st.error("❌ Benefício não encontrado.")
+                if nivel_hc >= 2:
+                    hc2_valor = st.number_input(
+                        "Honorário Contratual 3:",
+                        min_value=0.0,
+                        value=safe_get_hc_value_beneficio(linha_processo, "HC2"),
+                        step=0.01,
+                        format="%.2f",
+                        key=f"hc2_beneficio_tab_{beneficio_id}"
+                    )
             
-            if st.button("Fechar", key="fechar_beneficio_dialog"):
-                st.session_state.show_beneficio_dialog = False
-                st.rerun()
-        
-        beneficio_dialog()
+            with col_hc2:
+                # Mostrar total atual
+                total_atual = calcular_total_hc_beneficio(linha_processo)
+                st.metric("Total HC Atual", f"R$ {total_atual:.2f}")
+                
+                # Mostrar detalhamento se há HCs adicionais
+                if nivel_hc > 0:
+                    st.markdown("**Detalhamento:**")
+                    hc_principal = safe_get_hc_value_beneficio(linha_processo, "Honorarios Contratuais")
+                    st.write(f"HC1: R$ {hc_principal:.2f}")
+                    if nivel_hc >= 1:
+                        hc1_atual = safe_get_hc_value_beneficio(linha_processo, "HC1")
+                        st.write(f"HC2: R$ {hc1_atual:.2f}")
+                    if nivel_hc >= 2:
+                        hc2_atual = safe_get_hc_value_beneficio(linha_processo, "HC2")
+                        st.write(f"HC3: R$ {hc2_atual:.2f}")
+            
+            # Botão para salvar honorários
+            salvar_hc = st.form_submit_button("💾 Salvar Honorários Contratuais", type="primary")
+            
+            if salvar_hc:
+                try:
+                    idx = df[df["ID"] == beneficio_id].index[0]
+                    
+                    # Salvar valores
+                    st.session_state.df_editado_beneficios.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
+                    
+                    # Salvar HCs adicionais se foram preenchidos
+                    if nivel_hc >= 1:
+                        st.session_state.df_editado_beneficios.loc[idx, "HC1"] = hc1_valor
+                    if nivel_hc >= 2:
+                        st.session_state.df_editado_beneficios.loc[idx, "HC2"] = hc2_valor
+                    
+                    # Salvar no GitHub
+                    save_data_to_github_seguro(st.session_state.df_editado_beneficios, "lista_beneficios.csv", "file_sha_beneficios")
+                    
+                    total_novo = honorarios_contratuais + hc1_valor + hc2_valor
+                    st.success(f"✅ Honorários salvos! Total: R$ {total_novo:.2f}")
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro ao salvar honorários: {str(e)}")
+    
+    # Botão para expandir HCs (fora do form)
+    if perfil_usuario in ["Financeiro", "Admin", "Cadastrador"]:
+        if st.button("➕ Adicionar Honorários Contratuais", key=f"btn_hc_beneficio_tab_{beneficio_id}"):
+            nivel_atual = st.session_state.get(f"hc_nivel_beneficio_tab_{beneficio_id}", 0)
+            st.session_state[f"hc_nivel_beneficio_tab_{beneficio_id}"] = min(nivel_atual + 1, 2)
+            st.rerun()
+    
+    # Informações gerais sobre edição
+    if perfil_usuario not in ["Admin", "Cadastrador"]:
+        st.info(f"Seu perfil ({perfil_usuario}) tem acesso limitado para editar este benefício.")
 
-    # Controles de paginação
-    if total_pages > 1:
-        st.markdown("---")
-        col_nav1, col_nav2, col_nav3 = st.columns([3, 2, 3])
-        with col_nav1:
-            if st.session_state.current_page_beneficios > 1:
-                if st.button("<< Primeira", key="ben_primeira"): st.session_state.current_page_beneficios = 1; st.rerun()
-                if st.button("< Anterior", key="ben_anterior"): st.session_state.current_page_beneficios -= 1; st.rerun()
-        with col_nav2:
-            st.write(f"Página {st.session_state.current_page_beneficios} de {total_pages}")
-        with col_nav3:
-            if st.session_state.current_page_beneficios < total_pages:
-                if st.button("Próxima >", key="ben_proxima"): st.session_state.current_page_beneficios += 1; st.rerun()
-                if st.button("Última >>", key="ben_ultima"): st.session_state.current_page_beneficios = total_pages; st.rerun()
+def render_tab_historico_beneficio(processo, beneficio_id):
+    """Renderiza a tab de histórico do Benefício"""
+    
+    st.markdown("### 📜 Histórico do Processo")
+    
+    # Timeline do processo
+    status_atual = safe_get_value_beneficio(processo, 'Status')
+    
+    # Etapas básicas do fluxo de benefícios
+    etapas = [
+        {
+            "titulo": "📝 Cadastrado",
+            "data": safe_get_value_beneficio(processo, 'Data Cadastro'),
+            "responsavel": safe_get_value_beneficio(processo, 'Cadastrado Por', 'Sistema'),
+            "concluida": True  # Sempre concluída se existe
+        },
+        {
+            "titulo": "📋 Em Processamento",
+            "data": safe_get_value_beneficio(processo, 'Data Processamento', ''),
+            "responsavel": safe_get_value_beneficio(processo, 'Processado Por', ''),
+            "concluida": status_atual not in ["Cadastrado", "Pendente"]
+        },
+        {
+            "titulo": "💰 Análise Financeira",
+            "data": safe_get_value_beneficio(processo, 'Data Analise', ''),
+            "responsavel": safe_get_value_beneficio(processo, 'Analisado Por', ''),
+            "concluida": safe_get_value_beneficio(processo, 'Analisado') == "Sim"
+        },
+        {
+            "titulo": "🎯 Finalizado",
+            "data": safe_get_value_beneficio(processo, 'Data Finalizacao', ''),
+            "responsavel": safe_get_value_beneficio(processo, 'Finalizado Por', ''),
+            "concluida": status_atual.lower() in ["finalizado", "concluído", "encerrado"]
+        }
+    ]
+    
+    for i, etapa in enumerate(etapas):
+        if etapa["concluida"] and etapa["data"] and etapa["data"] != "Não cadastrado":
+            # Etapa concluída
+            st.markdown(f"""
+            <div style="border-left: 4px solid #28a745; padding-left: 16px; margin-bottom: 16px;">
+                <div style="color: #28a745; font-weight: bold;">✅ {etapa["titulo"]}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">
+                    📅 {etapa["data"]}<br>
+                    👤 {etapa["responsavel"]}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        elif etapa["concluida"]:
+            # Etapa atual (sem data específica)
+            st.markdown(f"""
+            <div style="border-left: 4px solid #ffc107; padding-left: 16px; margin-bottom: 16px;">
+                <div style="color: #ffc107; font-weight: bold;">🔄 {etapa["titulo"]}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Em andamento</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Etapa futura
+            st.markdown(f"""
+            <div style="border-left: 4px solid #dee2e6; padding-left: 16px; margin-bottom: 16px;">
+                <div style="color: #6c757d; font-weight: bold;">⏳ {etapa["titulo"]}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Pendente</div>
+            </div>
+            """, unsafe_allow_html=True)
 
 def interface_cadastro_beneficio(df, perfil_usuario):
     """Interface para cadastrar novos benefícios, com validações e dicas."""
