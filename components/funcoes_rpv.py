@@ -9,9 +9,14 @@ from components.autocomplete_manager import (
     inicializar_autocomplete_session,
     adicionar_assunto_rpv,
     adicionar_orgao_rpv,
+    adicionar_vara_rpv,
     campo_orgao_rpv,
     campo_assunto_rpv,
-    carregar_dados_autocomplete
+    campo_vara_rpv,
+    carregar_dados_autocomplete,
+    normalizar_vara_rpv,
+    obter_varas_rpv,
+    obter_orgaos_rpv
 )
 from components.functions_controle import (
     # Funções GitHub
@@ -330,7 +335,7 @@ def pode_editar_qualquer_status_simultaneo(linha_rpv, perfil_usuario):
 def obter_colunas_controle_rpv():
     """Retorna lista das colunas de controle do fluxo RPV - NOVO FLUXO"""
     return [
-        "Assunto", "Solicitar Certidão", "Status", "Status Secundario", "Data Cadastro", "Cadastrado Por",
+        "Assunto", "Vara", "Solicitar Certidão", "Status", "Status Secundario", "Data Cadastro", "Cadastrado Por",
         "PDF RPV", "Data Envio", "Enviado Por", "Mês Competência",
         "SAC Documentacao Pronta", "Data SAC Documentacao", "SAC Responsavel",
         "Admin Documentacao Pronta", "Data Admin Documentacao", "Admin Responsavel",
@@ -569,8 +574,8 @@ def interface_lista_rpv(df, perfil_usuario):
                     st.markdown(f"""
                     <div class="rpv-info-grid">
                         <div class="info-item">
-                            <div class="info-label">Valor RPV</div>
-                            <div class="info-value">{safe_get_value(rpv, 'Valor RPV', 'Não informado')}</div>
+                            <div class="info-label">Valor Cliente</div>
+                            <div class="info-value">R$ {safe_get_value(rpv, 'Valor Cliente', '0.00')}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Status</div>
@@ -654,7 +659,30 @@ def render_tab_info_rpv(processo, rpv_id):
     
     with col_det2:
         st.markdown("**💰 Valores:**")
-        st.write(f"**Valor RPV:** {safe_get_value(processo, 'Valor RPV')}")
+        
+        # Exibir novos campos de valores
+        houve_destaque = safe_get_value(processo, 'Houve Destaque Honorarios', 'Não')
+        st.write(f"**Houve destaque de honorários:** {houve_destaque}")
+        
+        valor_cliente = safe_get_value(processo, 'Valor Cliente', '0.00')
+        st.write(f"**Valor Cliente:** R$ {valor_cliente}")
+        
+        honorarios_contratuais = safe_get_value(processo, 'Honorarios Contratuais', '0.00')
+        st.write(f"**Honorários Contratuais:** R$ {honorarios_contratuais}")
+        
+        valor_parceiro = safe_get_value(processo, 'Valor Parceiro Prospector', '0.00')
+        st.write(f"**Valor Parceiro/Prospector:** R$ {valor_parceiro}")
+        
+        valor_sucumbencial = safe_get_value(processo, 'Valor Honorario Sucumbencial', '0.00')
+        st.write(f"**Honorário Sucumbencial:** R$ {valor_sucumbencial}")
+        
+        outros_valores = safe_get_value(processo, 'Outros Valores', '0.00')
+        st.write(f"**Outros Valores:** R$ {outros_valores}")
+        
+        # Observações sobre valores
+        obs_valores = safe_get_value(processo, 'Observacoes Valores', '')
+        if obs_valores and obs_valores != 'Não informado':
+            st.write(f"**Observações sobre valores:** {obs_valores}")
         st.write(f"**Mês Competência:** {safe_get_value(processo, 'Mês Competência')}")
         st.write(f"**Assunto:** {safe_get_value(processo, 'Assunto')}")
         st.write(f"**Órgão Judicial:** {safe_get_value(processo, 'Orgao Judicial')}")
@@ -753,98 +781,117 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
         else:
             st.success(f"✅ Administrativo já marcou documentação como pronta em {linha_processo.get('Data Admin Documentacao', 'N/A')}")
     
-    # SEÇÃO DE HONORÁRIOS CONTRATUAIS - Disponível para Financeiro e Admin
+    # SEÇÃO DE VALORES FINANCEIROS - Disponível para Financeiro e Admin
     if perfil_usuario in ["Financeiro", "Admin"]:
         st.markdown("---")
-        st.markdown("### 💼 Honorários Contratuais")
+        st.markdown("### � Valores Financeiros")
         
-        with st.form(f"form_hc_rpv_tab_{rpv_id}"):
-            col_hc1, col_hc2 = st.columns(2)
+        with st.form(f"form_valores_rpv_tab_{rpv_id}"):
+            # Checkbox para destaque de honorários
+            houve_destaque = st.checkbox(
+                "✅ Houve destaque de honorários",
+                value=safe_get_value(linha_processo, "Houve Destaque Honorarios", "Não") == "Sim",
+                help="Marque se houve destaque de honorários",
+                key=f"destaque_rpv_tab_{rpv_id}"
+            )
             
-            with col_hc1:
+            col_val1, col_val2 = st.columns(2)
+            
+            with col_val1:
+                # Honorários contratuais
                 honorarios_contratuais = st.number_input(
-                    "Honorário Contratual 1:",
+                    "💼 Honorários contratuais (R$):",
                     min_value=0.0,
-                    value=safe_get_hc_value_rpv(linha_processo, "Honorarios Contratuais"),
+                    value=float(safe_get_value(linha_processo, "Honorarios Contratuais", "0") or "0"),
                     step=0.01,
                     format="%.2f",
-                    help="Valor principal dos honorários contratuais",
-                    key=f"hc_rpv_tab_{rpv_id}"
+                    help="Valor dos honorários contratuais",
+                    key=f"honorarios_rpv_tab_{rpv_id}"
                 )
                 
-                # Campos HC adicionais
-                hc1_valor, hc2_valor = 0.0, 0.0
-                nivel_hc = st.session_state.get(f"hc_nivel_rpv_tab_{rpv_id}", 0)
+                # Valor cliente
+                valor_cliente = st.number_input(
+                    "👤 Valor cliente (R$):",
+                    min_value=0.0,
+                    value=float(safe_get_value(linha_processo, "Valor Cliente", "0") or "0"),
+                    step=0.01,
+                    format="%.2f",
+                    help="Valor destinado ao cliente",
+                    key=f"valor_cliente_rpv_tab_{rpv_id}"
+                )
                 
-                if nivel_hc >= 1:
-                    hc1_valor = st.number_input(
-                        "Honorário Contratual 2:",
-                        min_value=0.0,
-                        value=safe_get_hc_value_rpv(linha_processo, "HC1"),
-                        step=0.01,
-                        format="%.2f",
-                        key=f"hc1_rpv_tab_{rpv_id}"
-                    )
+                # Valor de honorário sucumbencial
+                valor_honorario_sucumbencial = st.number_input(
+                    "⚖️ Valor honorário sucumbencial (R$):",
+                    min_value=0.0,
+                    value=float(safe_get_value(linha_processo, "Valor Honorario Sucumbencial", "0") or "0"),
+                    step=0.01,
+                    format="%.2f",
+                    help="Valor dos honorários sucumbenciais",
+                    key=f"sucumbencial_rpv_tab_{rpv_id}"
+                )
+            
+            with col_val2:
+                # Valor parceiro/prospector
+                valor_parceiro_prospector = st.number_input(
+                    "🤝 Valor parceiro/prospector (R$):",
+                    min_value=0.0,
+                    value=float(safe_get_value(linha_processo, "Valor Parceiro Prospector", "0") or "0"),
+                    step=0.01,
+                    format="%.2f",
+                    help="Valor destinado ao parceiro/prospector",
+                    key=f"parceiro_rpv_tab_{rpv_id}"
+                )
                 
-                if nivel_hc >= 2:
-                    hc2_valor = st.number_input(
-                        "Honorário Contratual 3:",
-                        min_value=0.0,
-                        value=safe_get_hc_value_rpv(linha_processo, "HC2"),
-                        step=0.01,
-                        format="%.2f",
-                        key=f"hc2_rpv_tab_{rpv_id}"
-                    )
-            
-            with col_hc2:
-                # Mostrar total atual
-                total_atual = calcular_total_hc_rpv(linha_processo)
-                st.metric("Total HC Atual", f"R$ {total_atual:.2f}")
+                # Outros valores
+                outros_valores = st.number_input(
+                    "🔢 Outros valores (R$):",
+                    min_value=0.0,
+                    value=float(safe_get_value(linha_processo, "Outros Valores", "0") or "0"),
+                    step=0.01,
+                    format="%.2f",
+                    help="Outros valores relacionados",
+                    key=f"outros_rpv_tab_{rpv_id}"
+                )
                 
-                # Mostrar detalhamento se há HCs adicionais
-                if nivel_hc > 0:
-                    st.markdown("**Detalhamento:**")
-                    hc_principal = safe_get_hc_value_rpv(linha_processo, "Honorarios Contratuais")
-                    st.write(f"HC1: R$ {hc_principal:.2f}")
-                    if nivel_hc >= 1:
-                        hc1_atual = safe_get_hc_value_rpv(linha_processo, "HC1")
-                        st.write(f"HC2: R$ {hc1_atual:.2f}")
-                    if nivel_hc >= 2:
-                        hc2_atual = safe_get_hc_value_rpv(linha_processo, "HC2")
-                        st.write(f"HC3: R$ {hc2_atual:.2f}")
+                # Cálculo do total
+                total_valores = (honorarios_contratuais + valor_cliente + 
+                               valor_honorario_sucumbencial + valor_parceiro_prospector + outros_valores)
+                st.metric("💎 Total dos Valores", f"R$ {total_valores:.2f}")
             
-            # Botão para salvar honorários
-            salvar_hc = st.form_submit_button("💾 Salvar Honorários Contratuais", type="primary")
+            # Observações sobre valores
+            observacoes_valores = st.text_area(
+                "📝 Observações sobre valores:",
+                value=safe_get_value(linha_processo, "Observacoes Valores", ""),
+                help="Detalhes ou observações sobre os valores",
+                height=100,
+                key=f"obs_valores_rpv_tab_{rpv_id}"
+            )
             
-            if salvar_hc:
+            # Botão para salvar valores
+            salvar_valores = st.form_submit_button("💾 Salvar Valores Financeiros", type="primary")
+            
+            if salvar_valores:
                 try:
                     idx = df[df["ID"] == rpv_id].index[0]
                     
-                    # Salvar valores
+                    # Salvar todos os valores
+                    st.session_state.df_editado_rpv.loc[idx, "Houve Destaque Honorarios"] = "Sim" if houve_destaque else "Não"
                     st.session_state.df_editado_rpv.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
-                    
-                    # Salvar HCs adicionais se foram preenchidos
-                    if nivel_hc >= 1:
-                        st.session_state.df_editado_rpv.loc[idx, "HC1"] = hc1_valor
-                    if nivel_hc >= 2:
-                        st.session_state.df_editado_rpv.loc[idx, "HC2"] = hc2_valor
+                    st.session_state.df_editado_rpv.loc[idx, "Valor Cliente"] = valor_cliente
+                    st.session_state.df_editado_rpv.loc[idx, "Valor Parceiro Prospector"] = valor_parceiro_prospector
+                    st.session_state.df_editado_rpv.loc[idx, "Valor Honorario Sucumbencial"] = valor_honorario_sucumbencial
+                    st.session_state.df_editado_rpv.loc[idx, "Outros Valores"] = outros_valores
+                    st.session_state.df_editado_rpv.loc[idx, "Observacoes Valores"] = observacoes_valores
                     
                     # Salvar no GitHub
                     save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
                     
-                    total_novo = honorarios_contratuais + hc1_valor + hc2_valor
-                    st.success(f"✅ Honorários salvos! Total: R$ {total_novo:.2f}")
+                    st.success(f"✅ Valores financeiros salvos! Total: R$ {total_valores:.2f}")
                     st.rerun()
                     
                 except Exception as e:
-                    st.error(f"❌ Erro ao salvar honorários: {str(e)}")
-    
-    # Botão para expandir HCs (fora do form)
-    if perfil_usuario in ["Financeiro", "Admin"]:
-        if st.button("➕ Adicionar Honorários Contratuais", key=f"btn_hc_tab_{rpv_id}"):
-            nivel_atual = st.session_state.get(f"hc_nivel_rpv_tab_{rpv_id}", 0)
-            st.session_state[f"hc_nivel_rpv_tab_{rpv_id}"] = min(nivel_atual + 1, 2)
-            st.rerun()
+                    st.error(f"❌ Erro ao salvar valores: {str(e)}")
     
     # Outros status e ações...
     if status_atual not in ["Cadastro"] and not pode_editar_status_rpv(status_atual, perfil_usuario):
@@ -1154,21 +1201,24 @@ def exibir_info_estilo_padrao(linha_rpv):
             <div class="info-title">🏛️ Órgão Judicial</div>
             <div class="info-value">{safe_get_value(linha_rpv, 'Orgao Judicial')}</div>
             
+            <div class="info-title">⚖️ Vara</div>
+            <div class="info-value">{safe_get_value(linha_rpv, 'Vara', 'Não informada')}</div>
+            
             <div class="info-title">📂 Assunto</div>
             <div class="info-value">{safe_get_value(linha_rpv, 'Assunto')}</div>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
-        valor_rpv = safe_get_value(linha_rpv, 'Valor RPV')
+        valor_cliente = safe_get_value(linha_rpv, 'Valor Cliente', '0.00')
         mes_competencia = safe_get_value(linha_rpv, 'Mês Competência')
         data_cadastro = safe_get_value(linha_rpv, 'Data Cadastro')
         cadastrado_por = safe_get_value(linha_rpv, 'Cadastrado Por')
         
         st.markdown(f"""
         <div class="info-card">
-            <div class="info-title">💰 Valor RPV</div>
-            <div class="info-value">{valor_rpv}</div>
+            <div class="info-title">💰 Valor Cliente</div>
+            <div class="info-value">R$ {valor_cliente}</div>
             
             <div class="info-title">📅 Mês Competência</div>
             <div class="info-value">{mes_competencia}</div>
@@ -1269,8 +1319,8 @@ def exibir_info_estilo_compacto(linha_rpv):
             </div>
         </div>
         <div class="compact-item">
-            <div class="compact-label">💰 VALOR RPV</div>
-            <div class="compact-value">{safe_get_value(linha_rpv, 'Valor RPV')}</div>
+            <div class="compact-label">💰 VALOR CLIENTE</div>
+            <div class="compact-value">R$ {safe_get_value(linha_rpv, 'Valor Cliente', '0.00')}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">💼 TOTAL HC</div>
@@ -1279,6 +1329,10 @@ def exibir_info_estilo_compacto(linha_rpv):
         <div class="compact-item">
             <div class="compact-label">🏛️ ÓRGÃO</div>
             <div class="compact-value">{safe_get_value(linha_rpv, 'Orgao Judicial')[:20]}...</div>
+        </div>
+        <div class="compact-item">
+            <div class="compact-label">⚖️ VARA</div>
+            <div class="compact-value">{safe_get_value(linha_rpv, 'Vara', 'N/A')[:15]}...</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1339,7 +1393,7 @@ def exibir_info_estilo_horizontal(linha_rpv):
     
     processo_val = safe_get_value(linha_rpv, 'Processo')
     beneficiario_val = safe_get_value(linha_rpv, 'Beneficiário')
-    valor_val = safe_get_value(linha_rpv, 'Valor RPV')
+    valor_val = safe_get_value(linha_rpv, 'Valor Cliente', '0.00')
     competencia_val = safe_get_value(linha_rpv, 'Mês Competência')
     orgao_val = safe_get_value(linha_rpv, 'Orgao Judicial')
     assunto_val = safe_get_value(linha_rpv, 'Assunto')
@@ -1512,12 +1566,16 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
             else:
                 st.info("ℹ️ Administrativo não está ativo")
     
-    elif perfil_usuario in ["Financeiro", "Admin"] and status_atual in ["SAC - documentação pronta", "Administrativo - documentação pronta"]:
-        # Verificar se ambos SAC e Administrativo finalizaram
+    elif perfil_usuario in ["Financeiro", "Admin"]:
+        # Verificar se ambos SAC e Administrativo finalizaram (independente do status atual)
         sac_finalizado = linha_rpv.get("SAC Documentacao Pronta", "") == "Sim"
         admin_finalizado = linha_rpv.get("Admin Documentacao Pronta", "") == "Sim"
         
-        if sac_finalizado and admin_finalizado:
+        # Se ambos finalizaram E ainda não foi validado pelo financeiro
+        if (sac_finalizado and admin_finalizado and 
+            linha_rpv.get("Validado Financeiro", "Não") == "Não" and
+            status_atual not in ["Enviado para Rodrigo", "aguardando pagamento", "finalizado"]):
+            
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("**📋 SAC:**")
@@ -1549,7 +1607,9 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                     st.session_state.show_rpv_dialog = False
                     st.success("✅ RPV validado e Enviado para Rodrigo!")
                     st.rerun()
-        else:
+        
+        # Se nem todos finalizaram ainda, mostrar progresso
+        elif not (sac_finalizado and admin_finalizado) and status_atual not in ["Enviado para Rodrigo", "aguardando pagamento", "finalizado"]:
             # Mostrar status de progresso para Financeiro
             st.markdown("#### 💰 Aguardando Conclusão das Etapas Anteriores")
             
@@ -1558,15 +1618,15 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                 if sac_finalizado:
                     st.success("✅ SAC - Documentação pronta")
                 else:
-                    st.info("SAC - Aguardando documentação")
+                    st.info("⏳ SAC - Aguardando documentação")
             
             with col2:
                 if admin_finalizado:
                     st.success("✅ Administrativo - Documentação pronta")
                 else:
-                    st.info("Administrativo - Aguardando documentação")
+                    st.info("⏳ Administrativo - Aguardando documentação")
             
-            st.info("Quando ambas as etapas estiverem completas, você poderá validar e enviar para Rodrigo.")
+            st.info("💡 Quando ambas as etapas estiverem completas, você poderá validar e enviar para Rodrigo.")
     
     elif status_atual == "Enviado para Rodrigo" and perfil_usuario in ["Financeiro", "Admin"]:
         st.info("Anexe o comprovante de recebimento para prosseguir para o pagamento.")
@@ -2120,7 +2180,6 @@ def interface_cadastro_rpv(df, perfil_usuario):
     beneficiario_key = "new_rpv_beneficiario"
     cpf_key = "new_rpv_cpf"
     certidao_key = "new_rpv_certidao"
-    valor_key = "new_rpv_valor"
     obs_key = "new_rpv_observacoes"
     multiplos_key = "new_rpv_multiplos"
     competencia_key = "new_rpv_competencia"
@@ -2147,6 +2206,15 @@ def interface_cadastro_rpv(df, perfil_usuario):
         
         # Converter para formato compatível
         orgao_final = orgao_selecionado if orgao_selecionado else ""
+        
+        # Campo Vara com nova interface
+        vara_selecionada = campo_vara_rpv(
+            label="Vara:",
+            key_prefix="new_rpv_vara"
+        )
+        
+        # Converter para formato compatível
+        vara_final = vara_selecionada if vara_selecionada else ""
         
         solicitar_certidao = st.selectbox(
             "Solicitar Certidão? *",
@@ -2195,8 +2263,81 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 st.warning("⚠️ Formato deve ser mm/yyyy (ex: 12/2024)")
     
     with col2:
-        valor_rpv = st.text_input("Valor da RPV (R$): *", key=valor_key)
-        observacoes = st.text_area("Observações:", height=125, key=obs_key)
+        # Seção de Valores Financeiros
+        st.markdown("**💰 Valores Financeiros:**")
+        
+        # Houve destaque de honorários (checkbox)
+        houve_destaque_honorarios = st.checkbox(
+            "✅ Houve destaque de honorários",
+            value=False,
+            help="Marque se houve destaque de honorários",
+            key="new_rpv_destaque_honorarios"
+        )
+        
+        col2_1, col2_2 = st.columns(2)
+        
+        with col2_1:
+            # Honorários contratuais
+            honorarios_contratuais = st.number_input(
+                "Honorários contratuais (R$):",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Valor dos honorários contratuais",
+                key="new_rpv_honorarios_contratuais"
+            )
+            
+            # Valor cliente
+            valor_cliente = st.number_input(
+                "Valor cliente (R$): *",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Valor destinado ao cliente",
+                key="new_rpv_valor_cliente"
+            )
+            
+            # Valor de honorário sucumbencial
+            valor_honorario_sucumbencial = st.number_input(
+                "Valor honorário sucumbencial (R$):",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Valor dos honorários sucumbenciais",
+                key="new_rpv_honorario_sucumbencial"
+            )
+        
+        with col2_2:
+            # Valor parceiro/prospector
+            valor_parceiro_prospector = st.number_input(
+                "Valor parceiro/prospector (R$):",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Valor destinado ao parceiro/prospector",
+                key="new_rpv_valor_parceiro"
+            )
+            
+            # Outros valores
+            outros_valores = st.number_input(
+                "Outros valores (R$):",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Outros valores relacionados",
+                key="new_rpv_outros_valores"
+            )
+        
+        # Observações sobre valores
+        observacoes_valores = st.text_area(
+            "Observações sobre valores:",
+            height=68,
+            help="Detalhes ou observações sobre os valores",
+            key="new_rpv_observacoes_valores"
+        )
+        
+        # Campo de observações gerais (mantido)
+        observacoes = st.text_area("Observações gerais:", height=68, key=obs_key)
         
         # Checkbox para anexar múltiplos PDFs
         anexar_multiplos_pdf = st.checkbox("Anexar múltiplos PDFs", key=multiplos_key)
@@ -2238,6 +2379,15 @@ def interface_cadastro_rpv(df, perfil_usuario):
                     st.success(f"🆕 Novo órgão '{orgao_processado}' salvo permanentemente!")
             orgao_final = orgao_processado
         
+        # Processar vara
+        if vara_selecionada and len(vara_selecionada) > 0:
+            vara_processada = normalizar_vara_rpv(vara_selecionada)
+            varas_existentes = obter_varas_rpv()
+            if vara_processada and vara_processada not in varas_existentes:
+                if adicionar_vara_rpv(vara_processada):
+                    st.success(f"🆕 Nova vara '{vara_processada}' salva permanentemente!")
+            vara_final = vara_processada
+        
         # =====================================
         # VALIDAÇÃO COMPLETA DE CAMPOS OBRIGATÓRIOS
         # =====================================
@@ -2251,8 +2401,8 @@ def interface_cadastro_rpv(df, perfil_usuario):
             campos_vazios.append("Beneficiário")
         if not cpf or cpf.strip() == "":
             campos_vazios.append("CPF")
-        if not valor_rpv or valor_rpv.strip() == "":
-            campos_vazios.append("Valor da RPV")
+        if valor_cliente <= 0.0:
+            campos_vazios.append("Valor cliente")
         if not assunto_final or assunto_final.strip() == "":
             campos_vazios.append("Assunto")
         if not orgao_final or orgao_final.strip() == "":
@@ -2326,11 +2476,21 @@ def interface_cadastro_rpv(df, perfil_usuario):
                     "Processo": processo_formatado,
                     "Beneficiário": beneficiario,
                     "CPF": cpf,
-                    "Valor RPV": valor_rpv,
+                    
+                    # Novos campos de valores
+                    "Houve Destaque Honorarios": "Sim" if houve_destaque_honorarios else "Não",
+                    "Honorarios Contratuais": honorarios_contratuais,
+                    "Valor Cliente": valor_cliente,
+                    "Valor Parceiro Prospector": valor_parceiro_prospector,
+                    "Valor Honorario Sucumbencial": valor_honorario_sucumbencial,
+                    "Outros Valores": outros_valores,
+                    "Observacoes Valores": observacoes_valores,
+                    
                     "Banco": banco_rpv,
                     "Assunto": assunto_final,
                     "Orgao Judicial": orgao_final,
-                    "Mês Competência": mes_competencia.strftime("%d/%m/%Y") if mes_competencia else "",
+                    "Vara": vara_final if vara_final else "",
+                    "Mês Competência": mes_competencia if mes_competencia else "",
                     "Observações": observacoes,
                     "Solicitar Certidão": solicitar_certidao,
                     "Status": status_inicial,
@@ -2372,10 +2532,15 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 )
 
                 # Limpar campos após submissão bem-sucedida
-                for key in [processo_key, beneficiario_key, cpf_key, valor_key, obs_key, competencia_key,
+                for key in [processo_key, beneficiario_key, cpf_key, obs_key, competencia_key,
                            certidao_key, multiplos_key, "new_rpv_banco",
+                           "new_rpv_destaque_honorarios", "new_rpv_honorarios_contratuais",
+                           "new_rpv_valor_cliente", "new_rpv_valor_parceiro", 
+                           "new_rpv_honorario_sucumbencial", "new_rpv_outros_valores",
+                           "new_rpv_observacoes_valores",
                            "select_new_rpv_assunto", "input_novo_new_rpv_assunto",
                            "select_new_rpv_orgao", "input_novo_new_rpv_orgao",
+                           "select_new_rpv_vara", "input_nova_new_rpv_vara",
                            "pdf_rpv_unico", "pdf_rpv_multiplos"]:
                     if key in st.session_state:
                         del st.session_state[key]

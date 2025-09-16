@@ -135,6 +135,31 @@ def calcular_total_hc_alvara(linha_alvara):
     hc2 = safe_get_hc_value_alvara(linha_alvara, "HC2", 0.0)
     return hc + hc1 + hc2
 
+def calcular_valor_cliente_alvara(linha_alvara):
+    """
+    Calcula automaticamente o valor do cliente para Alvarás.
+    Fórmula: Valor Sacado - (Honorários Contratuais + Honorários Sucumbenciais)
+    """
+    try:
+        # Obter valor sacado
+        valor_sacado = safe_get_hc_value_alvara(linha_alvara, "Valor Sacado", 0.0)
+        
+        # Obter total de honorários contratuais
+        total_honorarios_contratuais = calcular_total_hc_alvara(linha_alvara)
+        
+        # Obter honorários sucumbenciais
+        honorarios_sucumbenciais = safe_get_hc_value_alvara(linha_alvara, "Honorarios Sucumbenciais Valor", 0.0)
+        
+        # Calcular valor do cliente
+        valor_cliente = valor_sacado - (total_honorarios_contratuais + honorarios_sucumbenciais)
+        
+        # Garantir que não seja negativo
+        return max(valor_cliente, 0.0)
+        
+    except Exception as e:
+        # Em caso de erro, retornar 0
+        return 0.0
+
 def mostrar_detalhes_hc_alvara(linha_alvara, key_suffix=""):
     """Mostra detalhes individuais dos honorários contratuais com opção de expandir"""
     total_hc = calcular_total_hc_alvara(linha_alvara)
@@ -227,6 +252,9 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
     # Calcular total de honorários contratuais
     total_hc = calcular_total_hc_alvara(linha_alvara)
     
+    # Calcular valor do cliente automaticamente
+    valor_cliente_calculado = calcular_valor_cliente_alvara(linha_alvara)
+    
     st.markdown("### 📋 Resumo do Alvará")
     st.markdown(f"""
     <div class="compact-grid">
@@ -253,8 +281,8 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
             <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'Pagamento')}</div>
         </div>
         <div class="compact-item">
-            <div class="compact-label">💼 TOTAL HC</div>
-            <div class="compact-value">R$ {total_hc:.2f}</div>
+            <div class="compact-label">💼 VALOR CLIENTE</div>
+            <div class="compact-value">R$ {valor_cliente_calculado:.2f}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">🏛️ ÓRGÃO</div>
@@ -422,7 +450,11 @@ def render_tab_info_alvara(processo, alvara_id):
     with col_det2:
         st.markdown("**💰 Valores:**")
         st.write(f"**Valor Sacado:** {safe_format_currency_alvara(processo.get('Valor Sacado'))}")
-        st.write(f"**Valor Cliente:** {safe_format_currency_alvara(processo.get('Valor Cliente Final'))}")
+        
+        # Calcular e exibir valor do cliente automaticamente
+        valor_cliente_calculado = calcular_valor_cliente_alvara(processo)
+        st.write(f"**Valor Cliente (calculado):** R$ {valor_cliente_calculado:.2f}")
+        
         st.write(f"**Honorários Sucumbenciais:** {safe_format_currency_alvara(processo.get('Honorarios Sucumbenciais Valor'))}")
         st.write(f"**Prospector/Parceiro:** {safe_format_currency_alvara(processo.get('Prospector Parceiro'))}")
     
@@ -678,15 +710,10 @@ def render_tab_acoes_financeiro_alvara(df, linha_processo, alvara_id):
                 disabled=pendente_cadastro
             )
             
-            valor_cliente = st.number_input(
-                "👤 Valor do Cliente:",
-                min_value=0.0,
-                value=float(linha_processo.get("Valor Cliente Final", "0") or "0"),
-                step=0.01,
-                format="%.2f",
-                help="Valor final destinado ao cliente",
-                disabled=pendente_cadastro
-            )
+            # Mostrar valor do cliente calculado automaticamente (apenas exibição)
+            valor_cliente_calculado = calcular_valor_cliente_alvara(linha_processo)
+            st.markdown(f"**👤 Valor do Cliente:**")
+            st.markdown(f"<div style='padding: 8px; border-left: 4px solid #0066cc; border-radius: 4px; margin-bottom: 16px;'><strong>R$ {valor_cliente_calculado:.2f}</strong><br><small>Calculado automaticamente: Valor Sacado - (Honorários Contratuais + Sucumbenciais)</small></div>", unsafe_allow_html=True)
         
         # Seção de Honorários Contratuais dentro do form
         st.markdown("---")
@@ -765,7 +792,8 @@ def render_tab_acoes_financeiro_alvara(df, linha_processo, alvara_id):
                     st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
                     st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
                     st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
-                    st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
+                    
+                    # Nota: Valor do Cliente não é mais salvo manualmente - é calculado automaticamente
                     
                     # Salvar honorários contratuais
                     st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
@@ -805,8 +833,9 @@ def render_tab_acoes_financeiro_alvara(df, linha_processo, alvara_id):
                     st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
                     st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
                     st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
-                    st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
                     st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
+                    
+                    # Nota: Valor do Cliente não é mais salvo manualmente - é calculado automaticamente
                     
                     # Salvar honorários contratuais
                     st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
@@ -822,11 +851,12 @@ def render_tab_acoes_financeiro_alvara(df, linha_processo, alvara_id):
                     st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = 0.0
                     st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = 0.0
                     st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = 0.0
-                    st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = 0.0
                     st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = 0.0
                     st.session_state.df_editado_alvaras.loc[idx, "HC1"] = 0.0
                     st.session_state.df_editado_alvaras.loc[idx, "HC2"] = 0.0
                     st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = ""
+                    
+                    # Nota: Valor do Cliente não é mais salvo manualmente - é calculado automaticamente
                 
                 # Atualizar status para próxima etapa
                 st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Financeiro - Enviado para Rodrigo"
@@ -882,7 +912,6 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
 
     # Seção de anexo de comprovante de recebimento/pagamento
     st.markdown("---")
-    st.markdown("**📄 Comprovante de Recebimento/Pagamento**")
     
     # Verificar se já existe comprovante anexado
     comprovante_atual = safe_get_field_value_alvara(linha_processo, "Comprovante Recebimento", "")
@@ -892,7 +921,7 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
         baixar_arquivo_drive(comprovante_atual, "📄 Baixar Comprovante Atual")
     else:
         st.warning("⚠️ Comprovante de recebimento/pagamento não anexado. Necessário para finalizar o processo.")
-    
+
     # Upload de novo comprovante
     comprovante_upload = st.file_uploader(
         "Anexar comprovante de recebimento/pagamento (PDF):",
@@ -965,15 +994,10 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
                 help="Valor destinado ao prospector/parceiro"
             )
             
-            valor_cliente = st.number_input(
-                "👤 Valor do Cliente:",
-                min_value=0.0,
-                value=float(linha_processo.get("Valor Cliente Final", "0") or "0"),
-                step=0.01,
-                format="%.2f",
-                help="Valor final destinado ao cliente"
-            )
-        
+            # Mostrar valor do cliente calculado automaticamente (apenas exibição)
+            valor_cliente_calculado = calcular_valor_cliente_alvara(linha_processo)
+            st.markdown(f"**👤 Valor do Cliente:**")
+            st.markdown(f"<div style='padding: 8px; border-left: 4px solid #0066cc; border-radius: 4px; margin-bottom: 16px;'><strong>R$ {valor_cliente_calculado:.2f}</strong><br><small>Calculado automaticamente: Valor Sacado - (Honorários Contratuais + Sucumbenciais)</small></div>", unsafe_allow_html=True)
         # Seção de Honorários Contratuais dentro do form
         st.markdown("---")
         
@@ -1042,8 +1066,9 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
                 st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
                 st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
                 st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
-                st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
                 st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
+                
+                # Nota: Valor do Cliente não é mais salvo manualmente - é calculado automaticamente
                 
                 # Salvar honorários contratuais
                 st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
@@ -1086,8 +1111,9 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
                 st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
                 st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
                 st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
-                st.session_state.df_editado_alvaras.loc[idx, "Valor Cliente Final"] = valor_cliente
                 st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
+                
+                # Nota: Valor do Cliente não é mais salvo manualmente - é calculado automaticamente
                 
                 # Salvar honorários contratuais
                 st.session_state.df_editado_alvaras.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
@@ -1998,7 +2024,8 @@ def interface_lista_alvaras(df, perfil_usuario):
         for _, processo in df_paginado.iterrows():
             alvara_id = processo.get("ID", "N/A")
             status_atual = safe_get_field_value_alvara(processo, 'Status')
-            
+            st.markdown("---")
+
             # Verificar se o card está expandido
             is_expanded = alvara_id in st.session_state.alvara_expanded_cards
             
@@ -2047,10 +2074,7 @@ def interface_lista_alvaras(df, perfil_usuario):
                     """, unsafe_allow_html=True)
                 
                 # Conteúdo expandido (tabs)
-                if is_expanded:
-                    st.markdown("---")
-                    st.markdown(f"### 📄 {safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}")
-                    
+                if is_expanded:                    
                     # Tabs
                     tab_info, tab_acoes, tab_historico = st.tabs(["📋 Informações", "⚙️ Ações", "📜 Histórico"])
                     

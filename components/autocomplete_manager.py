@@ -25,6 +25,7 @@ def carregar_dados_autocomplete():
                 dados.setdefault("assuntos_beneficios", [])
                 dados.setdefault("assuntos_rpv", [])
                 dados.setdefault("orgaos_rpv", [])
+                dados.setdefault("varas_rpv", [])
                 return dados
         
         # Fallback para arquivo local se existir
@@ -35,6 +36,7 @@ def carregar_dados_autocomplete():
                 dados.setdefault("assuntos_beneficios", [])
                 dados.setdefault("assuntos_rpv", [])
                 dados.setdefault("orgaos_rpv", [])
+                dados.setdefault("varas_rpv", [])
                 return dados
         
         # Se não existir nenhum arquivo, criar estrutura vazia
@@ -42,7 +44,8 @@ def carregar_dados_autocomplete():
             "orgaos_judiciais": [],
             "assuntos_beneficios": [],
             "assuntos_rpv": [],
-            "orgaos_rpv": []
+            "orgaos_rpv": [],
+            "varas_rpv": []
         }
         
         # Salvar arquivo do repositório para próximas sessões
@@ -274,6 +277,53 @@ def remover_orgao_rpv(orgao_para_remover):
     
     return False
 
+def adicionar_vara_rpv(nova_vara):
+    """Adiciona uma nova vara de RPV e salva permanentemente"""
+    if not nova_vara or nova_vara.strip() == "":
+        return False
+        
+    # Normaliza a vara
+    import unicodedata
+    vara_normalizada = unicodedata.normalize('NFD', nova_vara.upper().strip())
+    vara_normalizada = ''.join(c for c in vara_normalizada if unicodedata.category(c) != 'Mn')
+    
+    # Carrega dados atuais
+    dados = carregar_dados_autocomplete()
+    
+    # Adiciona se não existir
+    if vara_normalizada not in dados["varas_rpv"]:
+        dados["varas_rpv"].append(vara_normalizada)
+        dados["varas_rpv"].sort()  # Mantém ordenado
+        
+        # Salva no GitHub
+        if salvar_dados_autocomplete(dados):
+            return True
+    
+    return False
+
+def remover_vara_rpv(vara_para_remover):
+    """Remove uma vara de RPV da lista permanentemente"""
+    if not vara_para_remover or vara_para_remover.strip() == "":
+        return False
+        
+    # Normaliza a vara
+    import unicodedata
+    vara_normalizada = unicodedata.normalize('NFD', vara_para_remover.upper().strip())
+    vara_normalizada = ''.join(c for c in vara_normalizada if unicodedata.category(c) != 'Mn')
+    
+    # Carrega dados atuais
+    dados = carregar_dados_autocomplete()
+    
+    # Remove se existir
+    if vara_normalizada in dados["varas_rpv"]:
+        dados["varas_rpv"].remove(vara_normalizada)
+        
+        # Salva no arquivo
+        if salvar_dados_autocomplete(dados):
+            return True
+    
+    return False
+
 def inicializar_autocomplete_session():
     """Inicializa os dados de autocomplete na sessão carregando do arquivo persistente"""
     dados = carregar_dados_autocomplete()
@@ -312,15 +362,7 @@ def obter_orgaos_judiciais_completo():
     """Obtém lista completa de órgãos judiciais (padrão + salvos)"""
     # Dados padrão
     ORGAOS_JUDICIAIS_BASE = [
-        "COMARCA DE BELO HORIZONTE",
-        "COMARCA DE CONTAGEM",
-        "COMARCA DE BETIM",
-        "COMARCA DE RIBEIRÃO DAS NEVES",
-        "TRIBUNAL DE JUSTIÇA DE MINAS GERAIS (TJMG)",
-        "SUPERIOR TRIBUNAL DE JUSTIÇA (STJ)",
-        "SUPREMO TRIBUNAL FEDERAL (STF)",
-        "TRIBUNAL REGIONAL FEDERAL 1ª REGIÃO (TRF1)",
-        "TRIBUNAL REGIONAL DO TRABALHO 3ª REGIÃO (TRT3)"
+        "TRIBUNAL REGIONAL FEDERAL DA 5.ª REGIÃO (TRF5)",
     ]
     
     # Dados salvos
@@ -399,15 +441,7 @@ def obter_orgaos_rpv_completo():
     """Obtém lista completa de órgãos de RPV (padrão + salvos)"""
     # Dados padrão
     ORGAOS_RPV_BASE = [
-        "TRIBUNAL DE JUSTIÇA DE MINAS GERAIS (TJMG)",
-        "TRIBUNAL REGIONAL FEDERAL 1ª REGIÃO (TRF1)",
-        "TRIBUNAL REGIONAL DO TRABALHO 3ª REGIÃO (TRT3)",
-        "SUPERIOR TRIBUNAL DE JUSTIÇA (STJ)",
-        "SUPREMO TRIBUNAL FEDERAL (STF)",
-        "PREFEITURA DE BELO HORIZONTE",
-        "GOVERNO DO ESTADO DE MINAS GERAIS",
-        "UNIÃO FEDERAL",
-        "INSS - INSTITUTO NACIONAL DO SEGURO SOCIAL"
+        "TRIBUNAL REGIONAL FEDERAL 5ª REGIÃO (TRF5)",
     ]
     
     # Dados salvos
@@ -416,6 +450,56 @@ def obter_orgaos_rpv_completo():
     
     # Combinar e ordenar
     return sorted(list(set(ORGAOS_RPV_BASE + orgaos_salvos)))
+
+def obter_varas_rpv_completo():
+    """Obtém lista completa de varas de RPV (padrão + salvos)"""
+    # Dados padrão
+    VARAS_RPV_BASE = [
+        "1ª VARA CÍVEL",
+    ]
+    
+    # Dados salvos
+    dados_salvos = carregar_dados_autocomplete()
+    varas_salvas = dados_salvos.get("varas_rpv", [])
+    
+    # Combinar e ordenar
+    return sorted(list(set(VARAS_RPV_BASE + varas_salvas)))
+
+def obter_assuntos_rpv():
+    """Alias para manter compatibilidade - obtém lista de assuntos RPV"""
+    return obter_assuntos_rpv_completo()
+
+def obter_orgaos_rpv():
+    """Alias para manter compatibilidade - obtém lista de órgãos RPV"""
+    return obter_orgaos_rpv_completo()
+
+def obter_varas_rpv():
+    """Alias para manter compatibilidade - obtém lista de varas RPV"""
+    return obter_varas_rpv_completo()
+
+def normalizar_assunto_rpv(assunto):
+    """Normaliza assunto de RPV"""
+    if not assunto:
+        return ""
+    import unicodedata
+    normalizado = unicodedata.normalize('NFD', assunto.upper().strip())
+    return ''.join(c for c in normalizado if unicodedata.category(c) != 'Mn')
+
+def normalizar_orgao_rpv(orgao):
+    """Normaliza órgão de RPV"""
+    if not orgao:
+        return ""
+    import unicodedata
+    normalizado = unicodedata.normalize('NFD', orgao.upper().strip())
+    return ''.join(c for c in normalizado if unicodedata.category(c) != 'Mn')
+
+def normalizar_vara_rpv(vara):
+    """Normaliza vara de RPV"""
+    if not vara:
+        return ""
+    import unicodedata
+    normalizado = unicodedata.normalize('NFD', vara.upper().strip())
+    return ''.join(c for c in normalizado if unicodedata.category(c) != 'Mn')
 
 def campo_orgao_judicial(label="🏛️ Órgão Judicial:", key_prefix="orgao"):
     """Campo selectbox + campo de texto para órgão judicial - Aparece imediatamente"""
@@ -564,3 +648,40 @@ def campo_orgao_rpv(label="🏛️ Órgão Judicial:", key_prefix="orgao_rpv"):
                 return None
     else:
         return orgao_selecionado
+
+def campo_vara_rpv(label="⚖️ Vara:", key_prefix="vara_rpv"):
+    """Campo selectbox + campo de texto para vara de RPV - Aparece imediatamente"""
+    
+    # Obter lista completa (padrão + salvos)
+    varas_existentes = obter_varas_rpv_completo()
+    
+    # Adicionar opção especial
+    opcoes = varas_existentes + ["➕ Adicionar nova vara"]
+    
+    vara_selecionada = st.selectbox(
+        label,
+        opcoes,
+        key=f"select_{key_prefix}",
+        help="Selecione uma vara existente ou '➕ Adicionar nova vara' para criar uma nova"
+    )
+    
+    # Se "Adicionar nova" foi selecionado, mostra campo de texto SEMPRE
+    if vara_selecionada == "➕ Adicionar nova vara":
+        nova_vara = st.text_input(
+            "📝 Digite o nome da nova vara:",
+            key=f"input_nova_{key_prefix}",
+            placeholder="Ex: 6ª VARA CÍVEL",
+            help="Esta vara será adicionada automaticamente ao confirmar o formulário"
+        )
+        
+        if nova_vara and nova_vara.strip():
+            st.info(f"✏️ Nova vara será adicionada: **{nova_vara.strip()}**")
+            return nova_vara.strip()
+        else:
+            if nova_vara == "":  # Campo vazio (não foi digitado ainda)
+                return None
+            else:  # Campo foi tocado mas está vazio
+                st.warning("⚠️ Digite o nome da nova vara antes de continuar")
+                return None
+    else:
+        return vara_selecionada
