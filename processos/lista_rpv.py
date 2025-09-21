@@ -24,7 +24,7 @@ from components.funcoes_rpv import (
     
     # Funções de interface
     interface_lista_rpv, interface_cadastro_rpv, interface_edicao_rpv,
-    interface_visualizar_dados_rpv
+    interface_visualizar_dados_rpv, interface_relatorio_certidao_rpv
 )
 
 # Importar funções comuns que ainda estão no módulo de controle
@@ -47,7 +47,7 @@ from components.functions_controle import (
 def show():
     """Função principal do módulo RPV"""
     
-    # CSS para estilização (removido CSS que sobrescreve cores dos inputs)
+    # CSS para estilização
     st.markdown("""
     <style>
         .metric-container {
@@ -84,8 +84,8 @@ def show():
     # Limpar colunas sem nome
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     
-    # Abas (adicionada terceira aba Visualizar Dados)
-    aba_selecionada = st.tabs(["📝 Cadastrar RPVs", "📊 Gerenciar RPVs", "📈 Visualizar Dados"])
+    # Abas (adicionada quarta aba Relatório Certidão)
+    aba_selecionada = st.tabs(["📝 Cadastrar RPVs", "📊 Gerenciar RPVs", "📈 Visualizar Dados", "📋 Relatório Certidão"])
     
     with aba_selecionada[0]:
         # LIMPAR diálogos apenas quando mudando para aba de cadastro E não há diálogo ativo
@@ -110,6 +110,15 @@ def show():
             st.session_state.rpv_aberto_id = None
             st.session_state.aba_atual_rpv = "visualizar"
         interface_visualizar_dados_rpv(df)
+    
+    with aba_selecionada[3]:
+        # LIMPAR diálogos ao entrar na aba de relatório
+        if (st.session_state.get("aba_atual_rpv") != "relatorio" and
+            not st.session_state.get("show_rpv_dialog", False)):
+            st.session_state.show_rpv_dialog = False
+            st.session_state.rpv_aberto_id = None
+            st.session_state.aba_atual_rpv = "relatorio"
+        interface_relatorio_certidao_rpv(df)
 
     # ====== DIÁLOGO DE RPV (RENDERIZADO APÓS TODA A INTERFACE) ======
     

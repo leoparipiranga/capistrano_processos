@@ -1,2 +1,1 @@
 Data_Exclusao,Usuario,Tipo_Processo,Numero_Processo,Beneficiario,CPF,Status,Valor,Dados_Completos
-05/09/2025 10:23:38,Sistema-Teste,Teste,TESTE-001,Teste Sistema,000.000.000-00,Teste,"R$ 1.000,00","{'Processo': '0000000-00.0000.0.00.0000', 'Beneficiário': 'Teste Sistema', 'CPF': '000.000.000-00', 'Status': 'Teste', 'Valor': 'R$ 1.000,00'}"

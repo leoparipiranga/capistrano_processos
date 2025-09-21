@@ -1,4 +1,4 @@
-﻿# components/funcoes_alvaras.py
+# components/funcoes_alvaras.py
 import streamlit as st
 import pandas as pd
 import requests
@@ -7,6 +7,7 @@ from datetime import datetime
 import math
 import unicodedata
 from streamlit_js_eval import streamlit_js_eval
+from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode, JsCode
 from components.autocomplete_manager import (
     inicializar_autocomplete_session,
     adicionar_orgao_judicial,
@@ -467,7 +468,7 @@ def render_tab_info_alvara(processo, alvara_id):
         st.info(safe_get_field_value_alvara(processo, 'Observacoes Financeiras'))
 
 def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuario):
-    """Renderiza a tab de ações do alvará - mantém toda a lógica original"""
+    """Renderiza a tab de ações do alvará - inclui edição completa para Cadastradores e Admins"""
     
     # Usar a função original de edição, mas sem o cabeçalho
     linha_processo_df = df[df["ID"].astype(str) == str(alvara_id)]
@@ -478,6 +479,113 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
     
     linha_processo = linha_processo_df.iloc[0]
     numero_processo = linha_processo.get("Processo", "N/A")
+    
+    # NOVA SEÇÃO: EDIÇÃO COMPLETA PARA CADASTRADORES E ADMINS
+    if perfil_usuario in ["Cadastrador", "Admin"]:
+        with st.expander("✏️ Editar Dados do Cadastro", expanded=False):
+            with st.form(f"form_edicao_completa_alvara_{alvara_id}"):
+                col_edit1, col_edit2 = st.columns(2)
+            
+                with col_edit1:
+                    st.markdown("**📋 Dados Básicos:**")
+                    
+                    # Campo editável para o processo
+                    processo_editado = st.text_input(
+                        "Número do Processo:",
+                        value=safe_get_field_value_alvara(linha_processo, "Processo", ""),
+                        key=f"edit_processo_alvara_{alvara_id}"
+                    )
+                
+                parte_editada = st.text_input(
+                    "Parte:",
+                    value=safe_get_field_value_alvara(linha_processo, "Parte", ""),
+                    key=f"edit_parte_alvara_{alvara_id}"
+                )
+                
+                # Campo editável para CPF
+                cpf_editado = st.text_input(
+                    "CPF:",
+                    value=safe_get_field_value_alvara(linha_processo, "CPF", ""),
+                    key=f"edit_cpf_alvara_{alvara_id}"
+                )
+                
+                # Campo editável para órgão judicial
+                orgao_editado = st.text_input(
+                    "Órgão Judicial:",
+                    value=safe_get_field_value_alvara(linha_processo, "Órgão Judicial", ""),
+                    key=f"edit_orgao_alvara_{alvara_id}"
+                )
+            
+            with col_edit2:
+                st.markdown("**💰 Dados Financeiros:**")
+                
+                # Campo editável para valor do alvará
+                valor_alvara_editado = st.number_input(
+                    "Valor do Alvará (R$):",
+                    min_value=0.0,
+                    value=float(safe_get_field_value_alvara(linha_processo, "Valor do Alvará", "0") or "0"),
+                    step=0.01,
+                    format="%.2f",
+                    key=f"edit_valor_alvara_{alvara_id}"
+                )
+                
+                # Campo editável para pagamento
+                pagamento_editado = st.text_input(
+                    "Pagamento:",
+                    value=safe_get_field_value_alvara(linha_processo, "Pagamento", ""),
+                    key=f"edit_pagamento_alvara_{alvara_id}"
+                )
+                
+                # Campo editável para conta
+                conta_editada = st.text_input(
+                    "Conta:",
+                    value=safe_get_field_value_alvara(linha_processo, "Conta", ""),
+                    key=f"edit_conta_alvara_{alvara_id}"
+                )
+                
+                # Campo editável para agência
+                agencia_editada = st.text_input(
+                    "Agência:",
+                    value=safe_get_field_value_alvara(linha_processo, "Agência", ""),
+                    key=f"edit_agencia_alvara_{alvara_id}"
+                )
+                
+                # Campo editável para observações
+                observacoes_editadas = st.text_area(
+                    "Observações:",
+                    value=safe_get_field_value_alvara(linha_processo, "Observações", ""),
+                    height=100,
+                    key=f"edit_observacoes_alvara_{alvara_id}"
+                )
+            
+            # Botão para salvar edições
+            salvar_edicao = st.form_submit_button("💾 Salvar Alterações", type="primary")
+            
+            if salvar_edicao:
+                try:
+                    idx = df[df["ID"] == alvara_id].index[0]
+                    
+                    # Atualizar todos os campos editados
+                    st.session_state.df_editado_alvaras.loc[idx, "Processo"] = processo_editado
+                    st.session_state.df_editado_alvaras.loc[idx, "Parte"] = parte_editada
+                    st.session_state.df_editado_alvaras.loc[idx, "CPF"] = cpf_editado
+                    st.session_state.df_editado_alvaras.loc[idx, "Órgão Judicial"] = orgao_editado
+                    st.session_state.df_editado_alvaras.loc[idx, "Valor do Alvará"] = valor_alvara_editado
+                    st.session_state.df_editado_alvaras.loc[idx, "Pagamento"] = pagamento_editado
+                    st.session_state.df_editado_alvaras.loc[idx, "Conta"] = conta_editada
+                    st.session_state.df_editado_alvaras.loc[idx, "Agência"] = agencia_editada
+                    st.session_state.df_editado_alvaras.loc[idx, "Observações"] = observacoes_editadas
+                    
+                    # Salvamento automático no GitHub
+                    save_data_to_github_seguro(st.session_state.df_editado_alvaras, "lista_alvaras.csv", "file_sha_alvaras")
+                    
+                    st.success("✅ Dados editados e salvos automaticamente!")
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro ao salvar edições: {str(e)}")
+        
+        st.markdown("---")
     
     # Renderizar ações baseadas no status - usando a lógica original
     if status_atual == "Cadastrado" and perfil_usuario in ["Cadastrador", "Admin"]:
@@ -1161,7 +1269,7 @@ def interface_cadastro_alvara(df, perfil_usuario):
     if "form_reset_counter_alvaras" not in st.session_state:
         st.session_state.form_reset_counter_alvaras = 0
     
-    # MOSTRAR LINHAS TEMPORÁRIAS PRIMEIRO (se existirem)
+    # Mostrar linhas temporárias primeiro (se existirem)
     if "preview_novas_linhas" in st.session_state and len(st.session_state["preview_novas_linhas"]) > 0:
         st.markdown("### 📋 Linhas Adicionadas (não salvas)")
         st.warning(f"⚠️ Você tem {len(st.session_state['preview_novas_linhas'])} linha(s) não salva(s)")
@@ -1214,7 +1322,7 @@ def interface_cadastro_alvara(df, perfil_usuario):
         "Observação Honorários": "Detalhes sobre os honorários sucumbenciais",
     }
     
-    # O st.form foi removido para permitir a atualização dinâmica dos widgets.
+    # Interface para cadastro de alvará
     nova_linha = {}
     aviso_letras = False
     
@@ -1670,6 +1778,36 @@ def interface_visualizar_dados_alvara(df):
         st.info("ℹ️ Não há alvarás para visualizar.")
         return
 
+    # Cards de estatísticas compactos
+    total_alvaras = len(df)
+    finalizados = len(df[df["Status"] == "Finalizado"]) if "Status" in df.columns else 0
+    pendentes = total_alvaras - finalizados
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("📊 Total de Alvarás", total_alvaras)
+    
+    with col2:
+        taxa_finalizados = (finalizados/total_alvaras*100) if total_alvaras > 0 else 0
+        st.metric("✅ Finalizados", f"{finalizados} ({taxa_finalizados:.1f}%)")
+    
+    with col3:
+        taxa_pendentes = (pendentes/total_alvaras*100) if total_alvaras > 0 else 0
+        st.metric("⏳ Em Andamento", f"{pendentes} ({taxa_pendentes:.1f}%)")
+    
+    with col4:
+        if "Data Cadastro" in df.columns:
+            hoje = datetime.now().strftime("%d/%m/%Y")
+            df_temp = df.copy()
+            df_temp["Data Cadastro"] = df_temp["Data Cadastro"].astype(str)
+            hoje_count = len(df_temp[df_temp["Data Cadastro"].str.contains(hoje, na=False)])
+        else:
+            hoje_count = 0
+        st.metric("📅 Cadastrados Hoje", hoje_count)
+
+    st.markdown("---")
+
     col_filtro1, col_filtro2, col_filtro3, col_filtro4 = st.columns(4)
     
     with col_filtro1:
@@ -1685,7 +1823,7 @@ def interface_visualizar_dados_alvara(df):
         orgao_filtro = st.selectbox("Órgão Judicial:", options=orgaos_unicos, key="viz_alvara_orgao")
     
     with col_filtro4:
-        pesquisa = st.text_input("🔎 Pesquisar por Requerente ou Processo:", key="viz_alvara_search")
+        pesquisa = st.text_input("🔎 Pesquisar por Parte ou Processo:", key="viz_alvara_search")
 
     # Aplicar filtros
     df_filtrado = df.copy()
@@ -1701,10 +1839,12 @@ def interface_visualizar_dados_alvara(df):
     
     if pesquisa:
         mask = pd.Series([False] * len(df_filtrado))
-        if "Requerente" in df_filtrado.columns:
-            mask |= df_filtrado["Requerente"].astype(str).str.contains(pesquisa, case=False, na=False)
+        if "Parte" in df_filtrado.columns:
+            mask |= df_filtrado["Parte"].astype(str).str.contains(pesquisa, case=False, na=False)
         if "Processo" in df_filtrado.columns:
             mask |= df_filtrado["Processo"].astype(str).str.contains(pesquisa, case=False, na=False)
+        if "CPF" in df_filtrado.columns:
+            mask |= df_filtrado["CPF"].astype(str).str.contains(pesquisa, case=False, na=False)
         df_filtrado = df_filtrado[mask]
 
     # Ordenar por data de cadastro mais recente
@@ -1740,109 +1880,119 @@ def interface_visualizar_dados_alvara(df):
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
 
-    # b) Lógica de Paginação
-    if "current_page_visualizar_alvara" not in st.session_state:
-        st.session_state.current_page_visualizar_alvara = 1
+    # Exibição com AgGrid
+    st.markdown(f"### 📋 Lista de Alvarás ({len(df_filtrado)} registros)")
     
-    items_per_page = 15
-    total_registros = len(df_filtrado)
-    total_pages = math.ceil(total_registros / items_per_page) if items_per_page > 0 else 1
-    
-    start_idx = (st.session_state.current_page_visualizar_alvara - 1) * items_per_page
-    end_idx = start_idx + items_per_page
-    df_paginado = df_filtrado.iloc[start_idx:end_idx]
-
-    # Selecionar colunas específicas do relatório
-    colunas_relatorio = [
-        "Processo", "Requerente", "Órgão Judicial", "Valor do Alvará",
-        "Status", "Data Cadastro", "Cadastrado Por"
-    ]
-    
-    # Verificar quais colunas existem no DataFrame
-    colunas_existentes = [col for col in colunas_relatorio if col in df_filtrado.columns]
-    
-    if not df_paginado.empty:
-        # Contador de itens
-        st.markdown(f'<p style="font-size: small; color: steelblue;">Mostrando {start_idx+1} a {min(end_idx, total_registros)} de {total_registros} registros</p>', unsafe_allow_html=True)
+    if not df_filtrado.empty:
+        # Preparar dados para o AgGrid
+        df_display = df_filtrado.copy()
         
-        # Cabeçalhos da tabela
-        col_processo, col_parte, col_orgao, col_valor, col_status, col_data = st.columns([2, 2, 2, 1.5, 2, 1.5])
-        with col_processo: st.markdown("**Processo**")
-        with col_parte: st.markdown("**Requerente**")
-        with col_orgao: st.markdown("**Órgão Judicial**")
-        with col_valor: st.markdown("**Valor**")
-        with col_status: st.markdown("**Status**")
-        with col_data: st.markdown("**Data Cadastro**")
+        # Selecionar e renomear colunas para exibição
+        colunas_para_exibir = {
+            'Processo': 'Processo',
+            'Parte': 'Parte',
+            'CPF': 'CPF',
+            'Órgão Judicial': 'Órgão Judicial',
+            'Valor do Alvará': 'Valor do Alvará (R$)',
+            'Status': 'Status',
+            'Data Cadastro': 'Data Cadastro',
+            'Cadastrado Por': 'Cadastrado Por',
+            'Observações': 'Observações'
+        }
         
-        st.markdown('<hr style="margin-top: 0.1rem; margin-bottom: 0.5rem;" />', unsafe_allow_html=True)
+        # Filtrar apenas as colunas que existem no DataFrame
+        colunas_existentes = {k: v for k, v in colunas_para_exibir.items() if k in df_display.columns}
+        df_display = df_display[list(colunas_existentes.keys())].rename(columns=colunas_existentes)
         
-        # Linhas da tabela
-        for _, processo in df_paginado.iterrows():
-            col_processo, col_parte, col_orgao, col_valor, col_status, col_data = st.columns([2, 2, 2, 1.5, 2, 1.5])
+        # Formatar valor monetário
+        if 'Valor do Alvará (R$)' in df_display.columns:
+            df_display['Valor do Alvará (R$)'] = df_display['Valor do Alvará (R$)'].apply(
+                lambda x: f"R$ {float(x):,.2f}" if pd.notna(x) and str(x).replace('.', '').replace(',', '').replace('-', '').isdigit() else str(x)
+            )
+        
+        # Formatar datas
+        if 'Data Cadastro' in df_display.columns:
+            df_display['Data Cadastro'] = df_display['Data Cadastro'].apply(
+                lambda x: str(x).split(' ')[0] if pd.notna(x) else 'N/A'
+            )
+        
+        # Configurar o AgGrid
+        gb = GridOptionsBuilder.from_dataframe(df_display)
+        
+        # Configurações gerais
+        gb.configure_default_column(
+            groupable=False,
+            value=True,
+            enableRowGroup=False,
+            aggFunc="sum",
+            editable=False,
+            filterable=True,
+            sortable=True,
+            resizable=True
+        )
+        
+        # Configurar colunas específicas
+        if 'Processo' in df_display.columns:
+            gb.configure_column("Processo", width=180, pinned='left')
+        if 'Parte' in df_display.columns:
+            gb.configure_column("Parte", width=200)
+        if 'CPF' in df_display.columns:
+            gb.configure_column("CPF", width=130)
+        if 'Órgão Judicial' in df_display.columns:
+            gb.configure_column("Órgão Judicial", width=180)
+        if 'Valor do Alvará (R$)' in df_display.columns:
+            gb.configure_column("Valor do Alvará (R$)", width=150, type="numericColumn")
+        if 'Status' in df_display.columns:
+            gb.configure_column("Status", width=140)
+        if 'Data Cadastro' in df_display.columns:
+            gb.configure_column("Data Cadastro", width=120)
+        if 'Cadastrado Por' in df_display.columns:
+            gb.configure_column("Cadastrado Por", width=140)
+        if 'Observações' in df_display.columns:
+            gb.configure_column("Observações", width=200)
+        
+        # Configurações de paginação e seleção
+        gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=20)
+        gb.configure_side_bar()
+        gb.configure_selection(selection_mode="multiple", use_checkbox=True)
+        
+        # Tema
+        gb.configure_grid_options(
+            enableRangeSelection=True,
+            domLayout='normal'
+        )
+        
+        grid_options = gb.build()
+        
+        # Renderizar AgGrid
+        grid_response = AgGrid(
+            df_display,
+            gridOptions=grid_options,
+            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=True,
+            theme='streamlit',
+            height=600,
+            width='100%',
+            reload_data=False
+        )
+        
+        # Informações sobre seleção
+        selected_rows = grid_response['selected_rows']
+        if selected_rows is not None and len(selected_rows) > 0:
+            st.info(f"✅ {len(selected_rows)} linha(s) selecionada(s)")
             
-            with col_processo:
-                processo_num = safe_get_field_value_alvara(processo, 'Processo', 'N/A')
-                st.write(f"**{processo_num[:20]}{'...' if len(processo_num) > 20 else ''}**")
-            
-            with col_parte:
-                requerente = safe_get_field_value_alvara(processo, 'Requerente', 'N/A')
-                st.write(f"{requerente[:25]}{'...' if len(requerente) > 25 else ''}")
-                
-            with col_orgao:
-                orgao = safe_get_field_value_alvara(processo, 'Órgão Judicial', 'N/A')
-                st.write(f"{orgao[:20]}{'...' if len(orgao) > 20 else ''}")
-            
-            with col_valor:
-                st.write(safe_format_currency_alvara(processo.get('Valor do Alvará')))
-                
-            with col_status:
-                status_atual = safe_get_field_value_alvara(processo, 'Status', 'N/A')
-                # Colorir status
-                if status_atual == "Finalizado":
-                    st.markdown(f'<span style="color: green; font-weight: bold;">🟢 {status_atual}</span>', unsafe_allow_html=True)
-                elif "Financeiro" in status_atual:
-                    st.markdown(f'<span style="color: orange; font-weight: bold;">🟠 {status_atual}</span>', unsafe_allow_html=True)
-                elif status_atual == "Cadastrado":
-                    st.markdown(f'<span style="color: #DAA520; font-weight: bold;">🟡 {status_atual}</span>', unsafe_allow_html=True)
-                else:
-                    st.write(status_atual)
-                    
-            with col_data:
-                data_cadastro = safe_get_field_value_alvara(processo, 'Data Cadastro', 'N/A')
-                # Extrair apenas a data (sem horário)
-                if data_cadastro != 'N/A':
-                    try:
-                        data_apenas = data_cadastro.split(' ')[0]
-                        st.write(data_apenas)
-                    except:
-                        st.write(data_cadastro)
-                else:
-                    st.write(data_cadastro)
-        
-        # Controles de paginação
-        st.markdown("---")
-        col_nav1, col_nav2, col_nav3 = st.columns([3, 2, 3])
-        
-        with col_nav1:
-            if st.session_state.current_page_visualizar_alvara > 1:
-                if st.button("<< Primeira", key="alvara_viz_primeira"):
-                    st.session_state.current_page_visualizar_alvara = 1
-                    st.rerun()
-                if st.button("< Anterior", key="alvara_viz_anterior"):
-                    st.session_state.current_page_visualizar_alvara -= 1
-                    st.rerun()
-        
-        with col_nav2:
-            st.write(f"Página {st.session_state.current_page_visualizar_alvara} de {total_pages}")
-        
-        with col_nav3:
-            if st.session_state.current_page_visualizar_alvara < total_pages:
-                if st.button("Próxima >", key="alvara_viz_proxima"):
-                    st.session_state.current_page_visualizar_alvara += 1
-                    st.rerun()
-                if st.button("Última >>", key="alvara_viz_ultima"):
-                    st.session_state.current_page_visualizar_alvara = total_pages
-                    st.rerun()
+            # Opção para exportar apenas as linhas selecionadas
+            if st.button("📥 Baixar Selecionados", key="export_selected_alvara"):
+                df_selected = pd.DataFrame(selected_rows)
+                csv_selected = df_selected.to_csv(index=False, sep=';').encode('utf-8')
+                st.download_button(
+                    label="📥 Download CSV Selecionados",
+                    data=csv_selected,
+                    file_name=f"alvaras_selecionados_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    key="download_selected_alvara"
+                )
     else:
         st.info("Nenhum registro encontrado com os filtros aplicados.")
 
@@ -1889,9 +2039,26 @@ def interface_lista_alvaras(df, perfil_usuario):
         orgao_filtro = st.selectbox("Órgão Judicial:", options=orgaos_unicos, key="lista_alvara_orgao")
     
     with col_filtro4:
-        pesquisa = st.text_input("🔎 Pesquisar:", key="lista_alvara_search")
+        # Auto-filtro com rerun automático
+        def on_alvara_search_change():
+            """Função chamada quando o texto de busca muda"""
+            pass  # O rerun é automático com key no session_state
+            
+        pesquisa = st.text_input(
+            "🔎 Pesquisar por Parte ou Processo:", 
+            key="lista_alvara_search", 
+            placeholder="Digite para filtrar (auto-busca)...",
+            on_change=on_alvara_search_change
+        )
+        
+        # Usar session_state para o valor do filtro
+        if "lista_alvara_search" in st.session_state:
+            pesquisa = st.session_state.lista_alvara_search
+            
+        if pesquisa:
+            st.caption(f"🔍 Buscando por: '{pesquisa}' ({len(pesquisa)} caracteres)")
 
-    # Aplicar filtros
+    # Aplicar filtros automaticamente
     df_filtrado = df.copy()
     
     if status_filtro != "Todos":
@@ -1912,6 +2079,12 @@ def interface_lista_alvaras(df, perfil_usuario):
 
     # Calcular total de registros filtrados
     total_registros_filtrados = len(df_filtrado)
+    
+    # Mostrar resultado da busca
+    if pesquisa:
+        st.success(f"🔍 {total_registros_filtrados} resultado(s) encontrado(s) para '{pesquisa}'")
+    elif total_registros_filtrados < len(df):
+        st.info(f"📊 {total_registros_filtrados} de {len(df)} registros (filtros aplicados)")
 
     # Botões de Expandir/Recolher Todos
     if total_registros_filtrados > 0:
@@ -2051,16 +2224,20 @@ def interface_lista_alvaras(df, perfil_usuario):
                     st.markdown(f"""
                     <div class="alvara-info-grid">
                         <div class="info-item">
-                            <div class="info-label">Número do Processo</div>
+                            <div class="info-label">Processo</div>
                             <div class="info-value">{safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}</div>
-                        </div>
-                        <div class="info-item">
-                            <div class="info-label">Status</div>
-                            <div class="info-value">{status_info['html']}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Parte</div>
                             <div class="info-value">{safe_get_field_value_alvara(processo, 'Parte', 'Não informado')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">CPF</div>
+                            <div class="info-value">{safe_get_field_value_alvara(processo, 'CPF', 'Não informado')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Status</div>
+                            <div class="info-value">{status_info['html']}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Valor</div>

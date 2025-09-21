@@ -1,4 +1,262 @@
 import streamlit as st
+import pandas as pd
+import uuid
+from datetime import datetime
+
+# Funções para dados de teste
+def criar_dados_teste():
+    """Cria dados de exemplo para todos os tipos de processo e status"""
+    try:
+        # Importar as funções necessárias
+        from components.functions_controle import save_data_to_github_seguro
+        
+        # ===== DADOS DE TESTE RPV =====
+        dados_rpv_teste = [
+            {
+                "ID": str(uuid.uuid4()),
+                "Processo": "0001234-56.2024.5.02.0001",
+                "Beneficiário": "João da Silva Teste",
+                "CPF": "123.456.789-01",
+                "Descricao RPV": "Diferenças salariais - teste",
+                "Assunto": "Trabalhista",
+                "Orgao Judicial": "TRT 2ª Região",
+                "Vara": "1ª Vara do Trabalho",
+                "Banco": "CEF",
+                "Agência": "1234",
+                "Conta": "56789-0",
+                "Mês Competência": "09/2024",
+                "Solicitar Certidão": "Sim",
+                "Observações": "Processo de teste - RPV",
+                "Status": "Cadastro",
+                "Cadastrado por": "admin",
+                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "Observações Honorários": "Teste de observações contratuais"
+            },
+            {
+                "ID": str(uuid.uuid4()),
+                "Processo": "0002345-67.2024.5.02.0002",
+                "Beneficiário": "Maria dos Santos Teste",
+                "CPF": "987.654.321-09",
+                "Descricao RPV": "Horas extras - teste",
+                "Assunto": "Trabalhista",
+                "Orgao Judicial": "TRT 2ª Região",
+                "Vara": "2ª Vara do Trabalho",
+                "Banco": "BB",
+                "Agência": "5678",
+                "Conta": "12345-6",
+                "Mês Competência": "10/2024",
+                "Solicitar Certidão": "Não",
+                "Observações": "Processo de teste - Enviado SAC",
+                "Status": "Enviado SAC",
+                "Cadastrado por": "admin",
+                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "Observações Honorários": ""
+            }
+        ]
+        
+        # ===== DADOS DE TESTE ALVARÁS =====
+        dados_alvaras_teste = [
+            {
+                "ID": str(uuid.uuid4()),
+                "Processo": "0003456-78.2024.8.26.0001",
+                "Parte": "Pedro Oliveira Teste",
+                "CPF": "456.789.123-45",
+                "Advogado": "Dr. Carlos Silva",
+                "Descricao Alvara": "Liberação de valores - teste",
+                "Valor": "R$ 15.000,00",
+                "Banco": "CEF",
+                "Agência": "9999",
+                "Conta": "88888-8",
+                "Obs Gerais": "Alvará de teste - Cadastro",
+                "Status": "Cadastro",
+                "Cadastrado por": "admin",
+                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            },
+            {
+                "ID": str(uuid.uuid4()),
+                "Processo": "0004567-89.2024.8.26.0002",
+                "Parte": "Ana Costa Teste",
+                "CPF": "789.123.456-78",
+                "Advogado": "Dra. Fernanda Lima",
+                "Descricao Alvara": "Herança - teste",
+                "Valor": "R$ 50.000,00",
+                "Banco": "BB",
+                "Agência": "7777",
+                "Conta": "66666-6",
+                "Obs Gerais": "Alvará de teste - Enviado Rodrigo",
+                "Status": "Enviado Rodrigo",
+                "Cadastrado por": "admin",
+                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            }
+        ]
+        
+        # ===== DADOS DE TESTE BENEFÍCIOS =====
+        dados_beneficios_teste = [
+            {
+                "ID": str(uuid.uuid4()),
+                "Nº DO PROCESSO": "0005678-90.2024.8.26.0003",
+                "PARTE": "Carlos Mendes Teste",
+                "CPF": "321.654.987-12",
+                "DETALHE PROCESSO": "Auxílio-doença - teste",
+                "DATA DA CONCESSÃO DA LIMINAR": "15/09/2024",
+                "VALOR MENSAL": "R$ 1.412,00",
+                "VALOR RETROATIVO": "R$ 8.472,00",
+                "TOTAL GERAL": "R$ 9.884,00",
+                "VALOR DE HONORÁRIOS": "R$ 2.471,00",
+                "STATUS": "Cadastro",
+                "Cadastrado por": "admin",
+                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            },
+            {
+                "ID": str(uuid.uuid4()),
+                "Nº DO PROCESSO": "0006789-01.2024.8.26.0004",
+                "PARTE": "Lucia Santos Teste",
+                "CPF": "654.987.321-65",
+                "DETALHE PROCESSO": "Aposentadoria - teste",
+                "DATA DA CONCESSÃO DA LIMINAR": "20/09/2024",
+                "VALOR MENSAL": "R$ 2.500,00",
+                "VALOR RETROATIVO": "R$ 15.000,00",
+                "TOTAL GERAL": "R$ 17.500,00",
+                "VALOR DE HONORÁRIOS": "R$ 4.375,00",
+                "STATUS": "Implantado",
+                "Cadastrado por": "admin",
+                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            }
+        ]
+        
+        # ===== DADOS DE TESTE ACORDOS (FUTURO) =====
+        dados_acordos_teste = [
+            {
+                "ID": str(uuid.uuid4()),
+                "Processo": "0007890-12.2024.8.26.0005",
+                "Parte": "Roberto Silva Teste",
+                "CPF": "111.222.333-44",
+                "Descricao Acordo": "Acordo trabalhista - teste",
+                "Valor Acordo": "R$ 25.000,00",
+                "Data Acordo": "22/09/2024",
+                "Condicoes": "Pagamento em 6 parcelas mensais",
+                "Obs Gerais": "Acordo de teste - Em desenvolvimento",
+                "Status": "Proposto",
+                "Cadastrado por": "admin",
+                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            },
+            {
+                "ID": str(uuid.uuid4()),
+                "Processo": "0008901-23.2024.8.26.0006",
+                "Parte": "Sandra Costa Teste",
+                "CPF": "555.666.777-88",
+                "Descricao Acordo": "Acordo de indenização - teste",
+                "Valor Acordo": "R$ 40.000,00",
+                "Data Acordo": "25/09/2024",
+                "Condicoes": "Pagamento à vista",
+                "Obs Gerais": "Acordo de teste - Aceito",
+                "Status": "Aceito",
+                "Cadastrado por": "admin",
+                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            }
+        ]
+        
+        # Salvar dados nos respectivos arquivos
+        df_rpv = pd.DataFrame(dados_rpv_teste)
+        df_alvaras = pd.DataFrame(dados_alvaras_teste)
+        df_beneficios = pd.DataFrame(dados_beneficios_teste)
+        df_acordos = pd.DataFrame(dados_acordos_teste)
+        
+        # Verificar se já existem dados e adicionar aos existentes
+        try:
+            # Tentar carregar dados existentes
+            from components.functions import load_data_from_github
+            
+            df_rpv_existente = load_data_from_github("lista_rpv.csv")
+            df_alvaras_existente = load_data_from_github("lista_alvaras.csv")
+            df_beneficios_existente = load_data_from_github("lista_beneficios.csv")
+            df_acordos_existente = load_data_from_github("lista_acordos.csv")
+            
+            # Concatenar com dados existentes
+            if not df_rpv_existente.empty:
+                df_rpv = pd.concat([df_rpv_existente, df_rpv], ignore_index=True)
+            if not df_alvaras_existente.empty:
+                df_alvaras = pd.concat([df_alvaras_existente, df_alvaras], ignore_index=True)
+            if not df_beneficios_existente.empty:
+                df_beneficios = pd.concat([df_beneficios_existente, df_beneficios], ignore_index=True)
+            if not df_acordos_existente.empty:
+                df_acordos = pd.concat([df_acordos_existente, df_acordos], ignore_index=True)
+                
+        except Exception:
+            # Se não conseguir carregar dados existentes, usar apenas os de teste
+            pass
+        
+        # Salvar nos session_state e no GitHub
+        st.session_state.df_editado_rpv = df_rpv
+        st.session_state.df_editado_alvara = df_alvaras
+        st.session_state.df_editado_beneficio = df_beneficios
+        st.session_state.df_editado_acordo = df_acordos
+        
+        save_data_to_github_seguro(df_rpv, "lista_rpv.csv", "file_sha_rpv")
+        save_data_to_github_seguro(df_alvaras, "lista_alvaras.csv", "file_sha_alvara")
+        save_data_to_github_seguro(df_beneficios, "lista_beneficios.csv", "file_sha_beneficio")
+        save_data_to_github_seguro(df_acordos, "lista_acordos.csv", "file_sha_acordo")
+        
+        st.success("✅ Dados de teste criados com sucesso!")
+        st.info(f"""
+        **Dados criados:**
+        - 📄 **RPV**: 2 processos (Cadastro, Enviado SAC)
+        - 🏛️ **Alvarás**: 2 processos (Cadastro, Enviado Rodrigo)
+        - 🎯 **Benefícios**: 2 processos (Cadastro, Implantado)
+        - 🤝 **Acordos**: 2 processos (Proposto, Aceito) - *Em desenvolvimento*
+        
+        **Observação:** Módulo de Acordos está em fase de planejamento.
+        """)
+        
+        # Recarregar a página para mostrar os novos dados
+        st.rerun()
+        
+    except Exception as e:
+        st.error(f"❌ Erro ao criar dados de teste: {str(e)}")
+
+def remover_dados_teste():
+    """Remove todos os dados de teste do sistema"""
+    try:
+        from components.functions_controle import save_data_to_github_seguro
+        
+        # Carregar dados existentes
+        from components.functions_controle import load_data_from_github
+        
+        df_rpv = load_data_from_github("lista_rpv.csv")
+        df_alvaras = load_data_from_github("lista_alvaras.csv")
+        df_beneficios = load_data_from_github("lista_beneficios.csv")
+        df_acordos = load_data_from_github("lista_acordos.csv")
+        
+        # Remover dados que contenham "Teste" no nome/parte
+        if not df_rpv.empty:
+            df_rpv = df_rpv[~df_rpv["Beneficiário"].str.contains("Teste", na=False)]
+        if not df_alvaras.empty:
+            df_alvaras = df_alvaras[~df_alvaras["Parte"].str.contains("Teste", na=False)]
+        if not df_beneficios.empty:
+            df_beneficios = df_beneficios[~df_beneficios["PARTE"].str.contains("Teste", na=False)]
+        if not df_acordos.empty:
+            df_acordos = df_acordos[~df_acordos["Parte"].str.contains("Teste", na=False)]
+        
+        # Atualizar session_state
+        st.session_state.df_editado_rpv = df_rpv
+        st.session_state.df_editado_alvara = df_alvaras
+        st.session_state.df_editado_beneficio = df_beneficios
+        st.session_state.df_editado_acordo = df_acordos
+        
+        # Salvar no GitHub
+        save_data_to_github_seguro(df_rpv, "lista_rpv.csv", "file_sha_rpv")
+        save_data_to_github_seguro(df_alvaras, "lista_alvaras.csv", "file_sha_alvara")
+        save_data_to_github_seguro(df_beneficios, "lista_beneficios.csv", "file_sha_beneficio")
+        save_data_to_github_seguro(df_acordos, "lista_acordos.csv", "file_sha_acordo")
+        
+        st.success("✅ Dados de teste removidos com sucesso!")
+        st.info("🗑️ Todos os processos contendo 'Teste' foram removidos do sistema (RPV, Alvarás, Benefícios e Acordos).")
+        
+        # Recarregar a página
+        st.rerun()
+        
+    except Exception as e:
+        st.error(f"❌ Erro ao remover dados de teste: {str(e)}")
 
 st.set_page_config(
     page_title="Capistrano Advogados",
@@ -104,11 +362,10 @@ def mostrar_guia_utilizacao():
     """)
     
     # Navegação por abas
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "🏠 Visão Geral",
-        "👥 Perfis e Permissões",
+        "👥 Perfis e Permissões", 
         "📋 Processos",
-        "🔧 Configurações",
         "❓ FAQ"
     ])
     
@@ -117,11 +374,12 @@ def mostrar_guia_utilizacao():
         st.markdown("""
         ### 🚀 **O que é o Sistema Capistrano?**
         
-        O Sistema Capistrano é uma **plataforma web avançada** desenvolvida para gerenciar três tipos principais de processos com **funcionalidades completas de workflow** e **sistema de pagamento parcelado**:
+        O Sistema Capistrano é uma **plataforma web avançada** desenvolvida para gerenciar quatro tipos principais de processos:
         
         - **🏛️ Alvarás**: Processos relacionados a licenças e autorizações administrativas
         - **💰 RPV**: Requisições de Pequeno Valor com análise jurídica
         - **🎯 Benefícios**: Processos de benefícios sociais com **sistema SAC** e **parcelamento em até 12x**
+        - **🤝 Acordos**: Acordos judiciais e extrajudiciais (em desenvolvimento)
         
         ### ⭐ **Principais Recursos Avançados**
         
@@ -131,7 +389,7 @@ def mostrar_guia_utilizacao():
         - **Dashboard financeiro** com métricas detalhadas
         - **Timeline completa** de pagamentos
         
-        #### 👥 **Novo Perfil SAC (Customer Service)**
+        #### 👥 **Perfil SAC (Customer Service)**
         - **Atendimento especializado** ao cliente
         - **Workflow dedicado** para contato com beneficiários
         - **Integração completa** com o fluxo de benefícios
@@ -142,31 +400,23 @@ def mostrar_guia_utilizacao():
         - **Histórico completo** de todas as operações
         - **Estados bem definidos** para cada etapa
         
-        #### 📊 **Dashboard e Relatórios**
-        - **Métricas em tempo real** de todos os processos
-        - **Gráficos interativos** por status e responsável
-        - **Filtros avançados** por período e tipo
-        - **Exportação de dados** para análise
-        
-        #### 🔒 **Segurança e Controle**
-        - **6 perfis de usuário** com permissões específicas
-        - **Log completo** de todas as operações
-        - **Backup automático** via Google Drive
-        - **Controle de versões** de documentos
+        #### 🔍 **Busca em Tempo Real**
+        - **Auto-filtro** que funciona enquanto você digita
+        - **Busca por Nome, CPF e Processo**
+        - **Resultados instantâneos**
+        - **Contador de caracteres** para acompanhar a busca
         """)
-        
-        st.success("🎉 **Sistema 100% atualizado** - Incluindo novo perfil SAC e sistema de parcelamento avançado!")
         
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric(
                 label="📋 Tipos de Processo",
-                value="3",
-                help="Alvarás, RPV e Benefícios"
+                value="4",
+                help="Alvarás, RPV, Benefícios e Acordos"
             )
         with col2:
             st.metric(
-                label="👥 Perfis de Usuário",
+                label="👥 Perfis de Usuário", 
                 value="5",
                 help="Admin, Cadastrador, Administrativo, Financeiro, SAC"
             )
@@ -180,82 +430,24 @@ def mostrar_guia_utilizacao():
     with tab2:
         st.header("Perfis e Permissões")
         
+        # Conteúdo dos perfis aqui...
         st.markdown("### Perfis Disponíveis")
         
         # Admin
         st.markdown("#### 🔧 **Admin**")
         st.success("**Acesso Total** - Pode fazer tudo em todos os processos")
-        with st.expander("Detalhes das permissões Admin"):
-            st.markdown("""
-            - ✅ Visualizar todos os processos
-            - ✅ Adicionar novos processos
-            - ✅ Editar qualquer processo
-            - ✅ Excluir qualquer processo
-            - ✅ Fazer upload de anexos
-            - ✅ Acessar configurações do Drive
-            - ✅ Visualizar log de exclusões
-            - ✅ Gerenciar todos os tipos de processo (Alvarás, RPV, Benefícios)
-            """)
         
         # Outros perfis
         perfis_info = {
-            "👤 Cadastrador": {
-                "cor": "info",
-                "descricao": "Responsável pelo cadastro de novos processos",
-                "permissoes": [
-                    "✅ Visualizar processos",
-                    "✅ Adicionar novos processos",
-                    "✅ Fazer upload de anexos",
-                    "✅ Excluir processos"
-                ]
-            },
-            "💰 Financeiro": {
-                "cor": "warning",
-                "descricao": "Acesso a informações financeiras dos processos",
-                "permissoes": [
-                    "✅ Visualizar processos",
-                    "✅ Editar valores financeiros",
-                    "✅ Fazer upload de comprovantes",
-                    "❌ Excluir processos"
-                ]
-            },
-            "🏢 Administrativo": {
-                "cor": "secondary",
-                "descricao": "Gerenciamento administrativo geral",
-                "permissoes": [
-                    "✅ Visualizar processos",
-                    "✅ Editar informações administrativas",
-                    "✅ Fazer upload de documentos",
-                    "❌ Excluir processos"
-                ]
-            },
-            "📞 SAC": {
-                "cor": "primary",
-                "descricao": "Atendimento ao cliente - Etapa de contato",
-                "permissoes": [
-                    "✅ Visualizar processos enviados para SAC",
-                    "✅ Marcar cliente como contatado",
-                    "✅ Enviar processos para financeiro",
-                    "❌ Editar informações do processo",
-                    "❌ Excluir processos"
-                ]
-            }
+            "👤 Cadastrador": "Responsável pelo cadastro de novos processos",
+            "💰 Financeiro": "Acesso a informações financeiras dos processos", 
+            "🏢 Administrativo": "Gerenciamento administrativo geral",
+            "📞 SAC": "Atendimento ao cliente - Etapa de contato"
         }
         
-        for perfil, info in perfis_info.items():
+        for perfil, descricao in perfis_info.items():
             st.markdown(f"#### {perfil}")
-            if info["cor"] == "info":
-                st.info(info["descricao"])
-            elif info["cor"] == "warning":
-                st.warning(info["descricao"])
-            elif info["cor"] == "secondary":
-                st.success(info["descricao"])
-            elif info["cor"] == "primary":
-                st.info(info["descricao"])
-            
-            with st.expander(f"Permissões do {perfil}"):
-                for permissao in info["permissoes"]:
-                    st.markdown(f"- {permissao}")
+            st.info(descricao)
     
     with tab3:
         st.header("📋 Gerenciamento de Processos")
@@ -263,11 +455,11 @@ def mostrar_guia_utilizacao():
         st.markdown("""
         ### Tipos de Processos
         
-        O sistema gerencia três categorias principais de processos:
+        O sistema gerencia quatro categorias principais de processos:
         """)
         
         # Sub-abas para cada tipo de processo
-        sub_tab1, sub_tab2, sub_tab3 = st.tabs(["🏛️ Alvarás", "💰 RPV", "🎯 Benefícios"])
+        sub_tab1, sub_tab2, sub_tab3, sub_tab4 = st.tabs(["🏛️ Alvarás", "💰 RPV", "🎯 Benefícios", "🤝 Acordos"])
         
         with sub_tab1:
             st.markdown("""
@@ -278,48 +470,19 @@ def mostrar_guia_utilizacao():
             2. **💰 Enviado para Financeiro:** Processo enviado para análise financeira
             3. **👔 Enviado para o Chefe:** Aprovação final e autorização
             4. **🎯 Finalizado:** Processo concluído com pagamento registrado
-            
-            **Responsabilidades por Perfil:**
-            - **Cadastrador**: Criação e cadastro inicial
-            - **Financeiro**: Análise de valores e documentos
-            - **Admin**: Aprovação final e gestão completa
-            
-            **Funcionalidades:**
-            - Cadastro de novos alvarás
-            - Upload de documentos comprobatórios
-            - Controle de status e acompanhamento
-            - Gestão de pagamentos
-            - Relatórios e visualizações
             """)
         
         with sub_tab2:
             st.markdown("""
             #### 💰 RPV - Requisições de Pequeno Valor
             
-            **Novo Fluxo do Processo (6 Etapas):**
+            **Fluxo do Processo:**
             1. **📝 Cadastro:** Cadastrador registra a requisição inicial
             2. **📋 Status Simultâneos:** SAC e Administrativo trabalham em paralelo
-               - **SAC - aguardando documentação** → **SAC - documentação pronta**
-               - **Administrativo - aguardando documentação** → **Administrativo - documentação pronta**
-            3. **💰 Validação Financeiro:** Financeiro valida trabalhos de SAC + Administrativo
-            4. **� Enviado para Rodrigo:** Financeiro anexa comprovante de recebimento
-            5. **💳 Aguardando Pagamento:** Financeiro anexa comprovante de pagamento
+            3. **💰 Validação Financeiro:** Financeiro valida trabalhos
+            4. **📤 Enviado para Rodrigo:** Financeiro anexa comprovante
+            5. **💳 Aguardando Pagamento:** Financeiro anexa comprovante
             6. **🎉 Finalizado:** RPV processado com timeline completa
-            
-            **Responsabilidades por Perfil:**
-            - **Cadastrador**: Registro inicial da RPV
-            - **SAC**: Preparação de documentação específica do SAC
-            - **Administrativo**: Preparação de documentação administrativa
-            - **Financeiro**: Validação, recebimento e pagamento
-            - **Admin**: Acesso a todas as etapas com interfaces específicas
-            
-            **Funcionalidades Avançadas:**
-            - **Status Simultâneos**: SAC e Administrativo trabalham em paralelo
-            - **Upload de Comprovantes**: Recebimento e pagamento
-            - **Timeline Detalhada**: Histórico completo com datas e responsáveis
-            - **Controle por Perfil**: Cada perfil vê apenas suas ações relevantes
-            - **Admin Inteligente**: Vê checkboxes específicos de cada etapa
-            - **Gestão de Anexos**: Arquivos salvos automaticamente no diretório anexos/
             """)
         
         with sub_tab3:
@@ -334,82 +497,39 @@ def mostrar_guia_utilizacao():
             5. **☎️ Contato SAC:** SAC faz contato e marca como contatado
             6. **💰 Enviado para Financeiro:** Processo enviado para cobrança
             7. **🎯 Finalizado:** Processo concluído com pagamento
-            
-            **Responsabilidades por Perfil:**
-            - **Cadastrador**: Criação do processo inicial
-            - **Administrativo**: Análise, documentação e implantação
-            - **SAC**: Contato com clientes e acompanhamento
-            - **Financeiro**: Gestão de pagamentos e parcelamentos
-            - **Admin**: Controle total do sistema
-            
-            **Funcionalidades Avançadas:**
-            - **Sistema de Pagamento Parcelado:** Suporte a parcelamento em até 12x
-            - **Controle Individual de Parcelas:** Acompanhamento detalhado de cada parcela
-            - **Timeline Completa:** Histórico detalhado de todas as etapas
-            - **Gestão de Documentos:** Upload e controle de comprovantes
-            - **Dashboard Financeiro:** Visão completa dos pagamentos
-            - **Workflow SAC:** Sistema completo de atendimento ao cliente
             """)
         
-        st.markdown("""
-        ---
-        ### 🔄 Estados e Transições
-        
-        Cada tipo de processo possui estados específicos e regras de transição definidas pelos perfis de usuário.
-        
-        ### 👥 Perfil SAC (Customer Service)
-        
-        O perfil **SAC** atua em dois tipos de processo:
-        
-        **🎯 Benefícios:**
-        - **Acesso**: Processos de benefícios enviados para SAC
-        - **Funcionalidades**: Contato com clientes, atualização de status
-        - **Workflow**: Recebe processos implantados e faz contato com beneficiários
-        
-        **💰 RPV:**
-        - **Acesso**: Status simultâneo "SAC - aguardando documentação"
-        - **Funcionalidades**: Preparação de documentação específica do SAC
-        - **Workflow**: Trabalha em paralelo com Administrativo
-        """)
-        
-        st.info("💡 **Dica**: Cada perfil tem acesso apenas aos status relevantes para suas funções. Admins podem gerenciar todos os status com interfaces específicas.")
-    with tab4:
-        st.header("Configurações do Sistema")
-        
-        st.markdown("### 🔧 Configurações (apenas Admin)")
-        st.info("Apenas usuários com perfil **Admin** têm acesso às configurações.")
-        
-        with st.expander("Configuração do Google Drive"):
+        with sub_tab4:
             st.markdown("""
-            **Como configurar:**
-            1. Acesse "Configurações" na barra lateral
-            2. Clique em "Configuração Drive"
-            3. Faça upload do arquivo de credenciais JSON
-            4. Configure a pasta de destino
-            5. Teste a conexão
+            #### 🤝 Acordos - Acordos Judiciais e Extrajudiciais
             
-            **Arquivos necessários:**
-            - `credentials.json` do Google Cloud Console
-            - Permissões adequadas na pasta do Drive
-            """)
-        
-        with st.expander("Log de Exclusões"):
-            st.markdown("""
-            **Funcionalidade:**
-            - Registra todas as exclusões realizadas no sistema
-            - Mantém histórico para auditoria
-            - Backup automático no Google Drive
+            **Status de Desenvolvimento:** 🚧 **EM PLANEJAMENTO**
             
-            **Como acessar:**
-            1. Vá em "Configurações" → "Log de Exclusões"
-            2. Visualize o histórico completo
-            3. Exporte relatórios se necessário
+            **Fluxo Previsto do Processo:**
+            1. **📝 Proposto:** Criação da proposta de acordo
+            2. **🤝 Negociação:** Processo em fase de negociação
+            3. **✅ Aceito:** Acordo aceito pelas partes
+            4. **📋 Em Cumprimento:** Acordo sendo cumprido
+            5. **🎯 Cumprido:** Acordo totalmente cumprido
+            6. **❌ Descumprido:** Acordo não cumprido (reiniciar processo)
+            
+            ⚠️ **Nota:** Este módulo será implementado em versão futura do sistema.
             """)
     
-    with tab5:
+    with tab4:
         st.header("Perguntas Frequentes (FAQ)")
         
         faqs = [
+            {
+                "pergunta": "❓ Como funciona o auto-filtro de busca?",
+                "resposta": """
+                **Busca em tempo real implementada:**
+                - Digite no campo de busca e os resultados aparecem automaticamente
+                - Funciona com **Nomes, CPF e Números de Processo**
+                - Contador de caracteres mostra o progresso
+                - Disponível em **todos os módulos**: RPV, Alvarás e Benefícios
+                """
+            },
             {
                 "pergunta": "❓ Como funciona o sistema de pagamento parcelado?",
                 "resposta": """
@@ -424,7 +544,7 @@ def mostrar_guia_utilizacao():
             {
                 "pergunta": "❓ O que é o perfil SAC e como funciona?",
                 "resposta": """
-                **SAC (Customer Service)** é o novo perfil para atendimento ao cliente:
+                **SAC (Customer Service)** é o perfil para atendimento ao cliente:
                 - **Função**: Fazer contato com beneficiários de processos implantados
                 - **Acesso**: Apenas processos de benefícios enviados para SAC
                 - **Workflow**: Recebe processos → Faz contato → Marca como contatado → Envia para financeiro
@@ -432,79 +552,15 @@ def mostrar_guia_utilizacao():
                 """
             },
             {
-                "pergunta": "❓ Como faço upload de múltiplos arquivos?",
+                "pergunta": "❓ Como acessar dados de teste?",
                 "resposta": """
-                1. Marque a caixa "Anexar múltiplos documentos"
-                2. Clique em "Escolher arquivos"
-                3. Selecione múltiplos arquivos (Ctrl+Click no Windows)
-                4. Confirme o upload
-                """
-            },
-            {
-                "pergunta": "❓ Não consigo excluir um processo, por quê?",
-                "resposta": """
-                Apenas usuários com perfil **Admin** ou **Cadastrador** podem excluir processos.
-                Outros perfis têm permissões limitadas por segurança.
-                Para **RPV**, use a funcionalidade de exclusão em massa selecionando múltiplos itens.
-                """
-            },
-            {
-                "pergunta": "❓ Como funciona o novo fluxo de benefícios?",
-                "resposta": """
-                **Fluxo completo em 7 etapas:**
-                1. **Ativo** (Cadastrador)
-                2. **Enviado para Administrativo** (Administrativo analisa)
-                3. **Implantado** (Administrativo implanta)
-                4. **Enviado para SAC** (SAC faz contato)
-                5. **Contato SAC** (Cliente contatado)
-                6. **Enviado para Financeiro** (Cobrança)
-                7. **Finalizado** (Processo concluído)
-                """
-            },
-            {
-                "pergunta": "❓ Como sei se meu arquivo foi enviado?",
-                "resposta": """
-                Após o upload bem-sucedido, você verá:
-                - Mensagem de confirmação verde
-                - Nome do arquivo na lista de anexos
-                - Atualização automática da interface
-                """
-            },
-            {
-                "pergunta": "❓ Posso alterar meu perfil de usuário?",
-                "resposta": """
-                Os perfis são definidos pelo administrador do sistema.
-                Entre em contato com o responsável para alterações de perfil.
-                **Novos perfis disponíveis**: Admin, Cadastrador, Administrativo, Financeiro, SAC
-                """
-            },
-            {
-                "pergunta": "❓ O que acontece se eu excluir um processo por engano?",
-                "resposta": """
-                Todas as exclusões são registradas no Log de Exclusões.
-                Entre em contato com o administrador para possível recuperação.
-                **RPV**: Use a exclusão em massa para eficiência.
-                """
-            },
-            {
-                "pergunta": "❓ Como funciona a integração com Google Drive?",
-                "resposta": """
-                - Arquivos são automaticamente enviados para o Drive
-                - Organizados por tipo de processo
-                - Backup de segurança dos dados
-                - Configuração necessária apenas pelo Admin
-                - Suporte a múltiplos documentos por processo
-                """
-            },
-            {
-                "pergunta": "❓ Como acompanhar parcelas em atraso?",
-                "resposta": """
-                **Para usuários Financeiro e Admin:**
-                1. Acesse a lista de Benefícios
-                2. Use os filtros para mostrar apenas "Parcelado"
-                3. Na edição do processo, veja o status de cada parcela
-                4. Parcelas em vermelho estão atrasadas
-                5. Use o dashboard para métricas gerais de pagamento
+                **Apenas para Administradores:**
+                1. Acesse "Configurações" na barra lateral (apenas Admin vê)
+                2. Clique em "🧪 Dados de Teste"
+                3. Use "Criar Dados de Teste" para gerar exemplos
+                4. Use "Remover Dados de Teste" para limpar
+                
+                **Dados criados incluem:** RPV, Alvarás, Benefícios e estrutura para Acordos
                 """
             }
         ]
@@ -643,6 +699,13 @@ else:
                 limpar_estados_dialogos()
             st.session_state.pagina_atual = "processo_beneficios"
             st.rerun()
+            
+        if st.button("🤝 Acordos", key='processo_acordos', use_container_width=True):
+            # Só limpar estados se estiver mudando de página  
+            if st.session_state.get("pagina_atual") != "processo_acordos":
+                limpar_estados_dialogos()
+            st.session_state.pagina_atual = "processo_acordos"
+            st.rerun()
     
     # GUIA DE UTILIZAÇÃO
     with st.sidebar.expander("📖 Guia", expanded=False):
@@ -678,6 +741,12 @@ else:
                     limpar_estados_dialogos()
                 st.session_state.pagina_atual = "gerenciar_autocomplete"
                 st.rerun()
+                
+            if st.button("🧪 Dados de Teste", key='dados_teste', use_container_width=True):
+                if st.session_state.get("pagina_atual") != "dados_teste":
+                    limpar_estados_dialogos()
+                st.session_state.pagina_atual = "dados_teste"
+                st.rerun()
 
     # CONTEÚDO DAS PÁGINAS
     if st.session_state.pagina_atual == "processo_alvaras":
@@ -689,6 +758,9 @@ else:
     elif st.session_state.pagina_atual == "processo_beneficios":
         from processos import lista_beneficios
         lista_beneficios.show()
+    elif st.session_state.pagina_atual == "processo_acordos":
+        from processos import lista_acordos
+        lista_acordos.show()
     elif st.session_state.pagina_atual == "config_drive":
         from configuracao_drive import interface_configuracao_drive
         interface_configuracao_drive()
@@ -698,5 +770,24 @@ else:
     elif st.session_state.pagina_atual == "gerenciar_autocomplete":
         from components.gerenciar_autocomplete import interface_gerenciamento_autocomplete
         interface_gerenciamento_autocomplete()
+    elif st.session_state.pagina_atual == "dados_teste":
+        # Página de dados de teste (apenas para Admin)
+        st.header("🧪 Dados de Teste")
+
+        st.warning("⚠️ Esta seção é destinada para testes e desenvolvimento. Use com cuidado!")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("➕ Criar Dados de Teste", type="primary", key="criar_teste_admin"):
+                criar_dados_teste()
+            
+        with col2:
+            if st.button("🗑️ Remover Dados de Teste", type="secondary", key="remover_teste_admin"):
+                remover_dados_teste()
+        
+        st.markdown("""
+        ⚠️ Dados de teste são identificados pela palavra "Teste" no nome/parte.
+        """)
     elif st.session_state.pagina_atual == "guia_utilizacao":
         mostrar_guia_utilizacao()

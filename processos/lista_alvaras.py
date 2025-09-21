@@ -45,31 +45,6 @@ from components.functions_controle import (
 )
 
 def show():
-    # CSS para ocultar a navegação padrão do Streamlit
-    st.markdown("""
-    <style>
-        /* Oculta a navegação padrão do Streamlit */
-        [data-testid="stSidebarNav"] {
-            display: none !important;
-        }
-        
-        /* Oculta qualquer elemento de navegação no sidebar */
-        .stSidebar nav {
-            display: none !important;
-        }
-        
-        /* Oculta elementos de navegação por classe */
-        .css-1d391kg, .css-1v0mbdj {
-            display: none !important;
-        }
-        
-        /* Remove padding superior do primeiro elemento do sidebar */
-        .stSidebar > div:first-child {
-            padding-top: 0rem;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
     # ADICIONAR verificação de perfil
     perfil_usuario = verificar_perfil_usuario_alvaras()
     

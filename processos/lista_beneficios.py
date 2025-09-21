@@ -34,7 +34,7 @@ from components.funcoes_beneficios import (
 def show():
     """Função principal do módulo Benefícios"""
     
-    # CSS para estilização (removido CSS que sobrescreve cores dos inputs)
+    # CSS para estilização
     st.markdown("""
     <style>
         .metric-container {
@@ -61,6 +61,14 @@ def show():
         # GARANTIR QUE VALOR PAGO SEJA NUMÉRICO
         if "Valor Pago" in df.columns:
             df["Valor Pago"] = pd.to_numeric(df["Valor Pago"], errors='coerce')
+        
+        # GARANTIR QUE AS COLUNAS ESSENCIAIS EXISTAM
+        if "Status" not in df.columns:
+            df["Status"] = "Pendente"  # Valor padrão
+        if "TIPO DE PROCESSO" not in df.columns:
+            df["TIPO DE PROCESSO"] = "Não informado"  # Valor padrão
+        if "ASSUNTO" not in df.columns:
+            df["ASSUNTO"] = "Não informado"  # Valor padrão
         
         st.session_state.df_editado_beneficios = df.copy()
         st.session_state.last_file_path_beneficios = selected_file_name
