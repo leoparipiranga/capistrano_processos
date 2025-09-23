@@ -124,35 +124,69 @@ def criar_dados_teste():
             }
         ]
         
-        # ===== DADOS DE TESTE ACORDOS (FUTURO) =====
+        # ===== DADOS DE TESTE ACORDOS =====
         dados_acordos_teste = [
             {
                 "ID": str(uuid.uuid4()),
                 "Processo": "0007890-12.2024.8.26.0005",
-                "Parte": "Roberto Silva Teste",
-                "CPF": "111.222.333-44",
-                "Descricao Acordo": "Acordo trabalhista - teste",
-                "Valor Acordo": "R$ 25.000,00",
-                "Data Acordo": "22/09/2024",
-                "Condicoes": "Pagamento em 6 parcelas mensais",
-                "Obs Gerais": "Acordo de teste - Em desenvolvimento",
-                "Status": "Proposto",
-                "Cadastrado por": "admin",
-                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                "Nome_Reu": "Empresa XYZ Ltda Teste",
+                "CPF_Reu": "12.345.678/0001-90",
+                "Nome_Cliente": "Roberto Silva Teste",
+                "CPF_Cliente": "111.222.333-44",
+                "Banco": "CEF",
+                "Valor_Total": 25000.00,
+                "Forma_Acordo": "Judicial",
+                "A_Vista": False,
+                "Num_Parcelas": 6,
+                "Data_Primeiro_Pagamento": "2024-10-15",
+                "Status": "Aguardando Pagamento",
+                "Cadastrado_Por": "admin",
+                "Data_Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "Comprovante_Pago": "",
+                "Honorarios_Contratuais": 0.0,
+                "Valor_Cliente": 0.0,
+                "H_Sucumbenciais": 0.0,
+                "Valor_Parceiro": 0.0,
+                "Outros_Valores": 0.0,
+                "Observacoes": "Acordo trabalhista de teste - 6 parcelas mensais",
+                "Valor_Atualizado": 0.0,
+                "Houve_Renegociacao": False,
+                "Nova_Num_Parcelas": 0,
+                "Novo_Valor_Parcela": 0.0,
+                "Acordo_Nao_Cumprido": False,
+                "Data_Ultimo_Update": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "Usuario_Ultimo_Update": "admin"
             },
             {
                 "ID": str(uuid.uuid4()),
                 "Processo": "0008901-23.2024.8.26.0006",
-                "Parte": "Sandra Costa Teste",
-                "CPF": "555.666.777-88",
-                "Descricao Acordo": "Acordo de indenização - teste",
-                "Valor Acordo": "R$ 40.000,00",
-                "Data Acordo": "25/09/2024",
-                "Condicoes": "Pagamento à vista",
-                "Obs Gerais": "Acordo de teste - Aceito",
-                "Status": "Aceito",
-                "Cadastrado por": "admin",
-                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                "Nome_Reu": "Seguradora ABC S.A. Teste",
+                "CPF_Reu": "98.765.432/0001-10",
+                "Nome_Cliente": "Sandra Costa Teste",
+                "CPF_Cliente": "555.666.777-88",
+                "Banco": "BB",
+                "Valor_Total": 40000.00,
+                "Forma_Acordo": "Extrajudicial",
+                "A_Vista": True,
+                "Num_Parcelas": 1,
+                "Data_Primeiro_Pagamento": "2024-09-30",
+                "Status": "Enviado para Financeiro",
+                "Cadastrado_Por": "admin",
+                "Data_Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "Comprovante_Pago": "comprovante_teste.pdf",
+                "Honorarios_Contratuais": 0.0,
+                "Valor_Cliente": 0.0,
+                "H_Sucumbenciais": 0.0,
+                "Valor_Parceiro": 0.0,
+                "Outros_Valores": 0.0,
+                "Observacoes": "Acordo de indenização à vista - teste",
+                "Valor_Atualizado": 0.0,
+                "Houve_Renegociacao": False,
+                "Nova_Num_Parcelas": 0,
+                "Novo_Valor_Parcela": 0.0,
+                "Acordo_Nao_Cumprido": False,
+                "Data_Ultimo_Update": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "Usuario_Ultimo_Update": "admin"
             }
         ]
         
@@ -165,12 +199,12 @@ def criar_dados_teste():
         # Verificar se já existem dados e adicionar aos existentes
         try:
             # Tentar carregar dados existentes
-            from components.functions import load_data_from_github
+            from components.functions_controle import load_data_from_github
             
-            df_rpv_existente = load_data_from_github("lista_rpv.csv")
-            df_alvaras_existente = load_data_from_github("lista_alvaras.csv")
-            df_beneficios_existente = load_data_from_github("lista_beneficios.csv")
-            df_acordos_existente = load_data_from_github("lista_acordos.csv")
+            df_rpv_existente, _ = load_data_from_github("lista_rpv.csv")
+            df_alvaras_existente, _ = load_data_from_github("lista_alvaras.csv")
+            df_beneficios_existente, _ = load_data_from_github("lista_beneficios.csv")
+            df_acordos_existente, _ = load_data_from_github("lista_acordos.csv")
             
             # Concatenar com dados existentes
             if not df_rpv_existente.empty:
@@ -189,13 +223,13 @@ def criar_dados_teste():
         # Salvar nos session_state e no GitHub
         st.session_state.df_editado_rpv = df_rpv
         st.session_state.df_editado_alvara = df_alvaras
-        st.session_state.df_editado_beneficio = df_beneficios
-        st.session_state.df_editado_acordo = df_acordos
+        st.session_state.df_editado_beneficios = df_beneficios
+        st.session_state.df_editado_acordos = df_acordos
         
         save_data_to_github_seguro(df_rpv, "lista_rpv.csv", "file_sha_rpv")
         save_data_to_github_seguro(df_alvaras, "lista_alvaras.csv", "file_sha_alvara")
         save_data_to_github_seguro(df_beneficios, "lista_beneficios.csv", "file_sha_beneficio")
-        save_data_to_github_seguro(df_acordos, "lista_acordos.csv", "file_sha_acordo")
+        save_data_to_github_seguro(df_acordos, "lista_acordos.csv", "file_sha_acordos")
         
         st.success("✅ Dados de teste criados com sucesso!")
         st.info(f"""
@@ -203,9 +237,9 @@ def criar_dados_teste():
         - 📄 **RPV**: 2 processos (Cadastro, Enviado SAC)
         - 🏛️ **Alvarás**: 2 processos (Cadastro, Enviado Rodrigo)
         - 🎯 **Benefícios**: 2 processos (Cadastro, Implantado)
-        - 🤝 **Acordos**: 2 processos (Proposto, Aceito) - *Em desenvolvimento*
+        - 🤝 **Acordos**: 2 processos (Aguardando Pagamento, Enviado para Financeiro) - **✅ IMPLEMENTADO!**
         
-        **Observação:** Módulo de Acordos está em fase de planejamento.
+        **Novo:** Módulo de Acordos agora está totalmente funcional!
         """)
         
         # Recarregar a página para mostrar os novos dados
@@ -222,10 +256,10 @@ def remover_dados_teste():
         # Carregar dados existentes
         from components.functions_controle import load_data_from_github
         
-        df_rpv = load_data_from_github("lista_rpv.csv")
-        df_alvaras = load_data_from_github("lista_alvaras.csv")
-        df_beneficios = load_data_from_github("lista_beneficios.csv")
-        df_acordos = load_data_from_github("lista_acordos.csv")
+        df_rpv, _ = load_data_from_github("lista_rpv.csv")
+        df_alvaras, _ = load_data_from_github("lista_alvaras.csv")
+        df_beneficios, _ = load_data_from_github("lista_beneficios.csv")
+        df_acordos, _ = load_data_from_github("lista_acordos.csv")
         
         # Remover dados que contenham "Teste" no nome/parte
         if not df_rpv.empty:
@@ -235,19 +269,23 @@ def remover_dados_teste():
         if not df_beneficios.empty:
             df_beneficios = df_beneficios[~df_beneficios["PARTE"].str.contains("Teste", na=False)]
         if not df_acordos.empty:
-            df_acordos = df_acordos[~df_acordos["Parte"].str.contains("Teste", na=False)]
+            # Para acordos, verificar tanto cliente quanto réu
+            df_acordos = df_acordos[
+                ~(df_acordos["Nome_Cliente"].str.contains("Teste", na=False) | 
+                  df_acordos["Nome_Reu"].str.contains("Teste", na=False))
+            ]
         
         # Atualizar session_state
         st.session_state.df_editado_rpv = df_rpv
         st.session_state.df_editado_alvara = df_alvaras
-        st.session_state.df_editado_beneficio = df_beneficios
-        st.session_state.df_editado_acordo = df_acordos
+        st.session_state.df_editado_beneficios = df_beneficios
+        st.session_state.df_editado_acordos = df_acordos
         
         # Salvar no GitHub
         save_data_to_github_seguro(df_rpv, "lista_rpv.csv", "file_sha_rpv")
         save_data_to_github_seguro(df_alvaras, "lista_alvaras.csv", "file_sha_alvara")
         save_data_to_github_seguro(df_beneficios, "lista_beneficios.csv", "file_sha_beneficio")
-        save_data_to_github_seguro(df_acordos, "lista_acordos.csv", "file_sha_acordo")
+        save_data_to_github_seguro(df_acordos, "lista_acordos.csv", "file_sha_acordos")
         
         st.success("✅ Dados de teste removidos com sucesso!")
         st.info("🗑️ Todos os processos contendo 'Teste' foram removidos do sistema (RPV, Alvarás, Benefícios e Acordos).")

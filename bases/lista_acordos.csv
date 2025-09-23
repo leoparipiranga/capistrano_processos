@@ -1,1 +1,1 @@
-ID;Processo;Parte;CPF;Descricao Acordo;Valor Acordo;Data Acordo;Condicoes;Obs Gerais;Status;Cadastrado por;Data de Cadastro
+ID;Processo;Nome_Reu;CPF_Reu;Nome_Cliente;CPF_Cliente;Banco;Valor_Total;Forma_Acordo;A_Vista;Num_Parcelas;Data_Primeiro_Pagamento;Status;Cadastrado_Por;Data_Cadastro;Comprovante_Pago;Honorarios_Contratuais;Valor_Cliente;H_Sucumbenciais;Valor_Parceiro;Outros_Valores;Observacoes;Valor_Atualizado;Houve_Renegociacao;Nova_Num_Parcelas;Novo_Valor_Parcela;Acordo_Nao_Cumprido;Data_Ultimo_Update;Usuario_Ultimo_Update
