@@ -2496,9 +2496,10 @@ def interface_visualizar_dados_rpv(df):
         df_display = df_visualizado.copy()
         
         # Selecionar e renomear colunas para exibição
+        # Mapear nomes reais das colunas do arquivo para nomes de exibição
         colunas_para_exibir = {
             'Processo': 'Processo',
-            'Beneficiário': 'Beneficiário',
+            'Beneficiário': 'Beneficiário', 
             'CPF': 'CPF',
             'Valor Cliente': 'Valor Cliente (R$)',
             'Status': 'Status',
@@ -2509,8 +2510,21 @@ def interface_visualizar_dados_rpv(df):
             'Mês Competência': 'Mês Competência'
         }
         
+        # Verificar colunas alternativas que existem no arquivo
+        colunas_alternativas = {
+            'Data Cadastro': 'Data de Cadastro',
+            'Cadastrado Por': 'Cadastrado por'
+        }
+        
         # Filtrar apenas as colunas que existem no DataFrame
-        colunas_existentes = {k: v for k, v in colunas_para_exibir.items() if k in df_display.columns}
+        colunas_existentes = {}
+        for coluna_esperada, nome_exibicao in colunas_para_exibir.items():
+            if coluna_esperada in df_display.columns:
+                colunas_existentes[coluna_esperada] = nome_exibicao
+            elif coluna_esperada in colunas_alternativas and colunas_alternativas[coluna_esperada] in df_display.columns:
+                # Usar coluna alternativa se a principal não existir
+                colunas_existentes[colunas_alternativas[coluna_esperada]] = nome_exibicao
+        
         df_display = df_display[list(colunas_existentes.keys())].rename(columns=colunas_existentes)
         
         # Formatar valor monetário
@@ -2559,7 +2573,10 @@ def interface_visualizar_dados_rpv(df):
         # Configurações de paginação e seleção
         gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=20)
         gb.configure_side_bar()
-        gb.configure_selection(selection_mode="multiple", use_checkbox=True)
+        
+        # Só configurar seleção se temos colunas no DataFrame
+        if not df_display.empty and len(df_display.columns) > 0:
+            gb.configure_selection(selection_mode="multiple", use_checkbox=True)
         
         # Tema
         gb.configure_grid_options(
@@ -3605,8 +3622,16 @@ def interface_relatorio_certidao_rpv(df):
         if "Valor Cliente" not in df_filtrado.columns and "Valor RPV" in df_filtrado.columns:
             colunas_disponiveis = [col.replace("Valor Cliente", "Valor RPV") for col in colunas_disponiveis]
         
+        # Se não encontramos nenhuma coluna específica, usar todas as disponíveis
+        if not colunas_disponiveis and not df_filtrado.empty:
+            colunas_disponiveis = df_filtrado.columns.tolist()
+        
         # Criar DataFrame para exportação
-        df_exportacao = df_filtrado[colunas_disponiveis].copy()
+        if colunas_disponiveis:
+            df_exportacao = df_filtrado[colunas_disponiveis].copy()
+        else:
+            # DataFrame vazio mas com estrutura
+            df_exportacao = pd.DataFrame()
         
         # Renomear colunas para o relatório
         rename_dict = {
@@ -3616,7 +3641,10 @@ def interface_relatorio_certidao_rpv(df):
             "Valor RPV": "Valor Total",
             "Valor Cliente": "Valor Total"
         }
-        df_exportacao.rename(columns=rename_dict, inplace=True)
+        
+        # Renomear colunas apenas se temos dados
+        if not df_exportacao.empty:
+            df_exportacao.rename(columns=rename_dict, inplace=True)
         
         col_export1, col_export2, col_export3 = st.columns([2, 2, 6])
         
@@ -3710,7 +3738,7 @@ def interface_relatorio_certidao_rpv(df):
                 elements.append(Spacer(1, 20))
                 
                 # Tabela
-                if len(df_exportacao) > 0:
+                if len(df_exportacao) > 0 and len(df_exportacao.columns) > 0:
                     # Preparar dados da tabela
                     data = [df_exportacao.columns.tolist()]
                     for _, row in df_exportacao.iterrows():
@@ -3723,21 +3751,37 @@ def interface_relatorio_certidao_rpv(df):
                             row_data.append(item_str)
                         data.append(row_data)
                     
-                    # Criar tabela
-                    table = Table(data)
-                    table.setStyle(TableStyle([
-                        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                        ('FONTSIZE', (0, 0), (-1, 0), 10),
-                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                        ('FONTSIZE', (0, 1), (-1, -1), 8),
-                        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-                    ]))
-                    elements.append(table)
+                    # Verificar se temos dados válidos para a tabela
+                    if data and len(data) > 0 and len(data[0]) > 0:
+                        # Criar tabela
+                        table = Table(data)
+                        table.setStyle(TableStyle([
+                            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                            ('FONTSIZE', (0, 0), (-1, 0), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                            ('FONTSIZE', (0, 1), (-1, -1), 8),
+                            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                        ]))
+                        elements.append(table)
+                    else:
+                        # Adicionar mensagem quando dados não são adequados para tabela
+                        sem_dados_validos = Paragraph(
+                            "Dados não adequados para exibição em tabela.",
+                            styles['Normal']
+                        )
+                        elements.append(sem_dados_validos)
+                else:
+                    # Adicionar mensagem quando não há dados para a tabela
+                    sem_dados = Paragraph(
+                        "Nenhum dado disponível para exibir na tabela.",
+                        styles['Normal']
+                    )
+                    elements.append(sem_dados)
                 
                 # Gerar PDF
                 doc.build(elements)
@@ -3837,7 +3881,10 @@ def interface_relatorio_certidao_rpv(df):
         # Configurações de paginação e seleção
         gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=25)
         gb.configure_side_bar()
-        gb.configure_selection(selection_mode="multiple", use_checkbox=True)
+        
+        # Só configurar seleção se temos colunas no DataFrame
+        if not df_display.empty and len(df_display.columns) > 0:
+            gb.configure_selection(selection_mode="multiple", use_checkbox=True)
         
         # Tema
         gb.configure_grid_options(

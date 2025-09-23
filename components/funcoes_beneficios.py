@@ -2144,7 +2144,10 @@ def interface_visualizar_dados_beneficio(df):
         # Configurações de paginação e seleção
         gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=20)
         gb.configure_side_bar()
-        gb.configure_selection(selection_mode="multiple", use_checkbox=True)
+        
+        # Só configurar seleção se temos colunas no DataFrame
+        if not df_display.empty and len(df_display.columns) > 0:
+            gb.configure_selection(selection_mode="multiple", use_checkbox=True)
         
         # Tema
         gb.configure_grid_options(
