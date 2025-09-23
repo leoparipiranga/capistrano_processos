@@ -470,8 +470,8 @@ def interface_lista_rpv(df, perfil_usuario):
         # Converter para set se não for (por segurança)
         st.session_state.rpv_expanded_cards = set(st.session_state.rpv_expanded_cards)
     
-    # Garantir que todos os IDs no set sejam strings
-    st.session_state.rpv_expanded_cards = {str(id_) for id_ in st.session_state.rpv_expanded_cards}
+    # Remover conversão automática para evitar problemas de comparação
+    # st.session_state.rpv_expanded_cards = {str(id_) for id_ in st.session_state.rpv_expanded_cards}
     
     if df.empty:
         st.info("ℹ️ Não há RPVs cadastrados ainda. Use a aba 'Cadastrar RPV' para adicionar o primeiro registro.")
@@ -728,16 +728,8 @@ def interface_lista_rpv(df, perfil_usuario):
                 
                 with col_expand if not st.session_state.modo_exclusao_rpv else col_expand:
                     expand_text = "▼ Fechar" if is_expanded else "▶ Abrir"
-                    # Usar ID único com timestamp para evitar qualquer conflito de chave
-                    pagina_atual = st.session_state.current_page_rpvs
-                    import time
-                    import hashlib
-                    import uuid
-                    # Criar uma chave verdadeiramente única combinando múltiplos fatores
-                    timestamp_micro = str(time.time()).replace('.', '')
-                    processo_hash = hashlib.md5(str(rpv.get('Processo', '')).encode()).hexdigest()[:8]
-                    session_id = str(uuid.uuid4())[:8]  # ID único da sessão
-                    button_key = f"expand_rpv_{rpv_id}_{idx}_{pagina_atual}_{timestamp_micro}_{processo_hash}_{session_id}"
+                    # Usar uma chave simples e estável baseada no ID e índice
+                    button_key = f"expand_rpv_{rpv_id}_{idx}"
                     
                     if st.button(expand_text, key=button_key):
                         if is_expanded:
