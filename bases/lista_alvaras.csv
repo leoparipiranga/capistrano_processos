@@ -1,3 +1,3 @@
-ID;Processo;Parte;CPF;Advogado;Descricao Alvara;Valor;Banco;Agência;Conta;Obs Gerais;Status;Cadastrado por;Data de Cadastro
-f3f3b3b2-cb77-43df-838c-0a5cc6f813d7;0003456-78.2024.8.26.0001;Pedro Oliveira Teste;456.789.123-45;Dr. Carlos Silva;Liberação de valores - teste;R$ 15.000,00;CEF;9999;88888-8;Alvará de teste - Cadastro;Cadastro;admin;18/09/2025 09:07:07
-88d8a5a1-e400-4bbf-a60f-a73b00903683;0004567-89.2024.8.26.0002;Ana Costa Teste;789.123.456-78;Dra. Fernanda Lima;Herança - teste;R$ 50.000,00;BB;7777;66666-6;Alvará de teste - Enviado Rodrigo;Enviado Rodrigo;admin;18/09/2025 09:07:07
+ID;Processo;Parte;CPF;Advogado;Descricao Alvara;Valor;Banco;Agência;Conta;Obs Gerais;Status;Cadastrado por;Data de Cadastro;Órgão Judicial;Valor do Alvará;Pagamento;Observações
+f3f3b3b2-cb77-43df-838c-0a5cc6f813d7;0003456-78.2024.8.26.0001;Pedro Oliveira Teste;456.789.123-45;Dr. Carlos Silva;Liberação de valores - teste;R$ 15.000,00;CEF;9999;88888-8;Alvará de teste - Cadastro;Cadastro;admin;18/09/2025 09:07:07;;0.0;;
+88d8a5a1-e400-4bbf-a60f-a73b00903683;0004567-89.2024.8.26.0002;Ana Costa Teste;789.123.456-78;Dra. Fernanda Lima;Herança - teste;R$ 50.000,00;BB;7777;66666-6;Alvará de teste - Enviado Rodrigo;Enviado Rodrigo;admin;18/09/2025 09:07:07;;;;
