@@ -496,94 +496,94 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
                         key=f"edit_processo_alvara_{alvara_id}"
                     )
                 
-                parte_editada = st.text_input(
-                    "Parte:",
-                    value=safe_get_field_value_alvara(linha_processo, "Parte", ""),
-                    key=f"edit_parte_alvara_{alvara_id}"
-                )
-                
-                # Campo editável para CPF
-                cpf_editado = st.text_input(
-                    "CPF:",
-                    value=safe_get_field_value_alvara(linha_processo, "CPF", ""),
-                    key=f"edit_cpf_alvara_{alvara_id}"
-                )
-                
-                # Campo editável para órgão judicial
-                orgao_editado = st.text_input(
-                    "Órgão Judicial:",
-                    value=safe_get_field_value_alvara(linha_processo, "Órgão Judicial", ""),
-                    key=f"edit_orgao_alvara_{alvara_id}"
-                )
+                    parte_editada = st.text_input(
+                        "Parte:",
+                        value=safe_get_field_value_alvara(linha_processo, "Parte", ""),
+                        key=f"edit_parte_alvara_{alvara_id}"
+                    )
+                    
+                    # Campo editável para CPF
+                    cpf_editado = st.text_input(
+                        "CPF:",
+                        value=safe_get_field_value_alvara(linha_processo, "CPF", ""),
+                        key=f"edit_cpf_alvara_{alvara_id}"
+                    )
+                    
+                    # Campo editável para órgão judicial
+                    orgao_editado = st.text_input(
+                        "Órgão Judicial:",
+                        value=safe_get_field_value_alvara(linha_processo, "Órgão Judicial", ""),
+                        key=f"edit_orgao_alvara_{alvara_id}"
+                    )
             
-            with col_edit2:
-                st.markdown("**💰 Dados Financeiros:**")
-                
-                # Campo editável para valor do alvará
-                valor_alvara_editado = st.number_input(
-                    "Valor do Alvará (R$):",
-                    min_value=0.0,
-                    value=float(safe_get_field_value_alvara(linha_processo, "Valor do Alvará", "0") or "0"),
-                    step=0.01,
-                    format="%.2f",
-                    key=f"edit_valor_alvara_{alvara_id}"
-                )
-                
-                # Campo editável para pagamento
-                pagamento_editado = st.text_input(
-                    "Pagamento:",
-                    value=safe_get_field_value_alvara(linha_processo, "Pagamento", ""),
-                    key=f"edit_pagamento_alvara_{alvara_id}"
-                )
-                
-                # Campo editável para conta
-                conta_editada = st.text_input(
-                    "Conta:",
-                    value=safe_get_field_value_alvara(linha_processo, "Conta", ""),
-                    key=f"edit_conta_alvara_{alvara_id}"
-                )
-                
-                # Campo editável para agência
-                agencia_editada = st.text_input(
-                    "Agência:",
-                    value=safe_get_field_value_alvara(linha_processo, "Agência", ""),
-                    key=f"edit_agencia_alvara_{alvara_id}"
-                )
-                
-                # Campo editável para observações
-                observacoes_editadas = st.text_area(
-                    "Observações:",
-                    value=safe_get_field_value_alvara(linha_processo, "Observações", ""),
-                    height=100,
-                    key=f"edit_observacoes_alvara_{alvara_id}"
-                )
+                with col_edit2:
+                    st.markdown("**💰 Dados Financeiros:**")
+                    
+                    # Campo editável para valor do alvará
+                    valor_alvara_editado = st.number_input(
+                        "Valor do Alvará (R$):",
+                        min_value=0.0,
+                        value=float(safe_get_field_value_alvara(linha_processo, "Valor do Alvará", "0") or "0"),
+                        step=0.01,
+                        format="%.2f",
+                        key=f"edit_valor_alvara_{alvara_id}"
+                    )
+                    
+                    # Campo editável para pagamento
+                    pagamento_editado = st.text_input(
+                        "Pagamento:",
+                        value=safe_get_field_value_alvara(linha_processo, "Pagamento", ""),
+                        key=f"edit_pagamento_alvara_{alvara_id}"
+                    )
+                    
+                    # Campo editável para conta
+                    conta_editada = st.text_input(
+                        "Conta:",
+                        value=safe_get_field_value_alvara(linha_processo, "Conta", ""),
+                        key=f"edit_conta_alvara_{alvara_id}"
+                    )
+                    
+                    # Campo editável para agência
+                    agencia_editada = st.text_input(
+                        "Agência:",
+                        value=safe_get_field_value_alvara(linha_processo, "Agência", ""),
+                        key=f"edit_agencia_alvara_{alvara_id}"
+                    )
+                    
+                    # Campo editável para observações
+                    observacoes_editadas = st.text_area(
+                        "Observações:",
+                        value=safe_get_field_value_alvara(linha_processo, "Observações", ""),
+                        height=100,
+                        key=f"edit_observacoes_alvara_{alvara_id}"
+                    )
             
-            # Botão para salvar edições
-            salvar_edicao = st.form_submit_button("💾 Salvar Alterações", type="primary")
-            
-            if salvar_edicao:
-                try:
-                    idx = df[df["ID"] == alvara_id].index[0]
-                    
-                    # Atualizar todos os campos editados
-                    st.session_state.df_editado_alvaras.loc[idx, "Processo"] = processo_editado
-                    st.session_state.df_editado_alvaras.loc[idx, "Parte"] = parte_editada
-                    st.session_state.df_editado_alvaras.loc[idx, "CPF"] = cpf_editado
-                    st.session_state.df_editado_alvaras.loc[idx, "Órgão Judicial"] = orgao_editado
-                    st.session_state.df_editado_alvaras.loc[idx, "Valor do Alvará"] = valor_alvara_editado
-                    st.session_state.df_editado_alvaras.loc[idx, "Pagamento"] = pagamento_editado
-                    st.session_state.df_editado_alvaras.loc[idx, "Conta"] = conta_editada
-                    st.session_state.df_editado_alvaras.loc[idx, "Agência"] = agencia_editada
-                    st.session_state.df_editado_alvaras.loc[idx, "Observações"] = observacoes_editadas
-                    
-                    # Salvamento automático no GitHub
-                    save_data_to_github_seguro(st.session_state.df_editado_alvaras, "lista_alvaras.csv", "file_sha_alvaras")
-                    
-                    st.success("✅ Dados editados e salvos automaticamente!")
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"❌ Erro ao salvar edições: {str(e)}")
+                # Botão para salvar edições
+                salvar_edicao = st.form_submit_button("💾 Salvar Alterações", type="primary")
+                
+                if salvar_edicao:
+                    try:
+                        idx = df[df["ID"] == alvara_id].index[0]
+                        
+                        # Atualizar todos os campos editados
+                        st.session_state.df_editado_alvaras.loc[idx, "Processo"] = processo_editado
+                        st.session_state.df_editado_alvaras.loc[idx, "Parte"] = parte_editada
+                        st.session_state.df_editado_alvaras.loc[idx, "CPF"] = cpf_editado
+                        st.session_state.df_editado_alvaras.loc[idx, "Órgão Judicial"] = orgao_editado
+                        st.session_state.df_editado_alvaras.loc[idx, "Valor do Alvará"] = valor_alvara_editado
+                        st.session_state.df_editado_alvaras.loc[idx, "Pagamento"] = pagamento_editado
+                        st.session_state.df_editado_alvaras.loc[idx, "Conta"] = conta_editada
+                        st.session_state.df_editado_alvaras.loc[idx, "Agência"] = agencia_editada
+                        st.session_state.df_editado_alvaras.loc[idx, "Observações"] = observacoes_editadas
+                        
+                        # Salvamento automático no GitHub
+                        save_data_to_github_seguro(st.session_state.df_editado_alvaras, "lista_alvaras.csv", "file_sha_alvaras")
+                        
+                        st.success("✅ Dados editados e salvos automaticamente!")
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Erro ao salvar edições: {str(e)}")
         
         st.markdown("---")
     
