@@ -598,7 +598,7 @@ def interface_lista_beneficios(df, perfil_usuario):
         filtro_busca = st.text_input(
             "🔎 Buscar por Parte, CPF ou Nº Processo:", 
             key="beneficio_search", 
-            placeholder="Digite para filtrar (auto-busca)...",
+            placeholder="Digite para filtrar",
             on_change=on_search_change
         )
         

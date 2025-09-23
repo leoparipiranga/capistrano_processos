@@ -28,9 +28,6 @@ def interface_gerenciamento_autocomplete():
     
     # Carregar dados atuais
     dados_salvos = carregar_dados_autocomplete()
-    
-    st.info("ℹ️ **Importante:** Esta interface permite remover apenas itens que foram adicionados manualmente. Itens padrão do sistema não podem ser removidos.")
-    
     # Tabs para cada categoria
     tab1, tab2, tab3, tab4 = st.tabs([
         "🏛️ Órgãos Judiciais",

@@ -2000,6 +2000,72 @@ def interface_visualizar_dados_alvara(df):
 # FUNÇÕES DE INTERFACE PRINCIPAL - ALVARÁS
 # =====================================
 
+def confirmar_exclusao_massa_alvaras(df, processos_selecionados):
+    """Função para confirmar exclusão em massa de Alvarás"""
+    
+    @st.dialog("🗑️ Confirmar Exclusão em Massa", width="large")
+    def dialog_confirmacao():
+        st.error("⚠️ **ATENÇÃO:** Esta ação não pode ser desfeita!")
+        
+        # Mostrar processos que serão excluídos
+        st.markdown(f"### Você está prestes a excluir **{len(processos_selecionados)}** Alvará(s):")
+        
+        # Converter IDs para string para garantir comparação correta
+        processos_selecionados_str = [str(pid) for pid in processos_selecionados]
+        processos_para_excluir = df[df["ID"].astype(str).isin(processos_selecionados_str)]
+        
+        for _, processo in processos_para_excluir.iterrows():
+            processo_num = safe_get_field_value_alvara(processo, 'Processo', 'N/A')
+            parte = safe_get_field_value_alvara(processo, 'Parte', 'N/A')
+            st.markdown(f"- **{processo_num}** - {parte}")
+        
+        st.markdown("---")
+        
+        col_conf, col_canc = st.columns(2)
+        
+        with col_conf:
+            if st.button("✅ Confirmar Exclusão", type="primary", use_container_width=True):
+                # Importar sistema de log
+                from components.log_exclusoes import registrar_exclusao
+                
+                usuario_atual = st.session_state.get("usuario", "Sistema")
+                
+                # Registrar cada exclusão no log
+                for _, processo in processos_para_excluir.iterrows():
+                    registrar_exclusao(
+                        id_processo=processo.get('ID', 'N/A'),
+                        tipo_processo="Alvará",
+                        processo=safe_get_field_value_alvara(processo, 'Processo', 'N/A'),
+                        beneficiario=safe_get_field_value_alvara(processo, 'Parte', 'N/A'),
+                        status=safe_get_field_value_alvara(processo, 'Status', 'N/A'),
+                        usuario=usuario_atual
+                    )
+                
+                # Converter IDs para o mesmo tipo para garantir comparação
+                processos_selecionados_str = [str(pid) for pid in processos_selecionados]
+                
+                # Remover processos do DataFrame
+                st.session_state.df_editado_alvaras = st.session_state.df_editado_alvaras[
+                    ~st.session_state.df_editado_alvaras["ID"].astype(str).isin(processos_selecionados_str)
+                ].reset_index(drop=True)
+                
+                # Salvar arquivo
+                salvar_arquivo(st.session_state.df_editado_alvaras, "lista_alvaras.csv")
+                
+                # Limpar seleções
+                st.session_state.modo_exclusao_alvaras = False
+                st.session_state.processos_selecionados_alvaras = []
+                
+                st.success(f"✅ {len(processos_selecionados)} Alvará(s) excluído(s) com sucesso!")
+                st.rerun()
+        
+        with col_canc:
+            if st.button("❌ Cancelar", use_container_width=True):
+                st.rerun()
+    
+    # Executar o diálogo
+    dialog_confirmacao()
+
 def interface_lista_alvaras(df, perfil_usuario):
     """Interface principal para listar alvarás com sistema de dropdown"""
     
@@ -2047,7 +2113,7 @@ def interface_lista_alvaras(df, perfil_usuario):
         pesquisa = st.text_input(
             "🔎 Pesquisar por Parte ou Processo:", 
             key="lista_alvara_search", 
-            placeholder="Digite para filtrar (auto-busca)...",
+            placeholder="Digite para filtrar",
             on_change=on_alvara_search_change
         )
         
@@ -2085,6 +2151,37 @@ def interface_lista_alvaras(df, perfil_usuario):
         st.success(f"🔍 {total_registros_filtrados} resultado(s) encontrado(s) para '{pesquisa}'")
     elif total_registros_filtrados < len(df):
         st.info(f"📊 {total_registros_filtrados} de {len(df)} registros (filtros aplicados)")
+
+    # Botões de exclusão em massa
+    usuario_atual = st.session_state.get("usuario", "")
+    perfil_atual = st.session_state.get("perfil_usuario", "")
+    pode_excluir = (perfil_atual in ["Admin", "Cadastrador"] or usuario_atual == "admin")
+    
+    # Inicializar variáveis de estado se não existirem
+    if "modo_exclusao_alvaras" not in st.session_state:
+        st.session_state.modo_exclusao_alvaras = False
+    if "processos_selecionados_alvaras" not in st.session_state:
+        st.session_state.processos_selecionados_alvaras = []
+    
+    if pode_excluir:
+        col_btn1, col_btn2, col_rest = st.columns([2, 2, 6])
+        with col_btn1:
+            if not st.session_state.modo_exclusao_alvaras:
+                if st.button("🗑️ Habilitar Exclusão", key="habilitar_exclusao_alvaras"):
+                    st.session_state.modo_exclusao_alvaras = True
+                    st.session_state.processos_selecionados_alvaras = []
+                    st.rerun()
+            else:
+                if st.button("❌ Cancelar Exclusão", key="cancelar_exclusao_alvaras"):
+                    st.session_state.modo_exclusao_alvaras = False
+                    st.session_state.processos_selecionados_alvaras = []
+                    st.rerun()
+        
+        with col_btn2:
+            if st.session_state.modo_exclusao_alvaras and st.session_state.processos_selecionados_alvaras:
+                if st.button(f"🗑️ Excluir ({len(st.session_state.processos_selecionados_alvaras)})",
+                           key="confirmar_exclusao_alvaras", type="primary"):
+                    confirmar_exclusao_massa_alvaras(df, st.session_state.processos_selecionados_alvaras)
 
     # Botões de Expandir/Recolher Todos
     if total_registros_filtrados > 0:
@@ -2205,10 +2302,21 @@ def interface_lista_alvaras(df, perfil_usuario):
             card_class = "alvara-card expanded" if is_expanded else "alvara-card"
             
             with st.container():
-                # Layout com botão expandir e informações
-                col_expand, col_info = st.columns([1, 9])
+                # Layout com checkbox e botão expandir (igual aos Benefícios)
+                if st.session_state.modo_exclusao_alvaras:
+                    col_check, col_expand, col_info = st.columns([0.3, 0.7, 9])
+                    
+                    with col_check:
+                        checkbox_key = f"alvara_select_{alvara_id}"
+                        if st.checkbox("", key=checkbox_key, label_visibility="collapsed"):
+                            if alvara_id not in st.session_state.processos_selecionados_alvaras:
+                                st.session_state.processos_selecionados_alvaras.append(alvara_id)
+                        elif alvara_id in st.session_state.processos_selecionados_alvaras:
+                            st.session_state.processos_selecionados_alvaras.remove(alvara_id)
+                else:
+                    col_expand, col_info = st.columns([1, 9])
                 
-                with col_expand:
+                with col_expand if not st.session_state.modo_exclusao_alvaras else col_expand:
                     expand_text = "▼ Fechar" if is_expanded else "▶ Abrir"
                     if st.button(expand_text, key=f"expand_alvara_{alvara_id}"):
                         if is_expanded:
