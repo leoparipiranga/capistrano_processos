@@ -1,11 +1,11 @@
-﻿# components/funcoes_rpv.py
-import streamlit as st
+﻿import streamlit as st
 import pandas as pd
 import math
 import re
 import os
+import time
 from datetime import datetime
-from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode, JsCode
+from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 from components.autocomplete_manager import (
     inicializar_autocomplete_session,
     adicionar_assunto_rpv,
@@ -56,6 +56,121 @@ def safe_get_value(data, key, default='Não informado'):
         return default
     
     return str(value)
+
+def gerar_timestamp_unico():
+    """Gera um timestamp único de 4 dígitos para usar em chaves de componentes"""
+    return int(time.time() * 1000) % 10000
+
+def limpar_estados_dialog_rpv():
+    """Limpa estados de diálogo e cards expandidos para RPV"""
+    if st.session_state.get("show_rpv_dialog", False):
+        st.session_state.show_rpv_dialog = False
+    if st.session_state.get("rpv_aberto_id") is not None:
+        st.session_state.rpv_aberto_id = None
+
+def aplicar_css_cards_rpv():
+    """Aplica CSS padrão para cards RPV"""
+    st.markdown("""
+    <style>
+    .rpv-card {
+        border: 1px solid #e0e6ed;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 8px;
+        background-color: transparent;
+        transition: all 0.3s ease;
+    }
+    .rpv-card:hover {
+        border-color: #0066cc;
+        box-shadow: 0 2px 8px rgba(0,102,204,0.15);
+    }
+    .rpv-card.expanded {
+        background-color: transparent;
+        border-color: #0066cc;
+        border-width: 2px;
+        box-shadow: 0 4px 12px rgba(0,102,204,0.2);
+    }
+    .rpv-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+    }
+    .rpv-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .info-item {
+        background: rgba(255,255,255,0.7);
+        padding: 6px 8px;
+        border-radius: 4px;
+        border-left: 3px solid #0066cc;
+    }
+    .expanded .info-item {
+        background: rgba(255,255,255,0.9);
+        border-left: 3px solid #0055aa;
+    }
+    .info-label {
+        font-size: 0.8em;
+        color: #666;
+        font-weight: bold;
+    }
+    .info-value {
+        font-size: 0.9em;
+        color: #333;
+    }
+    .tab-button {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 8px 16px;
+        margin-right: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .tab-button:hover {
+        background: #e9ecef;
+    }
+    .tab-button.active {
+        background: #0066cc;
+        color: white;
+        border-color: #0066cc;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+def validar_campos_obrigatorios_rpv(campos):
+    """
+    Valida campos obrigatórios para RPV
+    
+    Args:
+        campos (dict): Dicionário com os campos a serem validados
+        
+    Returns:
+        list: Lista de campos vazios encontrados
+    """
+    campos_vazios = []
+    
+    # Definir campos obrigatórios e suas labels amigáveis
+    campos_obrigatorios = {
+        'processo': 'Número do Processo',
+        'beneficiario': 'Beneficiário', 
+        'cpf': 'CPF',
+        'assunto': 'Assunto',
+        'orgao_judicial': 'Órgão Judicial',
+        'banco': 'Banco',
+        'mes_competencia': 'Mês de Competência',
+        'solicitar_certidao': 'Solicitar Certidão'
+    }
+    
+    for campo_key, campo_label in campos_obrigatorios.items():
+        valor = campos.get(campo_key)
+        if not valor or str(valor).strip() == "":
+            campos_vazios.append(campo_label)
+    
+    return campos_vazios
 
 # =====================================
 # CONFIGURAÇÕES DE PERFIS - RPV
@@ -458,10 +573,7 @@ def interface_lista_rpv(df, perfil_usuario):
     """Interface principal para listar RPVs com sistema de dropdown"""
     
     # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de lista
-    if st.session_state.get("show_rpv_dialog", False):
-        st.session_state.show_rpv_dialog = False
-    if st.session_state.get("rpv_aberto_id") is not None:
-        st.session_state.rpv_aberto_id = None
+    limpar_estados_dialog_rpv()
     
     # Inicializar estado dos cards expandidos - GARANTIR que seja um set
     if "rpv_expanded_cards" not in st.session_state:
@@ -618,77 +730,8 @@ def interface_lista_rpv(df, perfil_usuario):
     end_idx = start_idx + items_per_page
     df_paginado = df_filtrado.iloc[start_idx:end_idx]
 
-    # CSS para cards dropdown (exatamente igual ao benefícios)
-    st.markdown("""
-    <style>
-    .rpv-card {
-        border: 1px solid #e0e6ed;
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 8px;
-        background-color: transparent;
-        transition: all 0.3s ease;
-    }
-    .rpv-card:hover {
-        border-color: #0066cc;
-        box-shadow: 0 2px 8px rgba(0,102,204,0.15);
-    }
-    .rpv-card.expanded {
-        background-color: transparent;
-        border-color: #0066cc;
-        border-width: 2px;
-        box-shadow: 0 4px 12px rgba(0,102,204,0.2);
-    }
-    .rpv-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        cursor: pointer;
-    }
-    .rpv-info-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 8px;
-        margin-top: 8px;
-    }
-    .info-item {
-        background: rgba(255,255,255,0.7);
-        padding: 6px 8px;
-        border-radius: 4px;
-        border-left: 3px solid #0066cc;
-    }
-    .expanded .info-item {
-        background: rgba(255,255,255,0.9);
-        border-left: 3px solid #0055aa;
-    }
-    .info-label {
-        font-size: 0.8em;
-        color: #666;
-        font-weight: bold;
-    }
-    .info-value {
-        font-size: 0.9em;
-        color: #333;
-    }
-    .tab-button {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        padding: 8px 16px;
-        margin-right: 8px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .tab-button:hover {
-        background: #e9ecef;
-    }
-    .tab-button.active {
-        background: #0066cc;
-        color: white;
-        border-color: #0066cc;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # CSS para cards dropdown (aplicado via função reutilizável)
+    aplicar_css_cards_rpv()
 
     # Lista de RPVs
     if not df_paginado.empty:
@@ -706,8 +749,12 @@ def interface_lista_rpv(df, perfil_usuario):
             # Converter ID para string para garantir consistência
             rpv_id = str(rpv_id)
             
+            # Criar chave única para this specific card instance (incluindo página e posição)
+            pagina_atual = st.session_state.get("current_page_rpvs", 1)
+            card_key = f"{rpv_id}_{pagina_atual}_{idx}"
+            
             # Usar o ID único do RPV ao invés de agrupar por processo
-            is_expanded = rpv_id in st.session_state.rpv_expanded_cards
+            is_expanded = card_key in st.session_state.rpv_expanded_cards
             
             card_class = "rpv-card expanded" if is_expanded else "rpv-card"
             
@@ -717,7 +764,8 @@ def interface_lista_rpv(df, perfil_usuario):
                     col_check, col_expand, col_info = st.columns([0.3, 0.7, 9])
                     
                     with col_check:
-                        checkbox_key = f"rpv_select_{rpv_id}"
+                        # Usar chave única que inclui página e índice para evitar duplicatas
+                        checkbox_key = f"rpv_select_{rpv_id}_{pagina_atual}_{idx}"
                         if st.checkbox("", key=checkbox_key, label_visibility="collapsed"):
                             if rpv_id not in st.session_state.processos_selecionados_rpv:
                                 st.session_state.processos_selecionados_rpv.append(rpv_id)
@@ -728,16 +776,16 @@ def interface_lista_rpv(df, perfil_usuario):
                 
                 with col_expand if not st.session_state.modo_exclusao_rpv else col_expand:
                     expand_text = "▼ Fechar" if is_expanded else "▶ Abrir"
-                    # Usar uma chave simples e estável baseada no ID e índice
-                    button_key = f"expand_rpv_{rpv_id}_{idx}"
+                    # Usar chave única baseada no card_key
+                    button_key = f"expand_rpv_{card_key}"
                     
                     if st.button(expand_text, key=button_key):
                         if is_expanded:
-                            # Remover apenas este RPV específico
-                            st.session_state.rpv_expanded_cards.discard(rpv_id)
+                            # Remover apenas este card específico
+                            st.session_state.rpv_expanded_cards.discard(card_key)
                         else:
-                            # Adicionar apenas este RPV específico
-                            st.session_state.rpv_expanded_cards.add(rpv_id)
+                            # Adicionar apenas este card específico
+                            st.session_state.rpv_expanded_cards.add(card_key)
                         st.rerun()
                 
                 with col_info:
@@ -947,8 +995,7 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
         with st.expander("✏️ Editar Dados do Cadastro", expanded=False):
             # Adicionar página atual e timestamp para garantir chave única
             pagina_atual = st.session_state.get("current_page_rpvs", 1)
-            import time
-            timestamp = int(time.time() * 1000) % 10000  # Últimos 4 dígitos do timestamp
+            timestamp = gerar_timestamp_unico()
             form_key = f"form_edicao_completa_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
             with st.form(form_key):
                 col_edit1, col_edit2 = st.columns(2)
@@ -1091,8 +1138,7 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
         st.info("Após finalizar o cadastro, este RPV será enviado para os perfis SAC e Administrativo.")
         
         # Usar timestamp para chave única
-        import time
-        timestamp = int(time.time() * 1000) % 10000
+        timestamp = gerar_timestamp_unico()
         pagina_atual = st.session_state.get("current_page_rpvs", 1)
         
         if st.button("✅ Finalizar Cadastro e Enviar", type="primary", key=f"finalizar_cadastro_tab_{rpv_id}_{pagina_atual}_{timestamp}"):
@@ -1112,10 +1158,18 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
             st.session_state.df_editado_rpv.loc[idx, "Enviado Por"] = str(st.session_state.get("usuario", "Sistema"))
             
             # Salvamento automático
-            save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
-            st.session_state.rpv_expanded_cards.discard(rpv_id)
-            st.success("✅ RPV enviado simultaneamente para SAC e Administrativo e salvo automaticamente!")
-            st.rerun()
+            novo_sha = save_data_to_github_seguro(
+                st.session_state.df_editado_rpv,
+                "lista_rpv.csv",
+                "file_sha_rpv"
+            )
+            if novo_sha:
+                st.session_state.file_sha_rpv = novo_sha
+                st.session_state.rpv_expanded_cards.discard(rpv_id)
+                st.success("✅ RPV enviado simultaneamente para SAC e Administrativo e salvo automaticamente!")
+                st.rerun()
+            else:
+                st.error("❌ Erro ao salvar. Tente novamente.")
     
     elif (perfil_usuario in ["SAC", "Admin"]) and ("SAC - aguardando documentação" in obter_status_simultaneo_ativo(linha_processo)):
         st.info("Marque quando a documentação SAC estiver pronta.")
@@ -1124,7 +1178,7 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
         sac_doc_pronta = linha_processo.get("SAC Documentacao Pronta", "") == "Sim"
         
         # Usar timestamp para chave única
-        timestamp = int(time.time() * 1000) % 10000
+        timestamp = gerar_timestamp_unico()
         pagina_atual = st.session_state.get("current_page_rpvs", 1)
         
         if not sac_doc_pronta:
@@ -1153,7 +1207,7 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
         admin_doc_pronta = linha_processo.get("Admin Documentacao Pronta", "") == "Sim"
         
         # Usar timestamp para chave única
-        timestamp = int(time.time() * 1000) % 10000
+        timestamp = gerar_timestamp_unico()
         pagina_atual = st.session_state.get("current_page_rpvs", 1)
         
         if not admin_doc_pronta:
@@ -1180,8 +1234,7 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
         st.markdown("---")
         st.markdown("### 💰 Valores Financeiros")
         
-        import time
-        timestamp = int(time.time() * 1000) % 10000  # Últimos 4 dígitos do timestamp
+        timestamp = gerar_timestamp_unico()
         pagina_atual = st.session_state.get("current_page_rpvs", 1)
         with st.form(f"form_valores_rpv_tab_{rpv_id}_{pagina_atual}_{timestamp}"):
             # Checkbox para destaque de honorários
@@ -1925,10 +1978,18 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
             st.session_state.df_editado_rpv.loc[idx, "Enviado Por"] = str(st.session_state.get("usuario", "Sistema"))
             
             # Salvamento automático
-            save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
-            st.session_state.show_rpv_dialog = False
-            st.success("✅ RPV enviado simultaneamente para SAC e Administrativo e salvo automaticamente!")
-            st.rerun()
+            novo_sha = save_data_to_github_seguro(
+                st.session_state.df_editado_rpv,
+                "lista_rpv.csv",
+                "file_sha_rpv"
+            )
+            if novo_sha:
+                st.session_state.file_sha_rpv = novo_sha
+                st.session_state.show_rpv_dialog = False
+                st.success("✅ RPV enviado simultaneamente para SAC e Administrativo e salvo automaticamente!")
+                st.rerun()
+            else:
+                st.error("❌ Erro ao salvar. Tente novamente.")
     
     elif (perfil_usuario in ["SAC", "Admin"]) and ("SAC - aguardando documentação" in status_ativos):
         st.info("Marque quando a documentação SAC estiver pronta.")
@@ -2273,8 +2334,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
         st.markdown("---")
         st.markdown("### 💼 Honorários Contratuais")
         
-        import time
-        timestamp = int(time.time() * 1000) % 10000  # Últimos 4 dígitos do timestamp
+        timestamp = gerar_timestamp_unico()
         with st.form(f"form_hc_rpv_{rpv_id}_{st.session_state.get('current_page_rpvs', 1)}_{timestamp}"):
             col_hc1, col_hc2 = st.columns(2)
             
@@ -2381,10 +2441,7 @@ def interface_visualizar_dados_rpv(df):
     """Interface melhorada para visualizar dados de RPVs em formato de tabela limpa."""
     
     # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de visualização
-    if st.session_state.get("show_rpv_dialog", False):
-        st.session_state.show_rpv_dialog = False
-    if st.session_state.get("rpv_aberto_id") is not None:
-        st.session_state.rpv_aberto_id = None
+    limpar_estados_dialog_rpv()
     
     if df.empty:
         st.info("ℹ️ Não há RPVs para visualizar.")
@@ -2615,10 +2672,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
     """Interface para cadastrar novos RPVs"""
     
     # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de cadastro
-    if st.session_state.get("show_rpv_dialog", False):
-        st.session_state.show_rpv_dialog = False
-    if st.session_state.get("rpv_aberto_id") is not None:
-        st.session_state.rpv_aberto_id = None
+    limpar_estados_dialog_rpv()
     
     if perfil_usuario not in ["Cadastrador", "Admin"]:
         st.warning("⚠️ Apenas Cadastradores e Administradores podem criar novos RPVs")
@@ -3471,29 +3525,10 @@ def interface_relatorio_certidao_rpv(df):
     """Interface para gerar relatório de certidão de RPVs em formato de tabela clássica."""
     
     # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de relatório
-    if st.session_state.get("show_rpv_dialog", False):
-        st.session_state.show_rpv_dialog = False
-    if st.session_state.get("rpv_aberto_id") is not None:
-        st.session_state.rpv_aberto_id = None
+    limpar_estados_dialog_rpv()
     
     if df.empty:
         st.info("ℹ️ Não há RPVs cadastrados para gerar o relatório.")
-        st.markdown("""
-        ### 📝 Como usar o Relatório de Certidão:
-        
-        1. **Cadastre RPVs** na aba "📝 Cadastrar RPVs"
-        2. **Configure os filtros** de data, certidão e status  
-        3. **Visualize** os dados na tabela formatada
-        4. **Exporte** os resultados em Excel ou PDF
-        
-        #### Colunas do Relatório:
-        - **Número do Processo**: Número identificador do processo
-        - **Beneficiário**: Nome do beneficiário do RPV  
-        - **CPF**: CPF do beneficiário
-        - **Órgão Banco**: Órgão judicial responsável
-        - **Valor Total**: Valor total do RPV
-        - **Status**: Status atual do processo
-        """)
         return
 
     st.markdown("### 📊 Relatório de Certidão - RPVs")

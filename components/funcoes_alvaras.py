@@ -27,16 +27,31 @@ def safe_get_value_alvara(valor, default="Não informado"):
         return default
     return str(valor)
 
-def safe_get_field_value_alvara(linha_df, campo, default="Não informado"):
+def safe_get_field_value_alvara(data, campo, default="Não informado"):
     """
-    Função para extrair valor de um campo do DataFrame de forma segura
+    Função para extrair valor de um campo de forma segura
+    Funciona com DataFrame, Series, ou dict
     """
     try:
-        if linha_df.empty:
+        # Se for DataFrame
+        if hasattr(data, 'empty') and hasattr(data, 'iloc'):
+            if data.empty:
+                return default
+            valor = data.iloc[0].get(campo, default)
+        # Se for Series do pandas
+        elif hasattr(data, 'get'):
+            valor = data.get(campo, default)
+        # Se for dict simples
+        elif isinstance(data, dict):
+            valor = data.get(campo, default)
+        # Se tem o atributo diretamente (Series)
+        elif hasattr(data, campo):
+            valor = getattr(data, campo, default)
+        else:
             return default
-        valor = linha_df.iloc[0].get(campo, default)
+        
         return safe_get_value_alvara(valor, default)
-    except (IndexError, KeyError):
+    except (IndexError, KeyError, AttributeError):
         return default
 
 def safe_format_currency_alvara(valor, default="Não informado"):
@@ -104,16 +119,8 @@ def obter_orgaos_judiciais():
     orgaos_customizados = st.session_state.get("orgaos_judiciais_customizados", [])
     return list(set(ORGAOS_JUDICIAIS_DEFAULT + orgaos_customizados))
 
-def safe_get_field_value_alvara(data, key, default=''):
-    """Obtém valor de forma segura, tratando NaN e valores None"""
-    value = data.get(key, default)
-    if value is None:
-        return default
-    # Converter para string e verificar se não é 'nan'
-    str_value = str(value)
-    if str_value.lower() in ['nan', 'none', '', 'null']:
-        return default
-    return str_value
+# Função safe_get_field_value_alvara movida para evitar duplicação
+# A versão correta está na linha 30
 
 def safe_get_hc_value_alvara(data, key, default=0.0):
     """Obtém valor de honorário contratual de forma segura para Alvarás"""
@@ -242,7 +249,7 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
     </style>
     """, unsafe_allow_html=True)
     
-    status_atual = safe_get_field_value_alvara(linha_alvara, 'Status')
+    status_atual = linha_alvara.get('Status', 'Cadastrado')
     status_class = {
         "Cadastrado": "background-color: #fff3cd; color: #856404;",
         "Enviado para o Financeiro": "background-color: #d1ecf1; color: #0c5460;",
@@ -261,15 +268,15 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
     <div class="compact-grid">
         <div class="compact-item">
             <div class="compact-label">📄 PROCESSO</div>
-            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'Processo')}</div>
+            <div class="compact-value">{linha_alvara.get('Processo', 'Não informado')}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">👤 PARTE</div>
-            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'Parte')}</div>
+            <div class="compact-value">{linha_alvara.get('Parte', 'Não informado')}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">🆔 CPF</div>
-            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'CPF')}</div>
+            <div class="compact-value">{linha_alvara.get('CPF', 'Não informado')}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">📊 STATUS</div>
@@ -279,7 +286,7 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
         </div>
         <div class="compact-item">
             <div class="compact-label">💰 PAGAMENTO</div>
-            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'Pagamento')}</div>
+            <div class="compact-value">{linha_alvara.get('Pagamento', 'Não informado')}</div>
         </div>
         <div class="compact-item">
             <div class="compact-label">💼 VALOR CLIENTE</div>
@@ -287,7 +294,7 @@ def exibir_informacoes_basicas_alvara(linha_alvara, estilo="compacto"):
         </div>
         <div class="compact-item">
             <div class="compact-label">🏛️ ÓRGÃO</div>
-            <div class="compact-value">{safe_get_field_value_alvara(linha_alvara, 'Órgão Judicial')[:20]}...</div>
+            <div class="compact-value">{str(linha_alvara.get('Órgão Judicial', 'Não informado'))[:20]}...</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -443,10 +450,10 @@ def render_tab_info_alvara(processo, alvara_id):
     
     with col_det1:
         st.markdown("**📋 Dados Básicos:**")
-        st.write(f"**CPF:** {safe_get_field_value_alvara(processo, 'CPF')}")
-        st.write(f"**Agência:** {safe_get_field_value_alvara(processo, 'Agência')}")
-        st.write(f"**Conta:** {safe_get_field_value_alvara(processo, 'Conta')}")
-        st.write(f"**Banco:** {safe_get_field_value_alvara(processo, 'Banco')}")
+        st.write(f"**CPF:** {processo.get('CPF', 'Não informado')}")
+        st.write(f"**Agência:** {processo.get('Agência', 'Não informado')}")
+        st.write(f"**Conta:** {processo.get('Conta', 'Não informado')}")
+        st.write(f"**Banco:** {processo.get('Banco', 'Não informado')}")
     
     with col_det2:
         st.markdown("**💰 Valores:**")
@@ -463,9 +470,9 @@ def render_tab_info_alvara(processo, alvara_id):
     mostrar_detalhes_hc_alvara(processo, f"info_{alvara_id}")
     
     # Observações
-    if safe_get_field_value_alvara(processo, 'Observacoes Financeiras'):
+    if processo.get('Observacoes Financeiras'):
         st.markdown("### 📝 Observações Financeiras")
-        st.info(safe_get_field_value_alvara(processo, 'Observacoes Financeiras'))
+        st.info(processo.get('Observacoes Financeiras'))
 
 def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuario):
     """Renderiza a tab de ações do alvará - inclui edição completa para Cadastradores e Admins"""
@@ -492,27 +499,27 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
                     # Campo editável para o processo
                     processo_editado = st.text_input(
                         "Número do Processo:",
-                        value=safe_get_field_value_alvara(linha_processo, "Processo", ""),
+                        value=linha_processo.get("Processo", ""),
                         key=f"edit_processo_alvara_{alvara_id}"
                     )
                 
                     parte_editada = st.text_input(
                         "Parte:",
-                        value=safe_get_field_value_alvara(linha_processo, "Parte", ""),
+                        value=linha_processo.get("Parte", ""),
                         key=f"edit_parte_alvara_{alvara_id}"
                     )
                     
                     # Campo editável para CPF
                     cpf_editado = st.text_input(
                         "CPF:",
-                        value=safe_get_field_value_alvara(linha_processo, "CPF", ""),
+                        value=linha_processo.get("CPF", ""),
                         key=f"edit_cpf_alvara_{alvara_id}"
                     )
                     
                     # Campo editável para órgão judicial
                     orgao_editado = st.text_input(
                         "Órgão Judicial:",
-                        value=safe_get_field_value_alvara(linha_processo, "Órgão Judicial", ""),
+                        value=linha_processo.get("Órgão Judicial", ""),
                         key=f"edit_orgao_alvara_{alvara_id}"
                     )
             
@@ -523,7 +530,7 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
                     valor_alvara_editado = st.number_input(
                         "Valor do Alvará (R$):",
                         min_value=0.0,
-                        value=float(safe_get_field_value_alvara(linha_processo, "Valor do Alvará", "0") or "0"),
+                        value=float(linha_processo.get("Valor do Alvará", "0") or "0"),
                         step=0.01,
                         format="%.2f",
                         key=f"edit_valor_alvara_{alvara_id}"
@@ -532,28 +539,28 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
                     # Campo editável para pagamento
                     pagamento_editado = st.text_input(
                         "Pagamento:",
-                        value=safe_get_field_value_alvara(linha_processo, "Pagamento", ""),
+                        value=linha_processo.get("Pagamento", ""),
                         key=f"edit_pagamento_alvara_{alvara_id}"
                     )
                     
                     # Campo editável para conta
                     conta_editada = st.text_input(
                         "Conta:",
-                        value=safe_get_field_value_alvara(linha_processo, "Conta", ""),
+                        value=linha_processo.get("Conta", ""),
                         key=f"edit_conta_alvara_{alvara_id}"
                     )
                     
                     # Campo editável para agência
                     agencia_editada = st.text_input(
                         "Agência:",
-                        value=safe_get_field_value_alvara(linha_processo, "Agência", ""),
+                        value=linha_processo.get("Agência", ""),
                         key=f"edit_agencia_alvara_{alvara_id}"
                     )
                     
                     # Campo editável para observações
                     observacoes_editadas = st.text_area(
                         "Observações:",
-                        value=safe_get_field_value_alvara(linha_processo, "Observações", ""),
+                        value=linha_processo.get("Observações", ""),
                         height=100,
                         key=f"edit_observacoes_alvara_{alvara_id}"
                     )
@@ -577,7 +584,12 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
                         st.session_state.df_editado_alvaras.loc[idx, "Observações"] = observacoes_editadas
                         
                         # Salvamento automático no GitHub
-                        save_data_to_github_seguro(st.session_state.df_editado_alvaras, "lista_alvaras.csv", "file_sha_alvaras")
+                        novo_sha = save_data_to_github_seguro(
+                            st.session_state.df_editado_alvaras,
+                            "lista_alvaras.csv",
+                            st.session_state.file_sha_alvaras
+                        )
+                        st.session_state.file_sha_alvaras = novo_sha
                         
                         st.success("✅ Dados editados e salvos automaticamente!")
                         st.rerun()
@@ -606,29 +618,50 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
                 st.success("✅ Ambos os documentos foram anexados!")
             
             if st.button("📤 Enviar para Financeiro", type="primary", key=f"enviar_fin_tab_{alvara_id}"):
-                # Salvar arquivos
+                # Salvar arquivos com tratamento de erro robusto
+                comprovante_url = None
+                pdf_url = None
+                sucesso_salvamento = True
                 
-                if anexar_multiplos:
-                    # Salvar múltiplos arquivos
-                    comprovante_urls = []
-                    for i, arquivo in enumerate(comprovante_conta):
-                        url = salvar_arquivo(arquivo, numero_processo, f"comprovante_{i+1}")
-                        if url:  # Só adicionar se não for None
-                            comprovante_urls.append(url)
-                    comprovante_url = "; ".join(comprovante_urls) if comprovante_urls else None
+                try:
+                    if anexar_multiplos:
+                        # Salvar múltiplos arquivos
+                        comprovante_urls = []
+                        for i, arquivo in enumerate(comprovante_conta):
+                            if arquivo is not None:
+                                url = salvar_arquivo(arquivo, numero_processo, f"comprovante_{i+1}")
+                                if url:  # Só adicionar se não for None
+                                    comprovante_urls.append(url)
+                                else:
+                                    st.warning(f"⚠️ Falha ao salvar comprovante {i+1}")
+                        comprovante_url = "; ".join(comprovante_urls) if comprovante_urls else None
+                        
+                        pdf_urls = []
+                        for i, arquivo in enumerate(pdf_alvara):
+                            if arquivo is not None:
+                                url = salvar_arquivo(arquivo, numero_processo, f"alvara_{i+1}")
+                                if url:  # Só adicionar se não for None
+                                    pdf_urls.append(url)
+                                else:
+                                    st.warning(f"⚠️ Falha ao salvar PDF {i+1}")
+                        pdf_url = "; ".join(pdf_urls) if pdf_urls else None
+                    else:
+                        # Salvar arquivos únicos
+                        if comprovante_conta is not None:
+                            comprovante_url = salvar_arquivo(comprovante_conta, numero_processo, "comprovante")
+                        if pdf_alvara is not None:
+                            pdf_url = salvar_arquivo(pdf_alvara, numero_processo, "alvara")
                     
-                    pdf_urls = []
-                    for i, arquivo in enumerate(pdf_alvara):
-                        url = salvar_arquivo(arquivo, numero_processo, f"alvara_{i+1}")
-                        if url:  # Só adicionar se não for None
-                            pdf_urls.append(url)
-                    pdf_url = "; ".join(pdf_urls) if pdf_urls else None
-                else:
-                    # Salvar arquivos únicos
-                    comprovante_url = salvar_arquivo(comprovante_conta, numero_processo, "comprovante")
-                    pdf_url = salvar_arquivo(pdf_alvara, numero_processo, "alvara")
+                    # Verificar se pelo menos um arquivo de cada tipo foi salvo
+                    if not comprovante_url or not pdf_url:
+                        sucesso_salvamento = False
+                        st.error("❌ Erro ao salvar um ou mais arquivos. Tente novamente.")
+                        
+                except Exception as e:
+                    sucesso_salvamento = False
+                    st.error(f"❌ Erro durante o salvamento dos arquivos: {str(e)}")
                 
-                if comprovante_url and pdf_url:
+                if sucesso_salvamento and comprovante_url and pdf_url:
                     # Atualizar DataFrame
                     idx = df[df["ID"] == alvara_id].index[0]
                     st.session_state.df_editado_alvaras.loc[idx, "Status"] = "Enviado para o Financeiro"
@@ -696,32 +729,32 @@ def render_tab_historico_alvara(processo, alvara_id):
     st.markdown("### 📜 Histórico do Processo")
     
     # Timeline do processo
-    status_atual = safe_get_field_value_alvara(processo, 'Status')
+    status_atual = processo.get('Status', 'Não informado')
     
     # Etapas do fluxo
     etapas = [
         {
             "titulo": "📝 Cadastrado",
-            "data": safe_get_field_value_alvara(processo, 'Data Cadastro'),
-            "responsavel": safe_get_field_value_alvara(processo, 'Cadastrado Por'),
+            "data": processo.get('Data Cadastro'),
+            "responsavel": processo.get('Cadastrado Por'),
             "concluida": True  # Sempre concluída se existe
         },
         {
             "titulo": "📤 Enviado para Financeiro",
-            "data": safe_get_field_value_alvara(processo, 'Data Envio Financeiro'),
-            "responsavel": safe_get_field_value_alvara(processo, 'Enviado Financeiro Por'),
+            "data": processo.get('Data Envio Financeiro'),
+            "responsavel": processo.get('Enviado Financeiro Por'),
             "concluida": status_atual in ["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"]
         },
         {
             "titulo": "👨‍💼 Enviado para Rodrigo",
-            "data": safe_get_field_value_alvara(processo, 'Data Envio Rodrigo'),
-            "responsavel": safe_get_field_value_alvara(processo, 'Enviado Rodrigo Por'),
+            "data": processo.get('Data Envio Rodrigo'),
+            "responsavel": processo.get('Enviado Rodrigo Por'),
             "concluida": status_atual in ["Financeiro - Enviado para Rodrigo", "Finalizado"]
         },
         {
             "titulo": "🎯 Finalizado",
-            "data": safe_get_field_value_alvara(processo, 'Data Finalizacao'),
-            "responsavel": safe_get_field_value_alvara(processo, 'Finalizado Por'),
+            "data": processo.get('Data Finalizacao'),
+            "responsavel": processo.get('Finalizado Por'),
             "concluida": status_atual == "Finalizado"
         }
     ]
@@ -837,7 +870,8 @@ def render_tab_acoes_financeiro_alvara(df, linha_processo, alvara_id):
         )
         
         # Campos HC adicionais (aparecem conforme o nível do botão)
-        hc1_valor, hc2_valor, hc3_valor = 0.0, 0.0, 0.0
+        hc1_valor = 0.0
+        hc2_valor = 0.0
         nivel_hc = st.session_state.get(f"hc_nivel_tab_{alvara_id}", 0)
         
         if nivel_hc >= 1:  # Primeira pressão: Mostrar HC2
@@ -865,7 +899,7 @@ def render_tab_acoes_financeiro_alvara(df, linha_processo, alvara_id):
         # Campo de observações
         observacoes_financeiras = st.text_area(
             "📝 Observações Financeiras:",
-            value=safe_get_field_value_alvara(linha_processo, "Observacoes Financeiras", ""),
+            value=linha_processo.get("Observacoes Financeiras", ""),
             help="Observações sobre os valores financeiros",
             height=100
         )
@@ -1022,7 +1056,7 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
     st.markdown("---")
     
     # Verificar se já existe comprovante anexado
-    comprovante_atual = safe_get_field_value_alvara(linha_processo, "Comprovante Recebimento", "")
+    comprovante_atual = linha_processo.get("Comprovante Recebimento", "")
     if comprovante_atual:
         st.success("✅ Comprovante já anexado!")
         from components.functions_controle import baixar_arquivo_drive
@@ -1039,7 +1073,7 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
     )
     
     if comprovante_upload:
-        numero_processo = safe_get_field_value_alvara(linha_processo, "Processo", "sem_numero")
+        numero_processo = linha_processo.get("Processo", "sem_numero")
         if st.button(f"📤 Salvar Comprovante", key=f"salvar_comprovante_{alvara_id}"):
             try:
                 # Salvar arquivo
@@ -1119,7 +1153,8 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
         )
         
         # Campos HC adicionais (aparecem conforme o nível do botão)
-        hc1_valor, hc2_valor, hc3_valor = 0.0, 0.0, 0.0
+        hc1_valor = 0.0
+        hc2_valor = 0.0
         nivel_hc = st.session_state.get(f"hc_nivel_rodrigo_tab_{alvara_id}", 0)
         
         if nivel_hc >= 1:  # Primeira pressão: Mostrar HC2
@@ -1145,7 +1180,7 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
         # Campo de observações
         observacoes_financeiras = st.text_area(
             "📝 Observações Financeiras:",
-            value=safe_get_field_value_alvara(linha_processo, "Observacoes Financeiras", ""),
+            value=linha_processo.get("Observacoes Financeiras", ""),
             help="Observações sobre os valores financeiros",
             height=100
         )
@@ -1205,21 +1240,26 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
         elif finalizar_processo:
             try:
                 idx = df[df["ID"] == alvara_id].index[0]
-                status_atual = safe_get_value_alvara(linha_processo, "Status", "Não informado")
+                status_atual = linha_processo.get("Status", "Não informado")
                 
                 # Verificar se é necessário comprovante PDF para finalizar
                 if status_atual == "Financeiro - Enviado para Rodrigo":
-                    comprovante_recebimento = safe_get_value_alvara(linha_processo, "Comprovante Recebimento", "")
+                    comprovante_recebimento = linha_processo.get("Comprovante Recebimento", "")
                     if not comprovante_recebimento or comprovante_recebimento.strip() == "":
                         st.error("❌ Para finalizar um processo com status 'Financeiro - Enviado para Rodrigo', é necessário anexar o comprovante de recebimento/pagamento em PDF.")
                         st.info("💡 Por favor, anexe o comprovante de pagamento na aba 'Anexos' antes de finalizar.")
-                        st.stop()
+                        return  # Usar return ao invés de st.stop() para melhor controle
+                
+                # Validar valores mínimos antes de finalizar
+                if valor_sacado <= 0:
+                    st.warning("⚠️ Valor sacado deve ser maior que zero para finalizar o processo.")
+                    return
                 
                 # Salvar valores finais antes de finalizar
                 st.session_state.df_editado_alvaras.loc[idx, "Valor Sacado"] = valor_sacado
                 st.session_state.df_editado_alvaras.loc[idx, "Honorarios Sucumbenciais Valor"] = honorarios_sucumbenciais
                 st.session_state.df_editado_alvaras.loc[idx, "Prospector Parceiro"] = prospector_parceiro
-                st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = observacoes_financeiras
+                st.session_state.df_editado_alvaras.loc[idx, "Observacoes Financeiras"] = str(observacoes_financeiras) if observacoes_financeiras else ""
                 
                 # Nota: Valor do Cliente não é mais salvo manualmente - é calculado automaticamente
                 
@@ -1238,19 +1278,30 @@ def render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id):
                 st.session_state.df_editado_alvaras.loc[idx, "Data Finalizacao"] = datetime.now().strftime("%d/%m/%Y %H:%M")
                 st.session_state.df_editado_alvaras.loc[idx, "Finalizado Por"] = st.session_state.get("usuario", "Sistema")
                 
-                # Salvar no GitHub
-                novo_sha = save_data_to_github_seguro(
-                    st.session_state.df_editado_alvaras,
-                    "lista_alvaras.csv",
-                    st.session_state.file_sha_alvaras
-                )
-                st.session_state.file_sha_alvaras = novo_sha
+                # Salvar no GitHub com tratamento de erro
+                try:
+                    novo_sha = save_data_to_github_seguro(
+                        st.session_state.df_editado_alvaras,
+                        "lista_alvaras.csv",
+                        st.session_state.file_sha_alvaras
+                    )
+                    if novo_sha:
+                        st.session_state.file_sha_alvaras = novo_sha
+                        st.success("✅ Processo finalizado com sucesso!")
+                        # Recolher o card após finalização
+                        if f"alvara_expanded_cards" in st.session_state:
+                            st.session_state.alvara_expanded_cards.discard(alvara_id)
+                        st.rerun()
+                    else:
+                        st.error("❌ Erro ao salvar no GitHub. Tente novamente.")
+                except Exception as save_error:
+                    st.error(f"❌ Erro ao salvar no GitHub: {str(save_error)}")
                 
-                st.success("✅ Processo finalizado com sucesso!")
-                st.rerun()
-                
+            except KeyError as ke:
+                st.error(f"❌ Erro: Campo não encontrado - {str(ke)}")
             except Exception as e:
                 st.error(f"❌ Erro ao finalizar processo: {str(e)}")
+                st.info("💡 Verifique se todos os campos estão preenchidos corretamente.")
     
 def interface_cadastro_alvara(df, perfil_usuario):
     """Interface para cadastrar novos alvarás"""
@@ -1316,6 +1367,8 @@ def interface_cadastro_alvara(df, perfil_usuario):
         "Parte": "Ex: ANDRE LEONARDO ANDRADE",
         "CPF": "Ex: 000.000.000-00 (apenas números e pontos/traços)",
         "Pagamento": "Ex: 1500.50 (apenas números e pontos para decimais)",
+        "Conta": "Ex: 00000-0 (número da conta bancária)",
+        "Agência": "Ex: 0000 (número da agência bancária)",
         "Observação pagamento": "Ex: Recebido em 15/01/2025 via PIX",
         "Órgão Judicial": "Ex: TRF 5ª REGIÃO, JFSE, TJSE",
         "Honorários Sucumbenciais": "Marque se houver honorários sucumbenciais",
@@ -1328,7 +1381,7 @@ def interface_cadastro_alvara(df, perfil_usuario):
     
     # DEFINIR COLUNAS PARA CADA LADO DO FORMULÁRIO
     colunas_esquerda = ["Processo", "Parte", "CPF", "Órgão Judicial"]
-    colunas_direita = ["Pagamento", "Observação pagamento", "Honorários Sucumbenciais", "Observação Honorários"]
+    colunas_direita = ["Pagamento", "Conta", "Agência", "Observação pagamento", "Honorários Sucumbenciais", "Observação Honorários"]
 
     col_form_1, col_form_2 = st.columns(2)
 
@@ -1404,6 +1457,24 @@ def interface_cadastro_alvara(df, perfil_usuario):
                     valor = ""
                 if any(c.isalpha() for c in valor_raw):
                     aviso_letras = True
+
+            elif col == "Conta":
+                valor = st.text_input(
+                    f"{col}",
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    max_chars=20,
+                    help="Número da conta bancária",
+                    placeholder="00000-0"
+                )
+
+            elif col == "Agência":
+                valor = st.text_input(
+                    f"{col}",
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    max_chars=10,
+                    help="Número da agência bancária",
+                    placeholder="0000"
+                )
 
             elif col == "Observação pagamento":
                 valor = st.text_area(
@@ -1490,10 +1561,18 @@ def interface_cadastro_alvara(df, perfil_usuario):
             if cpf_valor and len(cpf_numeros) != 11:
                 st.error("❌ CPF deve conter exatamente 11 números.")
             else:
-                from components.functions_controle import validar_cpf
+                try:
+                    from components.functions_controle import validar_cpf
+                    cpf_valido = cpf_valor and validar_cpf(cpf_valor)
+                except ImportError:
+                    st.warning("⚠️ Função de validação de CPF não disponível. Prosseguindo sem validação.")
+                    cpf_valido = True
+                except Exception:
+                    # Em caso de erro na validação, aceitar CPF se tem 11 dígitos
+                    cpf_valido = len(cpf_numeros) == 11 if cpf_valor else True
                 
-                if cpf_valor and not validar_cpf(cpf_valor):
-                    st.error("❌ CPF inválido. Verifique e tente novamente.")
+                if cpf_valor and not cpf_valido:
+                    st.error("❌ CPF inválido. Verifique os dígitos e tente novamente.")
                 # Verificar se processo já existe
                 elif ("Processo" in df.columns and 
                       nova_linha.get("Processo", "") in df["Processo"].values):
@@ -1514,10 +1593,20 @@ def interface_cadastro_alvara(df, perfil_usuario):
                         if col not in nova_linha:
                             nova_linha[col] = ""
                     
-                    # Adicionar campos vazios para próximas etapas
+                    # Adicionar campos vazios para próximas etapas (exceto campos de controle principais)
                     linha_controle = inicializar_linha_vazia()
+                    # Remover campos que não devem ser sobrescritos
+                    if "Status" in linha_controle:
+                        del linha_controle["Status"]
+                    if "Data Cadastro" in linha_controle:
+                        del linha_controle["Data Cadastro"]
+                    if "Cadastrado Por" in linha_controle:
+                        del linha_controle["Cadastrado Por"]
+                    
                     nova_linha.update(linha_controle)
-                    nova_linha["Status"] = "Cadastrado"  # Sobrescrever status
+                    
+                    # Garantir campos de controle corretos (DEPOIS do update)
+                    nova_linha["Status"] = "Cadastrado"
                     nova_linha["Data Cadastro"] = datetime.now().strftime("%d/%m/%Y %H:%M")
                     nova_linha["Cadastrado Por"] = st.session_state.get("usuario", "Sistema")
                     
@@ -1679,16 +1768,24 @@ def interface_visualizar_dados(df):
         
         with col_nav1:
             if st.session_state.current_page_visualizar > 1:
-                if st.button("<< Primeira", key="viz_primeira"): st.session_state.current_page_visualizar = 1; st.rerun()
-                if st.button("< Anterior", key="viz_anterior"): st.session_state.current_page_visualizar -= 1; st.rerun()
+                if st.button("<< Primeira", key="viz_primeira"): 
+                    st.session_state.current_page_visualizar = 1
+                    st.rerun()
+                if st.button("< Anterior", key="viz_anterior"): 
+                    st.session_state.current_page_visualizar -= 1
+                    st.rerun()
         
         with col_nav2:
             st.write(f"Página {st.session_state.current_page_visualizar} de {total_pages}")
         
         with col_nav3:
             if st.session_state.current_page_visualizar < total_pages:
-                if st.button("Próxima >", key="viz_proxima"): st.session_state.current_page_visualizar += 1; st.rerun()
-                if st.button("Última >>", key="viz_ultima"): st.session_state.current_page_visualizar = total_pages; st.rerun()
+                if st.button("Próxima >", key="viz_proxima"): 
+                    st.session_state.current_page_visualizar += 1
+                    st.rerun()
+                if st.button("Última >>", key="viz_ultima"): 
+                    st.session_state.current_page_visualizar = total_pages
+                    st.rerun()
     else:
         st.info("Nenhum registro encontrado com os filtros aplicados.")
 
@@ -2018,8 +2115,8 @@ def confirmar_exclusao_massa_alvaras(df, processos_selecionados):
         processos_para_excluir = df[df["ID"].astype(str).isin(processos_selecionados_str)]
         
         for _, processo in processos_para_excluir.iterrows():
-            processo_num = safe_get_field_value_alvara(processo, 'Processo', 'N/A')
-            parte = safe_get_field_value_alvara(processo, 'Parte', 'N/A')
+            processo_num = processo.get('Processo', 'N/A')
+            parte = processo.get('Parte', 'N/A')
             st.markdown(f"- **{processo_num}** - {parte}")
         
         st.markdown("---")
@@ -2036,11 +2133,9 @@ def confirmar_exclusao_massa_alvaras(df, processos_selecionados):
                 # Registrar cada exclusão no log
                 for _, processo in processos_para_excluir.iterrows():
                     registrar_exclusao(
-                        id_processo=processo.get('ID', 'N/A'),
                         tipo_processo="Alvará",
-                        processo=safe_get_field_value_alvara(processo, 'Processo', 'N/A'),
-                        beneficiario=safe_get_field_value_alvara(processo, 'Parte', 'N/A'),
-                        status=safe_get_field_value_alvara(processo, 'Status', 'N/A'),
+                        processo_numero=processo.get('Processo', 'N/A'),
+                        dados_excluidos=processo.to_dict(),
                         usuario=usuario_atual
                     )
                 
@@ -2052,15 +2147,25 @@ def confirmar_exclusao_massa_alvaras(df, processos_selecionados):
                     ~st.session_state.df_editado_alvaras["ID"].astype(str).isin(processos_selecionados_str)
                 ].reset_index(drop=True)
                 
-                # Salvar arquivo
-                salvar_arquivo(st.session_state.df_editado_alvaras, "lista_alvaras.csv")
+                # Salvar arquivo no GitHub
+                from components.functions_controle import save_data_to_github_seguro
+                novo_sha = save_data_to_github_seguro(
+                    st.session_state.df_editado_alvaras,
+                    "lista_alvaras.csv",
+                    st.session_state.file_sha_alvaras
+                )
                 
-                # Limpar seleções
-                st.session_state.modo_exclusao_alvaras = False
-                st.session_state.processos_selecionados_alvaras = []
-                
-                st.success(f"✅ {len(processos_selecionados)} Alvará(s) excluído(s) com sucesso!")
-                st.rerun()
+                if novo_sha and novo_sha != st.session_state.file_sha_alvaras:
+                    st.session_state.file_sha_alvaras = novo_sha
+                    
+                    # Limpar seleções
+                    st.session_state.modo_exclusao_alvaras = False
+                    st.session_state.processos_selecionados_alvaras = []
+                    
+                    st.success(f"✅ {len(processos_selecionados)} Alvará(s) excluído(s) com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("❌ Falha ao salvar as exclusões no GitHub.")
         
         with col_canc:
             if st.button("❌ Cancelar", use_container_width=True):
@@ -2108,16 +2213,11 @@ def interface_lista_alvaras(df, perfil_usuario):
         orgao_filtro = st.selectbox("Órgão Judicial:", options=orgaos_unicos, key="lista_alvara_orgao")
     
     with col_filtro4:
-        # Auto-filtro com rerun automático
-        def on_alvara_search_change():
-            """Função chamada quando o texto de busca muda"""
-            pass  # O rerun é automático com key no session_state
-            
+        # Campo de busca otimizado
         pesquisa = st.text_input(
             "🔎 Pesquisar por Parte ou Processo:", 
             key="lista_alvara_search", 
-            placeholder="Digite para filtrar",
-            on_change=on_alvara_search_change
+            placeholder="Digite para filtrar"
         )
         
         # Usar session_state para o valor do filtro
@@ -2291,12 +2391,11 @@ def interface_lista_alvaras(df, perfil_usuario):
 
     # Lista de Alvarás
     if not df_paginado.empty:
-        st.markdown(f"### 📋 Lista de Alvarás ({total_registros} encontrados)")
         
         # Renderizar cards
         for _, processo in df_paginado.iterrows():
             alvara_id = processo.get("ID", "N/A")
-            status_atual = safe_get_field_value_alvara(processo, 'Status')
+            status_atual = processo.get('Status', 'Não informado')
             st.markdown("---")
 
             # Verificar se o card está expandido
@@ -2336,15 +2435,15 @@ def interface_lista_alvaras(df, perfil_usuario):
                     <div class="alvara-info-grid">
                         <div class="info-item">
                             <div class="info-label">Processo</div>
-                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Processo', 'Não informado')}</div>
+                            <div class="info-value">{processo.get('Processo', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Parte</div>
-                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Parte', 'Não informado')}</div>
+                            <div class="info-value">{processo.get('Parte', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">CPF</div>
-                            <div class="info-value">{safe_get_field_value_alvara(processo, 'CPF', 'Não informado')}</div>
+                            <div class="info-value">{processo.get('CPF', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Status</div>
@@ -2352,11 +2451,11 @@ def interface_lista_alvaras(df, perfil_usuario):
                         </div>
                         <div class="info-item">
                             <div class="info-label">Valor</div>
-                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Pagamento', 'Não informado')}</div>
+                            <div class="info-value">{processo.get('Pagamento', 'Não informado')}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Órgão</div>
-                            <div class="info-value">{safe_get_field_value_alvara(processo, 'Órgão Judicial', 'Não informado')}</div>
+                            <div class="info-value">{processo.get('Órgão Judicial', 'Não informado')}</div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)

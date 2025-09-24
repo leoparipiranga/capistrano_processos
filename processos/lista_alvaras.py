@@ -49,7 +49,7 @@ def show():
     perfil_usuario = verificar_perfil_usuario_alvaras()
     
     # MODIFICAR o título
-    st.title("📋 Gestão de Alvarás")
+    st.title(f"📋 Gestão de Alvarás")
 
     # Apenas o arquivo de alvarás
     selected_file_name = "lista_alvaras.csv"

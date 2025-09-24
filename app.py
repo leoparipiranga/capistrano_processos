@@ -506,8 +506,22 @@ def mostrar_guia_utilizacao():
             **Fluxo do Processo:**
             1. **📝 Cadastrado:** Inserção inicial dos dados do alvará
             2. **💰 Enviado para Financeiro:** Processo enviado para análise financeira
-            3. **👔 Enviado para o Chefe:** Aprovação final e autorização
-            4. **🎯 Finalizado:** Processo concluído com pagamento registrado
+            3. **�‍💼 Financeiro - Enviado para Rodrigo:** Aprovação final e autorização
+            4. **🎯 Finalizado:** Processo concluído com comprovante de pagamento
+            
+            **Campos obrigatórios no cadastro:**
+            - Número do Processo
+            - Parte (nome completo)
+            - CPF
+            - Valor do Pagamento
+            - Órgão Judicial
+            
+            **Campos opcionais:**
+            - Conta bancária
+            - Agência bancária
+            - Observações sobre o pagamento
+            - Honorários Sucumbenciais (Sim/Não)
+            - Observações sobre honorários
             """)
         
         with sub_tab2:

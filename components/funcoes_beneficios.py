@@ -853,7 +853,54 @@ def render_tab_acoes_beneficio(df, processo, beneficio_id, status_atual, perfil_
         
         st.markdown("---")
     
-    # Renderizar ações baseadas no status - usando lógica simples para benefícios
+    # Renderizar ações específicas baseadas no status
+    st.markdown("### ⚙️ Ações por Status")
+    
+    # Chamar a interface de edição que contém as ações específicas por status
+    if status_atual == "Enviado para administrativo" and perfil_usuario in ["Administrativo", "Admin"]:
+        st.markdown("#### 🔧 Análise Administrativa")
+        st.info("Após inserir os documentos no Korbil, marque a caixa abaixo e salve.")
+        
+        korbil_ok = st.checkbox("Carta de Concessão e Histórico de Crédito inseridos no Korbil", key=f"korbil_{beneficio_id}")
+        
+        if st.button("💾 Salvar e Devolver para Cadastrador", type="primary", disabled=not korbil_ok, key=f"salvar_admin_{beneficio_id}"):
+            atualizar_status_beneficio(beneficio_id, "Implantado", df)
+
+    elif status_atual == "Implantado" and perfil_usuario in ["Cadastrador", "Admin"]:
+        st.markdown("#### 📞 Enviar para SAC")
+        st.info("🔍 Processo implantado e pronto para contato com cliente via SAC.")
+
+        if st.button("📞 Enviar para SAC", type="primary", use_container_width=True, key=f"enviar_sac_{beneficio_id}"):
+            atualizar_status_beneficio(
+                beneficio_id, "Enviado para o SAC", df
+            )
+
+    elif status_atual == "Enviado para o SAC" and perfil_usuario in ["SAC", "Admin"]:
+        st.markdown("#### 📞 Contato com Cliente - SAC")
+        st.info("📋 Entre em contato com o cliente e marque quando concluído.")
+        
+        cliente_contatado = st.checkbox("Cliente contatado", key=f"cliente_contatado_{beneficio_id}")
+        
+        if st.button("📤 Enviar para Financeiro", type="primary", disabled=not cliente_contatado, key=f"enviar_fin_{beneficio_id}"):
+            # Adicionar informação de que foi contatado
+            atualizar_status_beneficio(beneficio_id, "Enviado para o financeiro", df,
+                                     dados_adicionais={"Cliente Contatado": "Sim",
+                                                      "Data Contato SAC": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                                                      "Contatado Por": perfil_usuario})
+
+    elif status_atual == "Enviado para o financeiro" and perfil_usuario in ["Financeiro", "Admin"]:
+        st.markdown("#### 💰 Gestão de Pagamento")
+        st.info("Configure os pagamentos para este benefício.")
+        
+        if st.button("🎯 Finalizar Benefício", type="primary", key=f"finalizar_{beneficio_id}"):
+            atualizar_status_beneficio(beneficio_id, "Finalizado", df)
+    
+    else:
+        if perfil_usuario != "Admin":
+            st.warning(f"⚠️ Seu perfil ({perfil_usuario}) não pode editar benefícios com status '{status_atual}'")
+        else:
+            st.info(f"Status atual: {status_atual}")
+    
     st.info(f"**Status Atual:** {status_atual}")
     
     # Seção de Honorários Contratuais - Disponível para todos os perfis autorizados
@@ -1624,7 +1671,11 @@ def atualizar_status_beneficio(beneficio_id, novo_status, df, **kwargs):
                 st.session_state.df_editado_beneficios.loc[idx, campo] = valor
 
     # Salvar e fechar
-    novo_sha = save_data_to_github_seguro(st.session_state.df_editado_beneficios, "lista_beneficios.csv", "file_sha_beneficios")
+    novo_sha = save_data_to_github_seguro(
+        st.session_state.df_editado_beneficios,
+        "lista_beneficios.csv",
+        st.session_state.get("file_sha_beneficios", None)
+    )
     if novo_sha:
         st.session_state.file_sha_beneficios = novo_sha
         st.toast(f"Status atualizado para: {novo_status}", icon="✅")
