@@ -1391,7 +1391,6 @@ def render_parcela_individual(linha_beneficio, i, valor_parcela_individual, bene
                     height=60
                 )
             
-            # Botão sempre ativo - validação feita após clique
             marcar_paga = st.form_submit_button(
                 f"✅ Confirmar Pagamento da Parcela {i}",
                 type="primary",
