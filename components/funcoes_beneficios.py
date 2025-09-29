@@ -1391,20 +1391,19 @@ def render_parcela_individual(linha_beneficio, i, valor_parcela_individual, bene
                     height=60
                 )
             
-            # Validar se ao menos uma opção foi preenchida
-            # CORREÇÃO: Verificar explicitamente se checkbox está marcado ou arquivo foi anexado
-            tem_arquivo_anexado = comprovante_arquivo is not None
-            checkbox_marcado = pago_dinheiro == True
-            pode_confirmar = tem_arquivo_anexado or checkbox_marcado
-            
+            # Botão sempre ativo - validação feita após clique
             marcar_paga = st.form_submit_button(
                 f"✅ Confirmar Pagamento da Parcela {i}",
                 type="primary",
-                disabled=not pode_confirmar,
                 use_container_width=True
             )
             
             if marcar_paga:
+                # Validar se ao menos uma opção foi preenchida
+                tem_arquivo_anexado = comprovante_arquivo is not None
+                checkbox_marcado = pago_dinheiro == True
+                pode_confirmar = tem_arquivo_anexado or checkbox_marcado
+                
                 if pode_confirmar:
                     comprovante_final = ""
                     
