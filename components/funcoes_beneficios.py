@@ -1125,18 +1125,21 @@ def interface_cadastro_beneficio(df, perfil_usuario):
         processo = st.text_input(
             "Nº DO PROCESSO *",
             placeholder="0000000-00.0000.0.00.0000",
-            help="Ex: 0000000-00.0000.0.00.0000"
+            help="Ex: 0000000-00.0000.0.00.0000",
+            key=f"beneficio_processo_{st.session_state.form_reset_counter_beneficios}"
         )
         parte = st.text_input(
             "PARTE *",
             placeholder="Nome completo do beneficiário",
-            help="O nome será convertido para maiúsculas automaticamente."
+            help="O nome será convertido para maiúsculas automaticamente.",
+            key=f"beneficio_parte_{st.session_state.form_reset_counter_beneficios}"
         ).upper()
         cpf = st.text_input(
             "CPF *",
             placeholder="000.000.000-00",
             help="Digite apenas os números.",
-            max_chars=14
+            max_chars=14,
+            key=f"beneficio_cpf_{st.session_state.form_reset_counter_beneficios}"
         )
         
         # Campo de assunto (que agora inclui tipos de processo)
@@ -1150,13 +1153,15 @@ def interface_cadastro_beneficio(df, perfil_usuario):
             "DATA DA CONCESSÃO DA LIMINAR",
             value=None,
             help="Opcional: Data em que a liminar foi concedida.",
-            format="DD/MM/YYYY"
+            format="DD/MM/YYYY",
+            key=f"beneficio_data_liminar_{st.session_state.form_reset_counter_beneficios}"
         )
         prazo_fatal = st.date_input(
             "PROVÁVEL PRAZO FATAL PARA CUMPRIMENTO",
             value=None,
             help="Opcional: Prazo final para o cumprimento da obrigação.",
-            format="DD/MM/YYYY"
+            format="DD/MM/YYYY",
+            key=f"beneficio_prazo_fatal_{st.session_state.form_reset_counter_beneficios}"
         )
         percentual_cobrado = st.number_input(
             "PERCENTUAL COBRADO (%)",
@@ -1164,12 +1169,14 @@ def interface_cadastro_beneficio(df, perfil_usuario):
             max_value=100.0,
             value=30.0,
             step=0.1,
-            help="Percentual de honorários cobrado do cliente (padrão: 30%)"
+            help="Percentual de honorários cobrado do cliente (padrão: 30%)",
+            key=f"beneficio_percentual_{st.session_state.form_reset_counter_beneficios}"
         )
         observacoes = st.text_area(
             "OBSERVAÇÕES",
             placeholder="Detalhes importantes sobre o caso...",
-            height=100
+            height=100,
+            key=f"beneficio_observacoes_{st.session_state.form_reset_counter_beneficios}"
         )
         
         # Campos de pagamento parcelado (sem título)
@@ -1177,7 +1184,8 @@ def interface_cadastro_beneficio(df, perfil_usuario):
             "TIPO DE PAGAMENTO DOS HONORÁRIOS",
             list(OPCOES_PAGAMENTO.keys()),
             index=0,
-            help="Selecione se o pagamento será à vista ou parcelado"
+            help="Selecione se o pagamento será à vista ou parcelado",
+            key=f"beneficio_tipo_pagamento_{st.session_state.form_reset_counter_beneficios}"
         )
         
         # Campos condicionais para pagamento parcelado
@@ -1188,7 +1196,8 @@ def interface_cadastro_beneficio(df, perfil_usuario):
                 min_value=0.0,
                 step=100.0,
                 format="%.2f",
-                help="Valor total dos honorários que será dividido em parcelas"
+                help="Valor total dos honorários que será dividido em parcelas",
+                key=f"beneficio_valor_total_{st.session_state.form_reset_counter_beneficios}"
             )
             
             if valor_total_honorarios > 0:
@@ -1293,12 +1302,16 @@ def interface_cadastro_beneficio(df, perfil_usuario):
                 ignore_index=True
             )
 
+            # LIMPAR CAMPOS
+            from components.functions_controle import limpar_campos_formulario
+            limpar_campos_formulario("beneficio_")
+            
             st.session_state.form_reset_counter_beneficios += 1
             
             # Garantir que nenhum diálogo seja aberto automaticamente
             limpar_estados_dialogo_beneficio()
             
-            st.toast("✅ Linha adicionada! Salve para persistir os dados.", icon="👍")
+            st.toast("✅ Linha adicionada! Campos limpos para novo cadastro. Salve para persistir os dados.", icon="👍")
             st.rerun()
 
 def render_parcela_individual(linha_beneficio, i, valor_parcela_individual, beneficio_id, df):

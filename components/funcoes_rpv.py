@@ -1336,7 +1336,7 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
     # Renderizar ações baseadas no status - usando a lógica original da interface_edicao_rpv
     if status_atual == "Cadastro" and perfil_usuario in ["Cadastrador", "Desenvolvedor"]:
         st.info("Após finalizar o cadastro, este RPV será enviado simultaneamente para **SAC** e **Administrativo**.")        
-        unique_key = f"finalizar_cadastro_tab_{rpv_id}_{gerar_timestamp_unico()}"
+        unique_key = f"finalizar_cadastro_tab_{rpv_id}"
         if st.button("✅ Finalizar Cadastro e Enviar", type="primary", key=unique_key):
             # Verificar se o RPV ainda existe no DataFrame de trabalho
             idx = obter_index_rpv_seguro(df_trabalho, rpv_id)
@@ -2946,6 +2946,10 @@ def interface_cadastro_rpv(df, perfil_usuario):
         st.warning("⚠️ Apenas Cadastradores e Desenvolvedores podem criar novos RPVs")
         return
 
+    # INICIALIZAR CONTADOR PARA RESET DO FORM
+    if "form_reset_counter_rpv" not in st.session_state:
+        st.session_state.form_reset_counter_rpv = 0
+
     # Mostrar linhas temporárias primeiro (se existirem)
     if "preview_novas_linhas_rpv" in st.session_state and len(st.session_state["preview_novas_linhas_rpv"]) > 0:
         st.markdown("### 📋 Linhas Adicionadas (não salvas)")
@@ -2995,13 +2999,13 @@ def interface_cadastro_rpv(df, perfil_usuario):
     
     col1, col2 = st.columns(2)
     
-    processo_key = "new_rpv_processo"
-    beneficiario_key = "new_rpv_beneficiario"
-    cpf_key = "new_rpv_cpf"
-    certidao_key = "new_rpv_certidao"
-    obs_key = "new_rpv_observacoes"
-    multiplos_key = "new_rpv_multiplos"
-    competencia_key = "new_rpv_competencia"
+    processo_key = f"new_rpv_processo_{st.session_state.form_reset_counter_rpv}"
+    beneficiario_key = f"new_rpv_beneficiario_{st.session_state.form_reset_counter_rpv}"
+    cpf_key = f"new_rpv_cpf_{st.session_state.form_reset_counter_rpv}"
+    certidao_key = f"new_rpv_certidao_{st.session_state.form_reset_counter_rpv}"
+    obs_key = f"new_rpv_observacoes_{st.session_state.form_reset_counter_rpv}"
+    multiplos_key = f"new_rpv_multiplos_{st.session_state.form_reset_counter_rpv}"
+    competencia_key = f"new_rpv_competencia_{st.session_state.form_reset_counter_rpv}"
     
     with col1:
         st.markdown("**👤 Dados do Beneficiário (comum para todos os RPVs):**")
@@ -3012,7 +3016,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
         # Campo Assunto com nova interface
         assunto_selecionado = campo_assunto_rpv(
             label="Assunto: *",
-            key_prefix="new_rpv_assunto"
+            key_prefix=f"new_rpv_assunto_{st.session_state.form_reset_counter_rpv}"
         )
         
         # Converter para formato compatível
@@ -3021,7 +3025,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
         # Campo Órgão Judicial com nova interface
         orgao_selecionado = campo_orgao_rpv(
             label="Órgão Judicial: *",
-            key_prefix="new_rpv_orgao"
+            key_prefix=f"new_rpv_orgao_{st.session_state.form_reset_counter_rpv}"
         )
         
         # Converter para formato compatível
@@ -3030,7 +3034,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
         # Campo Vara com nova interface
         vara_selecionada = campo_vara_rpv(
             label="Vara:",
-            key_prefix="new_rpv_vara"
+            key_prefix=f"new_rpv_vara_{st.session_state.form_reset_counter_rpv}"
         )
         
         # Converter para formato compatível
@@ -3046,7 +3050,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
         banco_rpv = st.selectbox(
             "Banco: *",
             options=["CEF", "BB"],
-            key="new_rpv_banco"
+            key=f"new_rpv_banco_{st.session_state.form_reset_counter_rpv}"
         )
         
         # Campos obrigatórios de dados bancários
@@ -3055,7 +3059,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
             value="",
             help="Digite o número da agência",
             placeholder="Ex: 1234",
-            key="new_rpv_agencia"
+            key=f"new_rpv_agencia_{st.session_state.form_reset_counter_rpv}"
         )
         
         conta_rpv = st.text_input(
@@ -3063,7 +3067,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
             value="",
             help="Digite o número da conta",
             placeholder="Ex: 12345-6",
-            key="new_rpv_conta"
+            key=f"new_rpv_conta_{st.session_state.form_reset_counter_rpv}"
         )
         
         # Novo campo: Mês de Competência
@@ -3107,10 +3111,10 @@ def interface_cadastro_rpv(df, perfil_usuario):
         st.markdown(f"**💰 Dados Específicos do RPV:**")
         
         # Gerar identificador único para esta sessão de cadastro
-        if f"cadastro_timestamp_{num_rpvs}" not in st.session_state:
-            st.session_state[f"cadastro_timestamp_{num_rpvs}"] = gerar_timestamp_unico()
+        if f"cadastro_timestamp_{num_rpvs}_{st.session_state.form_reset_counter_rpv}" not in st.session_state:
+            st.session_state[f"cadastro_timestamp_{num_rpvs}_{st.session_state.form_reset_counter_rpv}"] = gerar_timestamp_unico()
         
-        cadastro_id = st.session_state[f"cadastro_timestamp_{num_rpvs}"]
+        cadastro_id = st.session_state[f"cadastro_timestamp_{num_rpvs}_{st.session_state.form_reset_counter_rpv}"]
         
         # Inicializar dicionário para armazenar dados de cada RPV
         if f"rpvs_data_{num_rpvs}_{cadastro_id}" not in st.session_state:
@@ -3123,12 +3127,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
         if rpv_key not in rpvs_data:
             rpvs_data[rpv_key] = {}
         
-        # Descrição do RPV (opcional para RPV único)
-        rpvs_data[rpv_key]['descricao'] = st.text_input(
-            "Descrição do RPV:",
-            key="descricao_rpv_unico",
-            help="Descrição específica deste RPV (opcional)"
-        )
+        # CAMPO DESCRIÇÃO RPV REMOVIDO CONFORME SOLICITADO
         
         # Seção de Valores Financeiros
         col2_1, col2_2 = st.columns(2)
@@ -3139,7 +3138,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 "✅ Houve destaque de honorários",
                 value=False,
                 help="Marque se houve destaque de honorários",
-                key="new_rpv_destaque_honorarios"
+                key=f"new_rpv_destaque_honorarios_{st.session_state.form_reset_counter_rpv}"
             )
             
             # Valor do saque
@@ -3149,7 +3148,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 step=0.01,
                 format="%.2f",
                 help="Valor total do saque do RPV",
-                key="new_rpv_valor_saque"
+                key=f"new_rpv_valor_saque_{st.session_state.form_reset_counter_rpv}"
             )
             
             # Honorários contratuais
@@ -3159,7 +3158,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 step=0.01,
                 format="%.2f",
                 help="Valor dos honorários contratuais",
-                key="new_rpv_honorarios_contratuais"
+                key=f"new_rpv_honorarios_contratuais_{st.session_state.form_reset_counter_rpv}"
             )
             
             # Honorários sucumbenciais
@@ -3169,7 +3168,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 step=0.01,
                 format="%.2f",
                 help="Valor dos honorários sucumbenciais",
-                key="new_rpv_h_sucumbenciais"
+                key=f"new_rpv_h_sucumbenciais_{st.session_state.form_reset_counter_rpv}"
             )
             
             # Valor cliente
@@ -3179,7 +3178,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 step=0.01,
                 format="%.2f",
                 help="Valor destinado ao cliente",
-                key="new_rpv_valor_cliente"
+                key=f"new_rpv_valor_cliente_{st.session_state.form_reset_counter_rpv}"
             )
         
         with col2_2:
@@ -3190,7 +3189,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 step=0.01,
                 format="%.2f",
                 help="Valor destinado ao parceiro/prospector",
-                key="new_rpv_valor_parceiro"
+                key=f"new_rpv_valor_parceiro_{st.session_state.form_reset_counter_rpv}"
             )
             
             # Outros valores
@@ -3200,7 +3199,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 step=0.01,
                 format="%.2f",
                 help="Outros valores relacionados",
-                key="new_rpv_outros_valores"
+                key=f"new_rpv_outros_valores_{st.session_state.form_reset_counter_rpv}"
             )
             
             # Forma de pagamento
@@ -3208,7 +3207,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 "Forma de pagamento ao cliente:",
                 options=["PIX", "Transferência", "Dinheiro"],
                 help="Forma como o pagamento será feito ao cliente",
-                key="new_rpv_forma_pagamento"
+                key=f"new_rpv_forma_pagamento_{st.session_state.form_reset_counter_rpv}"
             )
         
         # Observações sobre valores
@@ -3216,7 +3215,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
             "Observações sobre valores:",
             height=68,
             help="Detalhes ou observações sobre os valores",
-            key="new_rpv_observacoes_valores"
+            key=f"new_rpv_observacoes_valores_{st.session_state.form_reset_counter_rpv}"
         )
         
         # Nova seção: Observações específicas para honorários contratuais
@@ -3224,14 +3223,14 @@ def interface_cadastro_rpv(df, perfil_usuario):
             "Observações honorários contratuais:",
             height=68,
             help="Observações específicas sobre honorários contratuais (consideradas antes do envio para Rodrigo)",
-            key="new_rpv_observacoes_hc"
+            key=f"new_rpv_observacoes_hc_{st.session_state.form_reset_counter_rpv}"
         )
         
         # Upload de PDF (sempre único, múltiplos desabilitados)
         rpvs_data[rpv_key]['pdf_rpv'] = st.file_uploader(
             "PDF do RPV: *",
             type=["pdf"],
-            key="pdf_rpv_unico"
+            key=f"pdf_rpv_unico_{st.session_state.form_reset_counter_rpv}"
         )
         rpvs_data[rpv_key]['multiplos_pdfs'] = False
 
@@ -3329,22 +3328,25 @@ def interface_cadastro_rpv(df, perfil_usuario):
             campos_vazios.append("Órgão Judicial")
         
         # Validar banco (já vem selecionado por padrão, mas verificar)
-        if "new_rpv_banco" not in st.session_state or not st.session_state.new_rpv_banco:
+        banco_key = f"new_rpv_banco_{st.session_state.form_reset_counter_rpv}"
+        if banco_key not in st.session_state or not st.session_state[banco_key]:
             campos_vazios.append("Banco")
         else:
-            banco_rpv = st.session_state.new_rpv_banco
+            banco_rpv = st.session_state[banco_key]
         
         # Validar agência (obrigatório)
-        if "new_rpv_agencia" not in st.session_state or not st.session_state.new_rpv_agencia or st.session_state.new_rpv_agencia.strip() == "":
+        agencia_key = f"new_rpv_agencia_{st.session_state.form_reset_counter_rpv}"
+        if agencia_key not in st.session_state or not st.session_state[agencia_key] or st.session_state[agencia_key].strip() == "":
             campos_vazios.append("Agência")
         else:
-            agencia_rpv = st.session_state.new_rpv_agencia.strip()
+            agencia_rpv = st.session_state[agencia_key].strip()
         
         # Validar conta (obrigatório)
-        if "new_rpv_conta" not in st.session_state or not st.session_state.new_rpv_conta or st.session_state.new_rpv_conta.strip() == "":
+        conta_key = f"new_rpv_conta_{st.session_state.form_reset_counter_rpv}"
+        if conta_key not in st.session_state or not st.session_state[conta_key] or st.session_state[conta_key].strip() == "":
             campos_vazios.append("Conta")
         else:
-            conta_rpv = st.session_state.new_rpv_conta.strip()
+            conta_rpv = st.session_state[conta_key].strip()
         
         # Validar mês de competência
         if not mes_competencia:
@@ -3426,8 +3428,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
                         "Beneficiário": beneficiario,
                         "CPF": cpf,
                         
-                        # Nova coluna: Descrição do RPV
-                        "Descricao RPV": rpv_data.get('descricao', ''),
+                        # Campo Descrição RPV removido conforme solicitado
                         
                         # Campos de valores específicos
                         "Houve Destaque Honorarios": "Sim" if rpv_data.get('houve_destaque_honorarios', False) else "Não",
@@ -3492,42 +3493,14 @@ def interface_cadastro_rpv(df, perfil_usuario):
                     )
 
                 # Limpar campos após submissão bem-sucedida
-                keys_to_clear = [processo_key, beneficiario_key, cpf_key, obs_key, competencia_key,
-                               certidao_key, "new_rpv_banco", "new_rpv_agencia", "new_rpv_conta",
-                               "descricao_rpv_unico", "new_rpv_destaque_honorarios", 
-                               "new_rpv_valor_saque", "new_rpv_honorarios_contratuais", "new_rpv_h_sucumbenciais",
-                               "new_rpv_valor_cliente", "new_rpv_valor_parceiro", "new_rpv_outros_valores",
-                               "new_rpv_forma_pagamento", "new_rpv_observacoes_valores", "new_rpv_observacoes_hc",
-                               "select_new_rpv_assunto", "input_novo_new_rpv_assunto",
-                               "select_new_rpv_orgao", "input_novo_new_rpv_orgao",
-                               "select_new_rpv_vara", "input_nova_new_rpv_vara",
-                               "pdf_rpv_unico"]
+                from components.functions_controle import limpar_campos_formulario
+                limpar_campos_formulario("new_rpv_")
                 
-                # Remover limpeza de campos múltiplos (não existem mais)
-                # for i in range(10):  # Limpar até 10 RPVs
-                #     keys_to_clear.extend([...
-                
-                # Limpar session state
-                for key in keys_to_clear:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                
-                # Limpar dados temporários dos RPVs
-                keys_to_remove = [k for k in st.session_state.keys() if k.startswith("rpvs_data_")]
-                for key in keys_to_remove:
-                    del st.session_state[key]
-                
-                # Limpar campos adicionais que podem persistir
-                additional_keys_to_clear = [
-                    "selected_process_rpv", "selected_beneficiary_rpv", "selected_cpf_rpv",
-                    "input_nova_observacao_rpv", "input_nova_competencia_rpv", "input_nova_certidao_rpv"
-                ]
-                for key in additional_keys_to_clear:
-                    if key in st.session_state:
-                        del st.session_state[key]
+                st.session_state.form_reset_counter_rpv += 1
                 
                 num_linhas_adicionadas = len(novas_linhas)
                 st.success("✅ RPV adicionado! Campos limpos para novo cadastro. Salve para persistir os dados.")
+                st.rerun()
                 st.rerun()
 
 def confirmar_exclusao_massa_rpv(df, processos_selecionados):
