@@ -83,7 +83,7 @@ def obter_cor_status(status, modulo="geral"):
 # =====================================
 
 PERFIS_ALVARAS = {
-    "Admin": ["Cadastrado", "Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"],
+    "Desenvolvedor": ["Cadastrado", "Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"],
     "Cadastrador": ["Cadastrado", "Enviado para o Financeiro"],
     "Financeiro": ["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"]
 }
@@ -98,7 +98,7 @@ STATUS_ETAPAS_ALVARAS = {
 
 
 PERFIS_RPV = {
-    "Admin": ["Enviado", "Certidão anexa", "Enviado para Rodrigo", "Finalizado"],
+    "Desenvolvedor": ["Enviado", "Certidão anexa", "Enviado para Rodrigo", "Finalizado"],
     "Cadastrador": ["Enviado"],
     "Jurídico": ["Enviado", "Certidão anexa"],
     "Financeiro": ["Enviado", "Certidão anexa", "Enviado para Rodrigo", "Finalizado"]
@@ -112,7 +112,7 @@ STATUS_ETAPAS_RPV = {
 }
 
 PERFIS_BENEFICIOS = {
-    "Admin": ["Cadastrado", "Enviado para administrativo", "Implantado", "Enviado para o financeiro", "Finalizado"],
+    "Desenvolvedor": ["Cadastrado", "Enviado para administrativo", "Implantado", "Enviado para o financeiro", "Finalizado"],
     "Cadastrador": ["Cadastrado", "Enviado para administrativo", "Implantado", "Enviado para o financeiro"],
     "Administrativo": ["Enviado para administrativo", "Implantado"],
     "Financeiro": ["Enviado para o financeiro", "Finalizado"],
@@ -140,7 +140,7 @@ def verificar_perfil_usuario_alvaras():
     
     # Mapear perfis para os fluxos de Alvarás
     perfis_validos_alvaras = {
-        "Admin": "Admin",
+        "Desenvolvedor": "Desenvolvedor",
         "Cadastrador": "Cadastrador",
         "Financeiro": "Financeiro"
     }
@@ -149,8 +149,8 @@ def verificar_perfil_usuario_alvaras():
 
 def pode_editar_status_alvaras(status_atual, perfil_usuario):
     """Verifica se o usuário pode editar determinado status"""
-    # Admin pode tudo
-    if perfil_usuario == "Admin":
+    # Desenvolvedor pode tudo
+    if perfil_usuario == "Desenvolvedor":
         return True
     
     return status_atual in PERFIS_ALVARAS.get(perfil_usuario, [])
@@ -161,7 +161,7 @@ def verificar_perfil_usuario_rpv():
     
     # Mapear perfis para os fluxos de RPV
     perfis_validos_rpv = {
-        "Admin": "Admin",
+        "Desenvolvedor": "Desenvolvedor",
         "Cadastrador": "Cadastrador",
         "Financeiro": "Financeiro"
     }
@@ -170,8 +170,8 @@ def verificar_perfil_usuario_rpv():
 
 def pode_editar_status_rpv(status_atual, perfil_usuario):
     """Verifica se o usuário pode editar determinado status RPV"""
-    # Admin pode tudo
-    if perfil_usuario == "Admin":
+    # Desenvolvedor pode tudo
+    if perfil_usuario == "Desenvolvedor":
         return True
     
     return status_atual in PERFIS_RPV.get(perfil_usuario, [])
@@ -203,7 +203,7 @@ def verificar_perfil_usuario_beneficios():
     
     # Mapear perfis para os fluxos de Benefícios
     perfis_validos_beneficios = {
-        "Admin": "Admin",
+        "Desenvolvedor": "Desenvolvedor",
         "Cadastrador": "Cadastrador",
         "Administrativo": "Administrativo",
         "Financeiro": "Financeiro",
@@ -214,8 +214,8 @@ def verificar_perfil_usuario_beneficios():
 
 def pode_editar_status_beneficios(status_atual, perfil_usuario):
     """Verifica se o usuário pode editar determinado status Benefícios"""
-    # Admin pode tudo
-    if perfil_usuario == "Admin":
+    # Desenvolvedor pode tudo
+    if perfil_usuario == "Desenvolvedor":
         return True
     
     return status_atual in PERFIS_BENEFICIOS.get(perfil_usuario, [])
@@ -293,7 +293,7 @@ def verificar_token_github():
         r = requests.get(test_url, headers=headers)
         
         if r.status_code == 401:
-            st.error("❌ Token do GitHub expirado ou inválido. Contate o administrador para renovar o token.")
+            st.error("❌ Token do GitHub expirado ou inválido. Contate o desenvolvedor para renovar o token.")
             return False
         elif r.status_code == 403:
             st.error("❌ Token do GitHub sem permissões suficientes.")
@@ -423,7 +423,7 @@ def save_data_to_github_seguro(df, filename, session_state_key):
         # Verificar token primeiro
         if not verificar_token_github():
             st.error("❌ Token do GitHub inválido. Salvamento cancelado.")
-            st.info(" Contate o administrador para renovar o token do GitHub.")
+            st.info(" Contate o desenvolvedor para renovar o token do GitHub.")
             return None
         
         # SEMPRE RECARREGAR SHA ANTES DE SALVAR
@@ -821,7 +821,6 @@ def interface_anexar_documentos(df, processo):
     col_doc1, col_doc2 = st.columns(2)
     
     with col_doc1:
-        st.markdown("**📄 Comprovante da Conta**")
         if anexar_multiplos:
             comprovante_conta = st.file_uploader(
                 "Anexar comprovantes da conta:",
@@ -837,7 +836,6 @@ def interface_anexar_documentos(df, processo):
             )
     
     with col_doc2:
-        st.markdown("**📄 PDF do Alvará**")
         if anexar_multiplos:
             pdf_alvara = st.file_uploader(
                 "Anexar PDFs do alvará:",
@@ -1244,7 +1242,6 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
         col_doc1, col_doc2 = st.columns(2)
         
         with col_doc1:
-            st.markdown("**📄 Comprovante da Conta**")
             comprovante_conta = st.file_uploader(
                 "Anexar comprovante da conta:",
                 type=["pdf", "jpg", "jpeg", "png"],
@@ -1256,7 +1253,6 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
                 st.info("✅ Comprovante já anexado anteriormente")
         
         with col_doc2:
-            st.markdown("**📄 PDF do Alvará**")
             pdf_alvara = st.file_uploader(
                 "Anexar PDF do alvará:",
                 type=["pdf"],
@@ -1307,14 +1303,12 @@ def interface_edicao_processo(df, alvara_id, processo, status_atual, perfil_usua
         col_doc1, col_doc2 = st.columns(2)
         
         with col_doc1:
-            st.markdown("**📄 Comprovante da Conta**")
             if linha_processo.get("Comprovante Conta"):
                 baixar_arquivo_drive(linha_processo["Comprovante Conta"], "📎 Baixar Comprovante")
             else:
                 st.warning("❌ Comprovante não anexado")
         
         with col_doc2:
-            st.markdown("**📄 PDF do Alvará**")
             if linha_processo.get("PDF Alvará"):
                 baixar_arquivo_drive(linha_processo["PDF Alvará"], "📎 Baixar PDF")
             else:

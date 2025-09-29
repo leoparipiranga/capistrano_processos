@@ -26,6 +26,20 @@ from components.functions_controle import (
     obter_cor_status
 )
 
+def safe_get_hc_value_beneficio(data, key, default=0.0):
+    """Obtém valor de honorário contratual de forma segura, tratando NaN e valores None"""
+    value = data.get(key, default)
+    if value is None or value == "":
+        return default
+    try:
+        # Converter para float
+        float_value = float(value)
+        if math.isnan(float_value):
+            return default
+        return float_value
+    except (ValueError, TypeError):
+        return default
+
 def safe_get_value_beneficio(data, key, default='Não cadastrado'):
     """Obtém valor de forma segura, tratando NaN e valores None"""
     value = data.get(key, default)
@@ -37,7 +51,16 @@ def safe_get_value_beneficio(data, key, default='Não cadastrado'):
         return default
     return str_value
 
-def safe_get_hc_value_beneficio(data, key, default=0.0):
+def safe_get_int_value_beneficio(data, key, default=1):
+    """Obtém valor inteiro de forma segura, tratando NaN e valores float"""
+    value = data.get(key, default)
+    if pd.isna(value) or value == "nan" or value == "" or value is None:
+        return default
+    try:
+        # Se for float, converter para int
+        return int(float(value))
+    except (ValueError, TypeError):
+        return default
     """Obtém valor de honorário contratual de forma segura para Benefícios"""
     value = data.get(key, default)
     if pd.isna(value) or value == "nan" or value == "" or value is None:
@@ -118,25 +141,31 @@ def gerar_parcelas_beneficio(beneficio_id, valor_total, num_parcelas, data_inici
         data_inicial: Data inicial para cálculo das parcelas
     
     Returns:
-        Lista de dicionários com as parcelas
+        Dict com dados das parcelas formatados para salvar no DataFrame
     """
-    valor_parcela = valor_total / num_parcelas
-    parcelas = []
+    # Garantir que valor_total seja numérico
+    if isinstance(valor_total, str):
+        try:
+            valor_total = float(valor_total.replace("R$", "").replace(".", "").replace(",", ".").strip())
+        except:
+            valor_total = 0
+    elif not valor_total:
+        valor_total = 0
+    
+    valor_parcela = valor_total / num_parcelas if num_parcelas > 0 else 0
+    parcelas_data = {}
     
     for i in range(num_parcelas):
+        numero_parcela = i + 1
         data_vencimento = calcular_data_vencimento_parcela(data_inicial + timedelta(days=30*i))
         
-        parcela = {
-            'beneficio_id': beneficio_id,
-            'numero_parcela': i + 1,
-            'valor': valor_parcela,
-            'data_vencimento': data_vencimento,
-            'status': 'pendente',
-            'data_pagamento': None
-        }
-        parcelas.append(parcela)
+        # Dados da parcela no formato do DataFrame
+        parcelas_data[f'Parcela_{numero_parcela}_Status'] = 'Pendente'
+        parcelas_data[f'Parcela_{numero_parcela}_Data_Vencimento'] = data_vencimento.strftime('%d/%m/%Y')
+        parcelas_data[f'Parcela_{numero_parcela}_Comprovante'] = ''
+        parcelas_data[f'Parcela_{numero_parcela}_Data_Pagamento'] = ''
     
-    return parcelas
+    return parcelas_data
 
 def exibir_informacoes_basicas_beneficio(linha_beneficio, estilo="compacto"):
     """Exibe informações básicas do Benefício de forma organizada e visual
@@ -247,7 +276,7 @@ PERFIS_BENEFICIOS = {
     "Administrativo": ["Enviado para administrativo"],
     "SAC": ["Enviado para o SAC"],
     "Financeiro": ["Enviado para o financeiro"],
-    "Admin": ["Enviado para administrativo", "Implantado", "Enviado para o SAC", "Enviado para o financeiro", "Finalizado"]
+    "Desenvolvedor": ["Enviado para administrativo", "Implantado", "Enviado para o SAC", "Enviado para o financeiro", "Finalizado"]
 }
 
 # CONFIGURAÇÕES DE PAGAMENTO PARCELADO
@@ -280,18 +309,18 @@ def obter_colunas_controle_beneficios():
         
         # Novos campos para pagamento parcelado
         "Tipo Pagamento", "Numero Parcelas", "Valor Total Honorarios", "Valor Parcela",
-        "Parcela_1_Status", "Parcela_1_Comprovante", "Parcela_1_Data_Pagamento",
-        "Parcela_2_Status", "Parcela_2_Comprovante", "Parcela_2_Data_Pagamento",
-        "Parcela_3_Status", "Parcela_3_Comprovante", "Parcela_3_Data_Pagamento",
-        "Parcela_4_Status", "Parcela_4_Comprovante", "Parcela_4_Data_Pagamento",
-        "Parcela_5_Status", "Parcela_5_Comprovante", "Parcela_5_Data_Pagamento",
-        "Parcela_6_Status", "Parcela_6_Comprovante", "Parcela_6_Data_Pagamento",
-        "Parcela_7_Status", "Parcela_7_Comprovante", "Parcela_7_Data_Pagamento",
-        "Parcela_8_Status", "Parcela_8_Comprovante", "Parcela_8_Data_Pagamento",
-        "Parcela_9_Status", "Parcela_9_Comprovante", "Parcela_9_Data_Pagamento",
-        "Parcela_10_Status", "Parcela_10_Comprovante", "Parcela_10_Data_Pagamento",
-        "Parcela_11_Status", "Parcela_11_Comprovante", "Parcela_11_Data_Pagamento",
-        "Parcela_12_Status", "Parcela_12_Comprovante", "Parcela_12_Data_Pagamento",
+        "Parcela_1_Status", "Parcela_1_Comprovante", "Parcela_1_Data_Pagamento", "Parcela_1_Data_Vencimento",
+        "Parcela_2_Status", "Parcela_2_Comprovante", "Parcela_2_Data_Pagamento", "Parcela_2_Data_Vencimento",
+        "Parcela_3_Status", "Parcela_3_Comprovante", "Parcela_3_Data_Pagamento", "Parcela_3_Data_Vencimento",
+        "Parcela_4_Status", "Parcela_4_Comprovante", "Parcela_4_Data_Pagamento", "Parcela_4_Data_Vencimento",
+        "Parcela_5_Status", "Parcela_5_Comprovante", "Parcela_5_Data_Pagamento", "Parcela_5_Data_Vencimento",
+        "Parcela_6_Status", "Parcela_6_Comprovante", "Parcela_6_Data_Pagamento", "Parcela_6_Data_Vencimento",
+        "Parcela_7_Status", "Parcela_7_Comprovante", "Parcela_7_Data_Pagamento", "Parcela_7_Data_Vencimento",
+        "Parcela_8_Status", "Parcela_8_Comprovante", "Parcela_8_Data_Pagamento", "Parcela_8_Data_Vencimento",
+        "Parcela_9_Status", "Parcela_9_Comprovante", "Parcela_9_Data_Pagamento", "Parcela_9_Data_Vencimento",
+        "Parcela_10_Status", "Parcela_10_Comprovante", "Parcela_10_Data_Pagamento", "Parcela_10_Data_Vencimento",
+        "Parcela_11_Status", "Parcela_11_Comprovante", "Parcela_11_Data_Pagamento", "Parcela_11_Data_Vencimento",
+        "Parcela_12_Status", "Parcela_12_Comprovante", "Parcela_12_Data_Pagamento", "Parcela_12_Data_Vencimento",
         
         # Campos de honorários contratuais
         "Honorarios Contratuais", "HC1", "HC2",
@@ -507,7 +536,7 @@ def interface_lista_beneficios(df, perfil_usuario):
     # Botões de exclusão em massa
     usuario_atual = st.session_state.get("usuario", "")
     perfil_atual = st.session_state.get("perfil_usuario", "")
-    pode_excluir = (perfil_atual in ["Admin", "Cadastrador"] or usuario_atual == "admin")
+    pode_excluir = (perfil_atual in ["Desenvolvedor", "Cadastrador"] or usuario_atual == "dev")
     
     if pode_excluir:
         col_btn1, col_btn2, col_rest = st.columns([2, 2, 6])
@@ -738,13 +767,46 @@ def render_tab_info_beneficio(processo, beneficio_id):
     # Mostrar detalhes dos honorários contratuais
     mostrar_detalhes_hc_beneficio(processo, f"info_{beneficio_id}")
     
+    # Sistema de Parcelas - Informações
+    tipo_pagamento = safe_get_value_beneficio(processo, 'Tipo Pagamento', 'À vista')
+    if tipo_pagamento != 'À vista':
+        num_parcelas = safe_get_int_value_beneficio(processo, 'Numero Parcelas', 1)
+        valor_total = safe_get_value_beneficio(processo, 'Valor Total Honorarios', 'N/A')
+        
+        st.markdown("---")
+        st.markdown("### 💳 Sistema de Parcelas")
+        
+        col_parc1, col_parc2, col_parc3 = st.columns(3)
+        
+        with col_parc1:
+            st.metric("Tipo de Pagamento", tipo_pagamento)
+        
+        with col_parc2:
+            st.metric("Número de Parcelas", num_parcelas)
+        
+        with col_parc3:
+            st.metric("Valor Total", valor_total)
+        
+        # Status das parcelas
+        parcelas_pagas, todas_pagas = calcular_status_parcelas(processo, num_parcelas)
+        progresso = (parcelas_pagas / num_parcelas) * 100 if num_parcelas > 0 else 0
+        
+        st.progress(progresso / 100, text=f"Progresso: {parcelas_pagas}/{num_parcelas} parcelas pagas ({progresso:.1f}%)")
+        
+        # Lista resumida das parcelas
+        if num_parcelas > 0:
+            for i in range(1, num_parcelas + 1):
+                status_parcela = safe_get_value_beneficio(processo, f'Parcela_{i}_Status', 'Pendente')
+                data_vencimento = safe_get_value_beneficio(processo, f'Parcela_{i}_Data_Vencimento', '')
+                data_pagamento = safe_get_value_beneficio(processo, f'Parcela_{i}_Data_Pagamento', '')
+    
     # Observações
     if safe_get_value_beneficio(processo, 'OBSERVAÇÕES', '') != 'Não cadastrado':
         st.markdown("### 📝 Observações")
         st.info(safe_get_value_beneficio(processo, 'OBSERVAÇÕES'))
 
 def render_tab_acoes_beneficio(df, processo, beneficio_id, status_atual, perfil_usuario):
-    """Renderiza a tab de ações do Benefício - inclui edição completa para Cadastradores e Admins"""
+    """Renderiza a tab de ações do Benefício - inclui edição completa para Cadastradores e Desenvolvedores"""
     
     # Usar a função original de edição, mas sem o cabeçalho
     linha_processo_df = df[df["ID"].astype(str) == str(beneficio_id)]
@@ -756,8 +818,8 @@ def render_tab_acoes_beneficio(df, processo, beneficio_id, status_atual, perfil_
     linha_processo = linha_processo_df.iloc[0]
     numero_processo = linha_processo.get("Nº DO PROCESSO", "N/A")
     
-    # NOVA SEÇÃO: EDIÇÃO COMPLETA PARA CADASTRADORES E ADMINS
-    if perfil_usuario in ["Cadastrador", "Admin"]:
+    # NOVA SEÇÃO: EDIÇÃO COMPLETA PARA CADASTRADORES E DESENVOLVEDORES
+    if perfil_usuario in ["Cadastrador", "Desenvolvedor"]:
         with st.expander("✏️ Editar Dados do Cadastro", expanded=False):
             with st.form(f"form_edicao_completa_beneficio_{beneficio_id}"):
                 col_edit1, col_edit2 = st.columns(2)
@@ -851,13 +913,8 @@ def render_tab_acoes_beneficio(df, processo, beneficio_id, status_atual, perfil_
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar edições: {str(e)}")
         
-        st.markdown("---")
-    
-    # Renderizar ações específicas baseadas no status
-    st.markdown("### ⚙️ Ações por Status")
-    
     # Chamar a interface de edição que contém as ações específicas por status
-    if status_atual == "Enviado para administrativo" and perfil_usuario in ["Administrativo", "Admin"]:
+    if status_atual == "Enviado para administrativo" and perfil_usuario in ["Administrativo", "Desenvolvedor"]:
         st.markdown("#### 🔧 Análise Administrativa")
         st.info("Após inserir os documentos no Korbil, marque a caixa abaixo e salve.")
         
@@ -866,8 +923,7 @@ def render_tab_acoes_beneficio(df, processo, beneficio_id, status_atual, perfil_
         if st.button("💾 Salvar e Devolver para Cadastrador", type="primary", disabled=not korbil_ok, key=f"salvar_admin_{beneficio_id}"):
             atualizar_status_beneficio(beneficio_id, "Implantado", df)
 
-    elif status_atual == "Implantado" and perfil_usuario in ["Cadastrador", "Admin"]:
-        st.markdown("#### 📞 Enviar para SAC")
+    elif status_atual == "Implantado" and perfil_usuario in ["Cadastrador", "Desenvolvedor"]:
         st.info("🔍 Processo implantado e pronto para contato com cliente via SAC.")
 
         if st.button("📞 Enviar para SAC", type="primary", use_container_width=True, key=f"enviar_sac_{beneficio_id}"):
@@ -875,7 +931,7 @@ def render_tab_acoes_beneficio(df, processo, beneficio_id, status_atual, perfil_
                 beneficio_id, "Enviado para o SAC", df
             )
 
-    elif status_atual == "Enviado para o SAC" and perfil_usuario in ["SAC", "Admin"]:
+    elif status_atual == "Enviado para o SAC" and perfil_usuario in ["SAC", "Desenvolvedor"]:
         st.markdown("#### 📞 Contato com Cliente - SAC")
         st.info("📋 Entre em contato com o cliente e marque quando concluído.")
         
@@ -888,117 +944,53 @@ def render_tab_acoes_beneficio(df, processo, beneficio_id, status_atual, perfil_
                                                       "Data Contato SAC": datetime.now().strftime("%d/%m/%Y %H:%M"),
                                                       "Contatado Por": perfil_usuario})
 
-    elif status_atual == "Enviado para o financeiro" and perfil_usuario in ["Financeiro", "Admin"]:
-        st.markdown("#### 💰 Gestão de Pagamento")
-        st.info("Configure os pagamentos para este benefício.")
+    elif status_atual == "Enviado para o financeiro" and perfil_usuario in ["Financeiro", "Desenvolvedor"]:
         
-        if st.button("🎯 Finalizar Benefício", type="primary", key=f"finalizar_{beneficio_id}"):
-            atualizar_status_beneficio(beneficio_id, "Finalizado", df)
+        # Obter dados da linha atual
+        linha_beneficio = df[df["ID"] == beneficio_id].iloc[0]
+        
+        # Verificar tipo de pagamento
+        tipo_pagamento = linha_beneficio.get("Tipo Pagamento", "À vista")
+        num_parcelas = safe_get_int_value_beneficio(linha_beneficio, "Numero Parcelas", 1)
+        valor_total = safe_get_value_beneficio(linha_beneficio, "Valor Total Honorarios", "A definir")
+                
+        if tipo_pagamento == "À vista":
+            # Pagamento à vista - interface simples
+            st.info("💡 Pagamento à vista - Anexe comprovante para finalizar")
+            
+            pago_em_dinheiro = st.checkbox("Pago em dinheiro")
+            
+            comprovante = None
+            if not pago_em_dinheiro:
+                comprovante = st.file_uploader("Comprovante de Pagamento *", type=["pdf", "jpg", "png"])
+            
+            pode_finalizar = pago_em_dinheiro or comprovante is not None
+            
+            if st.button("✅ Finalizar Benefício", type="primary", disabled=not pode_finalizar):
+                comprovante_url = ""
+                tipo_pagamento_final = "Dinheiro" if pago_em_dinheiro else "Anexo"
+                
+                if comprovante:
+                    with st.spinner("Enviando anexo..."):
+                        comprovante_url = salvar_arquivo(comprovante, processo, "pagamento_beneficio")
+                
+                # Marcar como finalizado
+                atualizar_status_beneficio(beneficio_id, "Finalizado", df)
+        
+        else:
+            # Sistema de pagamento parcelado - organizado em card
+            with st.expander("💳 Sistema de Pagamento e Parcelas", expanded=True):
+                interface_edicao_beneficio(df, beneficio_id, perfil_usuario)
     
     else:
-        if perfil_usuario != "Admin":
-            st.warning(f"⚠️ Seu perfil ({perfil_usuario}) não pode editar benefícios com status '{status_atual}'")
-        else:
-            st.info(f"Status atual: {status_atual}")
-    
-    st.info(f"**Status Atual:** {status_atual}")
-    
-    # Seção de Honorários Contratuais - Disponível para todos os perfis autorizados
-    if perfil_usuario in ["Financeiro", "Admin", "Cadastrador"]:
-        st.markdown("---")
-        st.markdown("### 💼 Honorários Contratuais")
+        st.info(f"**Status Atual:** {status_atual}")
         
-        with st.form(f"form_hc_beneficio_tab_{beneficio_id}"):
-            col_hc1, col_hc2 = st.columns(2)
-            
-            with col_hc1:
-                honorarios_contratuais = st.number_input(
-                    "Honorário Contratual 1:",
-                    min_value=0.0,
-                    value=safe_get_hc_value_beneficio(linha_processo, "Honorarios Contratuais"),
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor principal dos honorários contratuais",
-                    key=f"hc_beneficio_tab_{beneficio_id}"
-                )
-                
-                # Campos HC adicionais
-                hc1_valor, hc2_valor = 0.0, 0.0
-                nivel_hc = st.session_state.get(f"hc_nivel_beneficio_tab_{beneficio_id}", 0)
-                
-                if nivel_hc >= 1:
-                    hc1_valor = st.number_input(
-                        "Honorário Contratual 2:",
-                        min_value=0.0,
-                        value=safe_get_hc_value_beneficio(linha_processo, "HC1"),
-                        step=0.01,
-                        format="%.2f",
-                        key=f"hc1_beneficio_tab_{beneficio_id}"
-                    )
-                
-                if nivel_hc >= 2:
-                    hc2_valor = st.number_input(
-                        "Honorário Contratual 3:",
-                        min_value=0.0,
-                        value=safe_get_hc_value_beneficio(linha_processo, "HC2"),
-                        step=0.01,
-                        format="%.2f",
-                        key=f"hc2_beneficio_tab_{beneficio_id}"
-                    )
-            
-            with col_hc2:
-                # Mostrar total atual
-                total_atual = calcular_total_hc_beneficio(linha_processo)
-                st.metric("Total HC Atual", f"R$ {total_atual:.2f}")
-                
-                # Mostrar detalhamento se há HCs adicionais
-                if nivel_hc > 0:
-                    st.markdown("**Detalhamento:**")
-                    hc_principal = safe_get_hc_value_beneficio(linha_processo, "Honorarios Contratuais")
-                    st.write(f"HC1: R$ {hc_principal:.2f}")
-                    if nivel_hc >= 1:
-                        hc1_atual = safe_get_hc_value_beneficio(linha_processo, "HC1")
-                        st.write(f"HC2: R$ {hc1_atual:.2f}")
-                    if nivel_hc >= 2:
-                        hc2_atual = safe_get_hc_value_beneficio(linha_processo, "HC2")
-                        st.write(f"HC3: R$ {hc2_atual:.2f}")
-            
-            # Botão para salvar honorários
-            salvar_hc = st.form_submit_button("💾 Salvar Honorários Contratuais", type="primary")
-            
-            if salvar_hc:
-                try:
-                    idx = df[df["ID"] == beneficio_id].index[0]
-                    
-                    # Salvar valores
-                    st.session_state.df_editado_beneficios.loc[idx, "Honorarios Contratuais"] = honorarios_contratuais
-                    
-                    # Salvar HCs adicionais se foram preenchidos
-                    if nivel_hc >= 1:
-                        st.session_state.df_editado_beneficios.loc[idx, "HC1"] = hc1_valor
-                    if nivel_hc >= 2:
-                        st.session_state.df_editado_beneficios.loc[idx, "HC2"] = hc2_valor
-                    
-                    # Salvar no GitHub
-                    save_data_to_github_seguro(st.session_state.df_editado_beneficios, "lista_beneficios.csv", "file_sha_beneficios")
-                    
-                    total_novo = honorarios_contratuais + hc1_valor + hc2_valor
-                    st.success(f"✅ Honorários salvos! Total: R$ {total_novo:.2f}")
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"❌ Erro ao salvar honorários: {str(e)}")
-    
-    # Botão para expandir HCs (fora do form)
-    if perfil_usuario in ["Financeiro", "Admin", "Cadastrador"]:
-        if st.button("➕ Adicionar Honorários Contratuais", key=f"btn_hc_beneficio_tab_{beneficio_id}"):
-            nivel_atual = st.session_state.get(f"hc_nivel_beneficio_tab_{beneficio_id}", 0)
-            st.session_state[f"hc_nivel_beneficio_tab_{beneficio_id}"] = min(nivel_atual + 1, 2)
-            st.rerun()
-    
-    # Informações gerais sobre edição
-    if perfil_usuario not in ["Admin", "Cadastrador"]:
-        st.info(f"Seu perfil ({perfil_usuario}) tem acesso limitado para editar este benefício.")
+        # Para outros status, mostrar ações apropriadas - sem chamadas duplicadas
+        if ((status_atual == "Enviado para administrativo" and perfil_usuario in ["Administrativo", "Desenvolvedor"]) or
+            (status_atual == "Implantado" and perfil_usuario in ["Cadastrador", "Desenvolvedor"]) or
+            (status_atual == "Enviado para o SAC" and perfil_usuario in ["SAC", "Desenvolvedor"])):
+            with st.expander("💳 Sistema de Pagamento e Parcelas", expanded=False):
+                interface_edicao_beneficio(df, beneficio_id, perfil_usuario)
 
 def render_tab_historico_beneficio(processo, beneficio_id):
     """Renderiza a tab de histórico do Benefício"""
@@ -1075,8 +1067,8 @@ def interface_cadastro_beneficio(df, perfil_usuario):
         st.session_state.beneficio_aberto_id = None
     
     # Verificar se o usuário pode cadastrar benefícios
-    if perfil_usuario not in ["Cadastrador", "Admin"]:
-        st.warning("⚠️ Apenas Cadastradores e Administradores podem criar novos benefícios")
+    if perfil_usuario not in ["Cadastrador", "Desenvolvedor"]:
+        st.warning("⚠️ Apenas Cadastradores e Desenvolvedores podem criar novos benefícios")
         return
 
     # Inicializar contador para reset do formulário
@@ -1280,6 +1272,12 @@ def interface_cadastro_beneficio(df, perfil_usuario):
             linha_controle = inicializar_linha_vazia_beneficios()
             nova_linha.update({k: v for k, v in linha_controle.items() if k not in nova_linha})
             
+            # Se for pagamento parcelado, gerar datas de vencimento
+            if num_parcelas > 1 and valor_total_honorarios and valor_total_honorarios > 0:
+                data_base = datetime.now()
+                parcelas_data = gerar_parcelas_beneficio(nova_linha["ID"], valor_total_honorarios, num_parcelas, data_base)
+                nova_linha.update(parcelas_data)
+            
             # Adicionar ao DataFrame em memória
             df_nova_linha = pd.DataFrame([nova_linha])
             st.session_state.df_editado_beneficios = pd.concat(
@@ -1303,6 +1301,136 @@ def interface_cadastro_beneficio(df, perfil_usuario):
             st.toast("✅ Linha adicionada! Salve para persistir os dados.", icon="👍")
             st.rerun()
 
+def render_parcela_individual(linha_beneficio, i, valor_parcela_individual, beneficio_id, df):
+    """Renderiza uma parcela individual com formulário de pagamento"""
+    status_parcela = linha_beneficio.get(f"Parcela_{i}_Status", "Pendente")
+    data_vencimento = linha_beneficio.get(f"Parcela_{i}_Data_Vencimento", "")
+    data_pagamento = linha_beneficio.get(f"Parcela_{i}_Data_Pagamento", "")
+    comprovante_url = linha_beneficio.get(f"Parcela_{i}_Comprovante", "")
+    
+    if status_parcela == "Paga":
+        # Parcela paga - apenas visualização
+        st.success(f"✅ **Parcela {i} - PAGA** (R$ {valor_parcela_individual:.2f})")
+        
+        col_info1, col_info2, col_info3 = st.columns(3)
+        with col_info1:
+            st.write(f"📅 **Vencimento:** {data_vencimento}")
+        with col_info2:
+            st.write(f"💰 **Pago em:** {data_pagamento}")
+        with col_info3:
+            if comprovante_url and comprovante_url.startswith("http"):
+                st.markdown(f"📄 [Ver Comprovante]({comprovante_url})")
+            elif comprovante_url:
+                st.write(f"📄 **Comprovante:** {comprovante_url}")
+    
+    else:
+        # Parcela pendente - interface para pagamento
+        if data_vencimento:
+            try:
+                venc_date = datetime.strptime(data_vencimento, "%d/%m/%Y")
+                hoje = datetime.now()
+                dias_venc = (venc_date - hoje).days
+                
+                if dias_venc < 0:
+                    st.error(f"🔴 **Parcela {i} - VENCIDA** (R$ {valor_parcela_individual:.2f})")
+                    st.write(f"📅 **Venceu em:** {data_vencimento} ({abs(dias_venc)} dias atrás)")
+                elif dias_venc == 0:
+                    st.warning(f"🟡 **Parcela {i} - VENCE HOJE** (R$ {valor_parcela_individual:.2f})")
+                    st.write(f"📅 **Vencimento:** {data_vencimento}")
+                elif dias_venc <= 7:
+                    st.warning(f"🟡 **Parcela {i} - VENCE EM {dias_venc} DIAS** (R$ {valor_parcela_individual:.2f})")
+                    st.write(f"📅 **Vencimento:** {data_vencimento}")
+                else:
+                    st.info(f"🔵 **Parcela {i} - PENDENTE** (R$ {valor_parcela_individual:.2f})")
+                    st.write(f"📅 **Vencimento:** {data_vencimento} ({dias_venc} dias)")
+            except:
+                st.info(f"🔵 **Parcela {i} - PENDENTE** (R$ {valor_parcela_individual:.2f})")
+                st.write(f"📅 **Vencimento:** {data_vencimento}")
+        else:
+            st.info(f"🔵 **Parcela {i} - PENDENTE** (R$ {valor_parcela_individual:.2f})")
+        
+        # Formulário para marcar como paga - chave única por parcela e benefício
+        with st.form(f"pagamento_parcela_{i}_{beneficio_id}_tab"):
+            st.markdown(f"**📝 Registro de Pagamento - Parcela {i}**")
+            
+            col_form1, col_form2 = st.columns(2)
+            
+            with col_form1:
+                # Opção 1: Upload de arquivo
+                st.markdown("**Opção 1: Upload do Comprovante**")
+                comprovante_arquivo = st.file_uploader(
+                    f"Anexar comprovante (Parcela {i})",
+                    type=["pdf", "jpg", "jpeg", "png"],
+                    key=f"upload_parcela_{i}_{beneficio_id}_tab",
+                    help="Selecione o arquivo do comprovante de pagamento"
+                )
+            
+            with col_form2:
+                # Opção 2: Pagamento em dinheiro
+                st.markdown("**Opção 2: Pagamento em Dinheiro**")
+                pago_dinheiro = st.checkbox(
+                    f"Pago em dinheiro (Parcela {i})",
+                    key=f"dinheiro_parcela_{i}_{beneficio_id}_tab",
+                    help="Marque se o pagamento foi feito em espécie"
+                )
+                
+                # Data do pagamento (opcional)
+                st.markdown("**Data do Pagamento**")
+                data_pagamento_input = st.date_input(
+                    f"Data de pagamento (Parcela {i})",
+                    value=datetime.now().date(),
+                    key=f"data_parcela_{i}_{beneficio_id}_tab",
+                    help="Selecione a data em que o pagamento foi recebido"
+                )
+                
+                # Observações adicionais
+                observacoes_pagamento = st.text_area(
+                    f"Observações (Parcela {i})",
+                    placeholder="Observações sobre o pagamento...",
+                    key=f"obs_parcela_{i}_{beneficio_id}_tab",
+                    height=60
+                )
+            
+            # Validar se ao menos uma opção foi preenchida
+            # CORREÇÃO: Verificar explicitamente se checkbox está marcado ou arquivo foi anexado
+            tem_arquivo_anexado = comprovante_arquivo is not None
+            checkbox_marcado = pago_dinheiro == True
+            pode_confirmar = tem_arquivo_anexado or checkbox_marcado
+            
+            marcar_paga = st.form_submit_button(
+                f"✅ Confirmar Pagamento da Parcela {i}",
+                type="primary",
+                disabled=not pode_confirmar,
+                use_container_width=True
+            )
+            
+            if marcar_paga:
+                if pode_confirmar:
+                    comprovante_final = ""
+                    
+                    if pago_dinheiro:
+                        comprovante_final = "Dinheiro"
+                    elif comprovante_arquivo:
+                        # Upload do arquivo
+                        with st.spinner("📤 Salvando comprovante..."):
+                            processo_nome = safe_get_value_beneficio(linha_beneficio, 'Nº DO PROCESSO', 'processo')
+                            comprovante_final = salvar_arquivo(
+                                comprovante_arquivo, 
+                                processo_nome, 
+                                f"pagamento_parcela_{i}_beneficio"
+                            )
+                    
+                    # Atualizar parcela como paga
+                    atualizar_pagamento_parcela(
+                        beneficio_id, i, df, 
+                        url_comprovante=comprovante_final,
+                        data_pagamento_customizada=data_pagamento_input.strftime("%d/%m/%Y"),
+                        observacoes=observacoes_pagamento,
+                        pago_dinheiro=pago_dinheiro
+                    )
+                else:
+                    st.error("❌ Por favor, anexe um comprovante ou marque 'Pago em dinheiro'.")
+
 def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
     """
     Interface de edição com o fluxo de trabalho corrigido e adaptada para st.dialog.
@@ -1315,7 +1443,7 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
     # Exibir informações básicas do benefício com layout compacto
     exibir_informacoes_basicas_beneficio(linha_beneficio, "compacto")
 
-    if status_atual == "Enviado para administrativo" and perfil_usuario in ["Administrativo", "Admin"]:
+    if status_atual == "Enviado para administrativo" and perfil_usuario in ["Administrativo", "Desenvolvedor"]:
         st.markdown("#### 🔧 Análise Administrativa")
         st.info("Após inserir os documentos no Korbil, marque a caixa abaixo e salve.")
         
@@ -1324,7 +1452,7 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
         if st.button("💾 Salvar e Devolver para Cadastrador", type="primary", disabled=not korbil_ok):
             atualizar_status_beneficio(beneficio_id, "Implantado", df)
 
-    elif status_atual == "Implantado" and perfil_usuario in ["Cadastrador", "Admin"]:
+    elif status_atual == "Implantado" and perfil_usuario in ["Cadastrador", "Desenvolvedor"]:
         st.markdown("#### 📞 Enviar para SAC")
         st.info("🔍 Processo implantado e pronto para contato com cliente via SAC.")
 
@@ -1333,7 +1461,7 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
                 beneficio_id, "Enviado para o SAC", df
             )
 
-    elif status_atual == "Enviado para o SAC" and perfil_usuario in ["SAC", "Admin"]:
+    elif status_atual == "Enviado para o SAC" and perfil_usuario in ["SAC", "Desenvolvedor"]:
         st.markdown("#### 📞 Contato com Cliente - SAC")
         st.info("📋 Entre em contato com o cliente e marque quando concluído.")
         
@@ -1346,39 +1474,144 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
                                                       "Data Contato SAC": datetime.now().strftime("%d/%m/%Y %H:%M"),
                                                       "Contatado Por": perfil_usuario})
 
-    elif status_atual == "Enviado para o financeiro" and perfil_usuario in ["Financeiro", "Admin"]:
-        st.markdown("#### 💰 Gestão de Pagamento")
+    elif status_atual == "Enviado para o financeiro" and perfil_usuario in ["Financeiro", "Desenvolvedor"]:
         
         # Verificar tipo de pagamento
         tipo_pagamento = linha_beneficio.get("Tipo Pagamento", "À vista")
-        num_parcelas = int(linha_beneficio.get("Numero Parcelas", 1))
+        num_parcelas = safe_get_int_value_beneficio(linha_beneficio, "Numero Parcelas", 1)
         valor_total = safe_get_value_beneficio(linha_beneficio, "Valor Total Honorarios", "A definir")
         valor_parcela = safe_get_value_beneficio(linha_beneficio, "Valor Parcela", "")
         
         # Exibir informações do pagamento
-        col_info1, col_info2, col_info3 = st.columns(3)
-        with col_info1:
-            st.metric("Tipo de Pagamento", tipo_pagamento)
-        with col_info2:
-            st.metric("Número de Parcelas", num_parcelas)
-        with col_info3:
-            # Tratar valores nan e formatar monetário se possível
-            if valor_total and valor_total != "A definir":
-                try:
-                    # Se é uma string com "R$", extrair o valor
-                    if "R$" in str(valor_total):
-                        valor_limpo = str(valor_total).replace("R$", "").replace(",", "").strip()
-                        valor_float = float(valor_limpo)
-                        st.metric("Valor Total", f"R$ {valor_float:,.2f}")
-                    else:
-                        valor_float = float(valor_total)
-                        st.metric("Valor Total", f"R$ {valor_float:,.2f}")
-                except:
-                    st.metric("Valor Total", "A definir")
-            else:
-                st.metric("Valor Total", "A definir")
         
         st.markdown("---")
+        
+        # ======== NOVA SEÇÃO: CONFIGURAÇÃO RÁPIDA DE PAGAMENTO ========
+        if valor_total == "A definir" or valor_total == "" or not valor_total:
+            with st.expander("⚙️ **Configurar Pagamento** (Obrigatório)", expanded=True):
+                st.warning("📋 Configure o tipo de pagamento para acessar o sistema de parcelas.")
+                
+                with st.form(f"config_pagamento_rapida_{beneficio_id}"):
+                    col_cfg1, col_cfg2 = st.columns(2)
+                    
+                    with col_cfg1:
+                        novo_tipo = st.selectbox(
+                            "Tipo de Pagamento:",
+                            list(OPCOES_PAGAMENTO.keys()),
+                            index=0,
+                            help="À vista = 1 parcela, demais = parcelado"
+                        )
+                    
+                    with col_cfg2:
+                        novo_valor = st.number_input(
+                            "Valor Total (R$):",
+                            min_value=0.0,
+                            step=100.0,
+                            format="%.2f",
+                            help="Valor total que será pago"
+                        )
+                    
+                    if st.form_submit_button("💾 Configurar e Acessar Sistema de Parcelas", type="primary"):
+                        if novo_valor > 0:
+                            try:
+                                idx = df[df["ID"] == beneficio_id].index[0]
+                                novo_num_parcelas = OPCOES_PAGAMENTO[novo_tipo]["parcelas"]
+                                
+                                st.session_state.df_editado_beneficios.loc[idx, "Tipo Pagamento"] = novo_tipo
+                                st.session_state.df_editado_beneficios.loc[idx, "Numero Parcelas"] = novo_num_parcelas
+                                st.session_state.df_editado_beneficios.loc[idx, "Valor Total Honorarios"] = f"R$ {novo_valor:.2f}"
+                                
+                                # Salvar no GitHub
+                                novo_sha = save_data_to_github_seguro(
+                                    st.session_state.df_editado_beneficios,
+                                    "lista_beneficios.csv",
+                                    st.session_state.get("file_sha_beneficios", None)
+                                )
+                                
+                                if novo_sha:
+                                    st.session_state.file_sha_beneficios = novo_sha
+                                    st.success("✅ Configuração salva! Recarregando sistema de parcelas...")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Erro ao salvar.")
+                                    
+                            except Exception as e:
+                                st.error(f"❌ Erro: {e}")
+                        else:
+                            st.error("❌ Informe um valor maior que R$ 0,00")
+            
+            # Parar execução até configurar
+            st.info("👆 Configure o pagamento acima para prosseguir.")
+            return
+        
+        # ======== BOTÃO PARA ALTERAR CONFIGURAÇÃO DE PAGAMENTO ========
+        with st.expander("🔧 Alterar Configuração de Pagamento", expanded=False):
+            st.info("💡 Use esta seção para mudar o tipo ou valor do pagamento.")
+            
+            with st.form(f"alterar_pagamento_{beneficio_id}"):
+                col_alt1, col_alt2 = st.columns(2)
+                
+                with col_alt1:
+                    tipo_atual_index = list(OPCOES_PAGAMENTO.keys()).index(tipo_pagamento) if tipo_pagamento in OPCOES_PAGAMENTO else 0
+                    tipo_alterado = st.selectbox(
+                        "Novo Tipo de Pagamento:",
+                        list(OPCOES_PAGAMENTO.keys()),
+                        index=tipo_atual_index
+                    )
+                
+                with col_alt2:
+                    valor_atual = 0
+                    if valor_total and "R$" in str(valor_total):
+                        try:
+                            valor_atual = float(str(valor_total).replace("R$", "").replace(".", "").replace(",", ".").strip())
+                        except:
+                            valor_atual = 0
+                    
+                    valor_alterado = st.number_input(
+                        "Novo Valor Total (R$):",
+                        min_value=0.0,
+                        value=valor_atual,
+                        step=100.0,
+                        format="%.2f"
+                    )
+                
+                if st.form_submit_button("🔄 Aplicar Alterações", type="secondary"):
+                    if valor_alterado > 0:
+                        try:
+                            idx = df[df["ID"] == beneficio_id].index[0]
+                            novo_num_parcelas = OPCOES_PAGAMENTO[tipo_alterado]["parcelas"]
+                            
+                            st.session_state.df_editado_beneficios.loc[idx, "Tipo Pagamento"] = tipo_alterado
+                            st.session_state.df_editado_beneficios.loc[idx, "Numero Parcelas"] = novo_num_parcelas
+                            st.session_state.df_editado_beneficios.loc[idx, "Valor Total Honorarios"] = f"R$ {valor_alterado:.2f}"
+                            
+                            # Limpar parcelas antigas se mudou o número
+                            for i in range(1, 13):  # Máximo 12 parcelas
+                                if i > novo_num_parcelas:
+                                    # Limpar parcelas que não existem mais
+                                    st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{i}_Status"] = ""
+                                    st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{i}_Data_Vencimento"] = ""
+                                    st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{i}_Comprovante"] = ""
+                                    st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{i}_Data_Pagamento"] = ""
+                            
+                            # Salvar no GitHub
+                            novo_sha = save_data_to_github_seguro(
+                                st.session_state.df_editado_beneficios,
+                                "lista_beneficios.csv",
+                                st.session_state.get("file_sha_beneficios", None)
+                            )
+                            
+                            if novo_sha:
+                                st.session_state.file_sha_beneficios = novo_sha
+                                st.success("✅ Configuração alterada! Recarregando...")
+                                st.rerun()
+                            else:
+                                st.error("❌ Erro ao salvar alteração.")
+                                
+                        except Exception as e:
+                            st.error(f"❌ Erro ao alterar: {e}")
+                    else:
+                        st.error("❌ Valor deve ser maior que R$ 0,00")
 
         # Controle HC com botão progressivo (FORA do formulário)
         if st.button("➕ Adicionar Honorários Contratuais", key=f"btn_hc_beneficio_{beneficio_id}"):
@@ -1471,107 +1704,422 @@ def interface_edicao_beneficio(df, beneficio_id, perfil_usuario):
         st.markdown("---")
         
         # =====================================
-        # GESTÃO DE PAGAMENTO (ORIGINAL)
+        # SISTEMA UNIFICADO DE PARCELAS - SEMPRE ACESSÍVEL
         # =====================================
         
-        if tipo_pagamento == "À vista":
-            # Pagamento à vista - interface simples
-            st.info("💡 Pagamento à vista - Anexe comprovante para finalizar")
-            
-            pago_em_dinheiro = st.checkbox("Pago em dinheiro")
-            
-            comprovante = None
-            if not pago_em_dinheiro:
-                comprovante = st.file_uploader("Comprovante de Pagamento *", type=["pdf", "jpg", "png"])
-            
-            pode_finalizar = pago_em_dinheiro or comprovante is not None
-            
-            if st.button("✅ Finalizar Benefício", type="primary", disabled=not pode_finalizar):
-                comprovante_url = ""
-                tipo_pagamento_final = "Dinheiro" if pago_em_dinheiro else "Anexo"
-                
-                if comprovante:
-                    with st.spinner("Enviando anexo..."):
-                        comprovante_url = salvar_arquivo(comprovante, processo, "pagamento_beneficio")
-                
-                # Marcar como finalizado
-                atualizar_dados_finalizacao(
-                    beneficio_id, "Finalizado", df,
-                    comprovante_url=comprovante_url,
-                    tipo_pagamento=tipo_pagamento_final
-                )
+        st.markdown("### 💳 Sistema de Pagamento e Parcelas")
         
-        else:
-            # Pagamento parcelado - interface avançada
-            st.markdown("#### 📋 Controle de Parcelas")
+        # Verificar se as parcelas já foram geradas
+        parcelas_geradas = False
+        for i in range(1, num_parcelas + 1):
+            if linha_beneficio.get(f"Parcela_{i}_Data_Vencimento"):
+                parcelas_geradas = True
+                break
+        
+        # Se as parcelas não foram geradas ainda, gerar automaticamente
+        if not parcelas_geradas:
+            st.info("⚙️ Configurando parcelas automaticamente...")
             
-            parcelas_pagas, todas_pagas = calcular_status_parcelas(linha_beneficio, num_parcelas)
-            
-            # Status geral das parcelas
-            st.metric("Parcelas Pagas", f"{parcelas_pagas}/{num_parcelas}")
-            
-            # Lista de parcelas para gestão
-            st.markdown("##### Gerenciar Parcelas:")
-            
-            for i in range(1, num_parcelas + 1):
-                status_parcela = linha_beneficio.get(f"Parcela_{i}_Status", "Pendente")
-                data_pagamento = linha_beneficio.get(f"Parcela_{i}_Data_Pagamento", "")
-                comprovante_parcela = linha_beneficio.get(f"Parcela_{i}_Comprovante", "")
+            try:
+                # Converter valor_total para uso na geração de parcelas
+                valor_total_para_parcelas = 0
+                if valor_total and valor_total != "A definir":
+                    try:
+                        if "R$" in str(valor_total):
+                            valor_limpo = str(valor_total).replace("R$", "").strip()
+                            if "," in valor_limpo:
+                                valor_limpo = valor_limpo.replace(".", "").replace(",", ".")
+                            valor_total_para_parcelas = float(valor_limpo)
+                        else:
+                            valor_total_para_parcelas = float(valor_total)
+                    except:
+                        valor_total_para_parcelas = 0
                 
-                with st.expander(f"Parcela {i} - {valor_parcela} - Status: {status_parcela}",
-                               expanded=(status_parcela == "Pendente")):
+                # Gerar dados das parcelas automaticamente
+                data_envio = datetime.now()
+                parcelas_data = gerar_parcelas_beneficio(beneficio_id, valor_total_para_parcelas, num_parcelas, data_envio)
+                
+                # Atualizar DataFrame
+                if "df_editado_beneficios" not in st.session_state:
+                    st.session_state.df_editado_beneficios = df.copy()
+                
+                idx = st.session_state.df_editado_beneficios[st.session_state.df_editado_beneficios["ID"] == beneficio_id].index[0]
+                for campo, valor in parcelas_data.items():
+                    st.session_state.df_editado_beneficios.loc[idx, campo] = valor
+                
+                # Salvar no GitHub
+                novo_sha = save_data_to_github_seguro(
+                    st.session_state.df_editado_beneficios,
+                    "lista_beneficios.csv",
+                    st.session_state.get("file_sha_beneficios", None)
+                )
+                
+                if novo_sha:
+                    st.session_state.file_sha_beneficios = novo_sha
+                    st.success("✅ Parcelas configuradas automaticamente!")
+                    st.rerun()
+                else:
+                    st.error("❌ Erro ao salvar as parcelas.")
+                    return
                     
-                    if status_parcela == "Pendente":
-                        # Permitir marcar como paga
-                        col_pag1, col_pag2 = st.columns(2)
+            except Exception as e:
+                st.error(f"❌ Erro ao configurar parcelas: {e}")
+                return
+        
+        
+        # Converter valor_total para número se necessário
+        valor_total_numerico = 0
+        if valor_total and valor_total != "A definir":
+            try:
+                if "R$" in str(valor_total):
+                    valor_limpo = str(valor_total).replace("R$", "").strip()
+                    if "," in valor_limpo:
+                        valor_limpo = valor_limpo.replace(".", "").replace(",", ".")
+                    valor_total_numerico = float(valor_limpo)
+                else:
+                    valor_total_numerico = float(valor_total)
+            except:
+                valor_total_numerico = 0
+        
+        # Calcular estatísticas
+        parcelas_pagas, todas_pagas = calcular_status_parcelas(linha_beneficio, num_parcelas)
+        valor_parcela_individual = valor_total_numerico / num_parcelas if num_parcelas > 0 else 0
+        
+        # Métricas
+        col_met1, col_met2, col_met3, col_met4 = st.columns(4)
+        
+        with col_met1:
+            st.metric("💰 Valor por Parcela", f"R$ {valor_parcela_individual:.2f}")
+        
+        with col_met2:
+            st.metric("✅ Parcelas Pagas", f"{parcelas_pagas}/{num_parcelas}")
+        
+        with col_met3:
+            restante = num_parcelas - parcelas_pagas
+            st.metric("⏳ Restantes", restante)
+        
+        with col_met4:
+            progresso = (parcelas_pagas / num_parcelas) * 100 if num_parcelas > 0 else 0
+            st.metric("📈 Progresso", f"{progresso:.1f}%")
+        
+        # Barra de progresso
+        st.progress(progresso / 100, text=f"Progresso do pagamento: {parcelas_pagas} de {num_parcelas} parcelas pagas")
+        
+        if valor_total_numerico == 0:
+            st.warning("⚠️ **Valor Total dos Honorários não foi definido.** Use a seção 'Alterar Configuração de Pagamento' acima para definir o valor.")
+        
+        st.markdown("---")
+        
+        
+        # =====================================
+        # IMPLEMENTAÇÃO ORIGINAL (MANTIDA PARA COMPATIBILIDADE)
+        # =====================================
+        
+        # Esta seção não será mais executada, mas mantida para referência
+        if False and tipo_pagamento == "À vista":
+            # Pagamento à vista - usar o mesmo sistema de parcelas (1 parcela)
+            st.markdown("#### 💰 Pagamento à Vista")
+            st.info("💡 Pagamento à vista - Registre o comprovante para finalizar o benefício")
+            
+            # Verificar se já foi configurado como parcela única
+            parcela_configurada = linha_beneficio.get("Parcela_1_Data_Vencimento", "")
+            
+            if not parcela_configurada:
+                # Configurar como parcela única se ainda não foi feito
+                st.warning("⚠️ Configurando pagamento à vista como parcela única...")
+                
+                if "df_editado_beneficios" not in st.session_state:
+                    st.session_state.df_editado_beneficios = df.copy()
+                
+                try:
+                    valor_total_str = safe_get_value_beneficio(linha_beneficio, "Valor Total Honorarios", "0")
+                    if valor_total_str.startswith("R$"):
+                        valor_total = float(valor_total_str.replace("R$", "").replace(".", "").replace(",", ".").strip())
+                    else:
+                        valor_total = 0
+                    
+                    # Gerar dados da parcela única
+                    data_envio = datetime.now()
+                    parcelas_data = gerar_parcelas_beneficio(beneficio_id, valor_total, 1, data_envio)
+                    
+                    # Atualizar DataFrame
+                    idx = st.session_state.df_editado_beneficios[st.session_state.df_editado_beneficios["ID"] == beneficio_id].index[0]
+                    for campo, valor in parcelas_data.items():
+                        st.session_state.df_editado_beneficios.loc[idx, campo] = valor
+                    
+                    # Salvar no GitHub
+                    novo_sha = save_data_to_github_seguro(
+                        st.session_state.df_editado_beneficios,
+                        "lista_beneficios.csv",
+                        st.session_state.get("file_sha_beneficios", None)
+                    )
+                    
+                    if novo_sha:
+                        st.session_state.file_sha_beneficios = novo_sha
+                        st.success("✅ Parcela única configurada!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Erro ao configurar parcela.")
                         
-                        with col_pag1:
-                            pago_dinheiro_parcela = st.checkbox(f"Pago em dinheiro - Parcela {i}",
-                                                              key=f"dinheiro_{beneficio_id}_{i}")
+                except Exception as e:
+                    st.error(f"❌ Erro ao configurar parcela única: {e}")
+            
+            else:
+                # Usar a interface de parcelas para o pagamento à vista (1 parcela)
+                status_parcela = linha_beneficio.get("Parcela_1_Status", "Pendente")
+                data_vencimento = linha_beneficio.get("Parcela_1_Data_Vencimento", "")
+                data_pagamento = linha_beneficio.get("Parcela_1_Data_Pagamento", "")
+                comprovante_url = linha_beneficio.get("Parcela_1_Comprovante", "")
+                
+                # Calcular valor da parcela
+                valor_total_str = safe_get_value_beneficio(linha_beneficio, "Valor Total Honorarios", "0")
+                if valor_total_str and valor_total_str.startswith("R$"):
+                    try:
+                        valor_parcela = float(valor_total_str.replace("R$", "").replace(".", "").replace(",", ".").strip())
+                    except:
+                        valor_parcela = 0
+                else:
+                    valor_parcela = 0
+                
+                if status_parcela == "Paga":
+                    # Já foi pago - mostrar informações
+                    st.success(f"✅ **PAGAMENTO CONCLUÍDO** - R$ {valor_parcela:.2f}")
+                    
+                    col_info1, col_info2, col_info3 = st.columns(3)
+                    with col_info1:
+                        st.write(f"📅 **Vencimento:** {data_vencimento}")
+                    with col_info2:
+                        st.write(f"💰 **Pago em:** {data_pagamento}")
+                    with col_info3:
+                        if comprovante_url and comprovante_url.startswith("http"):
+                            st.markdown(f"📄 [Ver Comprovante]({comprovante_url})")
+                        elif comprovante_url:
+                            st.write(f"📄 **Comprovante:** {comprovante_url}")
+                    
+                    st.info("🎉 Este benefício já foi finalizado com o pagamento à vista.")
+                
+                else:
+                    # Ainda não foi pago - mostrar interface de pagamento
+                    st.info(f"💰 **Valor Total:** R$ {valor_parcela:.2f}")
+                    if data_vencimento:
+                        st.write(f"📅 **Data de Vencimento:** {data_vencimento}")
+                    
+                    # Usar a mesma interface de pagamento das parcelas
+                    with st.form(f"pagamento_vista_{beneficio_id}"):
+                        st.markdown("**📝 Registro de Pagamento à Vista**")
                         
-                        with col_pag2:
-                            if not pago_dinheiro_parcela:
-                                comprovante_upload = st.file_uploader(
-                                    f"Comprovante Parcela {i}",
-                                    type=["pdf", "jpg", "png"],
-                                    key=f"comp_parcela_{beneficio_id}_{i}"
+                        col_form1, col_form2 = st.columns(2)
+                        
+                        with col_form1:
+                            # Opção 1: Upload de arquivo
+                            st.markdown("**Opção 1: Upload do Comprovante**")
+                            comprovante_arquivo = st.file_uploader(
+                                "Anexar comprovante de pagamento",
+                                type=["pdf", "jpg", "jpeg", "png"],
+                                key=f"upload_vista_{beneficio_id}",
+                                help="Selecione o arquivo do comprovante de pagamento"
+                            )
+                        
+                        with col_form2:
+                            # Opção 2: Pagamento em dinheiro
+                            st.markdown("**Opção 2: Pagamento em Dinheiro**")
+                            pago_dinheiro = st.checkbox(
+                                "Pago em dinheiro",
+                                key=f"dinheiro_vista_{beneficio_id}",
+                                help="Marque se o pagamento foi feito em espécie"
+                            )
+                            
+                            # Data do pagamento (opcional)
+                            st.markdown("**Data do Pagamento**")
+                            data_pagamento_input = st.date_input(
+                                "Data de pagamento",
+                                value=datetime.now().date(),
+                                key=f"data_vista_{beneficio_id}",
+                                help="Selecione a data em que o pagamento foi recebido"
+                            )
+                            
+                            # Observações adicionais
+                            observacoes_pagamento = st.text_area(
+                                "Observações",
+                                placeholder="Observações sobre o pagamento...",
+                                key=f"obs_vista_{beneficio_id}",
+                                height=60
+                            )
+                        
+                        # Validar se ao menos uma opção foi preenchida
+                        # CORREÇÃO: Verificar explicitamente se checkbox está marcado ou arquivo foi anexado
+                        tem_arquivo_anexado = comprovante_arquivo is not None
+                        checkbox_marcado = pago_dinheiro == True
+                        pode_confirmar = tem_arquivo_anexado or checkbox_marcado
+                        
+                        marcar_pago = st.form_submit_button(
+                            "✅ Confirmar Pagamento à Vista",
+                            type="primary",
+                            disabled=not pode_confirmar,
+                            use_container_width=True
+                        )
+                        
+                        if marcar_pago:
+                            if pode_confirmar:
+                                comprovante_final = ""
+                                
+                                if pago_dinheiro:
+                                    comprovante_final = "Dinheiro"
+                                elif comprovante_arquivo:
+                                    # Upload do arquivo
+                                    with st.spinner("📤 Salvando comprovante..."):
+                                        processo_nome = safe_get_value_beneficio(linha_beneficio, 'Nº DO PROCESSO', 'processo')
+                                        comprovante_final = salvar_arquivo(
+                                            comprovante_arquivo, 
+                                            processo_nome, 
+                                            "pagamento_vista_beneficio"
+                                        )
+                                
+                                # Atualizar como parcela única paga (usa a mesma função)
+                                atualizar_pagamento_parcela(
+                                    beneficio_id, 1, df,  # Parcela 1 (única)
+                                    url_comprovante=comprovante_final,
+                                    data_pagamento_customizada=data_pagamento_input.strftime("%d/%m/%Y"),
+                                    observacoes=observacoes_pagamento,
+                                    pago_dinheiro=pago_dinheiro
                                 )
                             else:
-                                comprovante_upload = None
-                        
-                        # Botão para confirmar pagamento da parcela
-                        pode_confirmar = pago_dinheiro_parcela or comprovante_upload is not None
-                        if st.button(f"✅ Confirmar Pagamento Parcela {i}",
-                                   key=f"confirmar_{beneficio_id}_{i}",
-                                   disabled=not pode_confirmar):
-                            
-                            # Salvar comprovante se houver
-                            url_comprovante = ""
-                            if comprovante_upload:
-                                with st.spinner(f"Salvando comprovante da parcela {i}..."):
-                                    url_comprovante = salvar_arquivo(comprovante_upload, processo, f"parcela_{i}")
-                            
-                            # Atualizar dados da parcela
-                            atualizar_pagamento_parcela(beneficio_id, i, df, url_comprovante, pago_dinheiro_parcela)
-                    
-                    else:
-                        # Parcela já paga - mostrar informações
-                        st.success(f"✅ Parcela {i} quitada")
-                        if data_pagamento:
-                            st.write(f"**Data:** {data_pagamento}")
-                        if comprovante_parcela and comprovante_parcela != "Pago em dinheiro":
-                            st.write(f"**Comprovante:** Anexado")
-                        elif comprovante_parcela == "Pago em dinheiro":
-                            st.write(f"**Pagamento:** Em dinheiro")
+                                st.error("❌ Por favor, anexe um comprovante ou marque 'Pago em dinheiro'.")
+        
+        else:            
+            # Verificar se as parcelas já foram geradas, se não, gerar automaticamente
+            parcelas_geradas = False
+            for i in range(1, num_parcelas + 1):
+                if linha_beneficio.get(f"Parcela_{i}_Data_Vencimento"):
+                    parcelas_geradas = True
+                    break
             
-            # Botão para finalizar apenas se todas as parcelas estiverem pagas
-            if todas_pagas:
-                st.success("🎉 Todas as parcelas foram quitadas!")
-                if st.button("✅ Finalizar Benefício", type="primary", key=f"finalizar_{beneficio_id}"):
-                    atualizar_dados_finalizacao(beneficio_id, "Finalizado", df)
+            # Se as parcelas não foram geradas ainda, gerar automaticamente
+            if not parcelas_geradas:
+                st.info("⚙️ Configurando parcelas automaticamente...")
+                
+                try:
+                    # Converter valor_total para uso na geração de parcelas
+                    valor_total_para_parcelas = 0
+                    if valor_total and valor_total != "A definir":
+                        try:
+                            if "R$" in str(valor_total):
+                                # Para valores como "R$ 8.000,00" -> remover R$, trocar . por vazio e , por .
+                                valor_limpo = str(valor_total).replace("R$", "").strip()
+                                if "," in valor_limpo:
+                                    # Formato brasileiro: R$ 8.000,00
+                                    valor_limpo = valor_limpo.replace(".", "").replace(",", ".")
+                                valor_total_para_parcelas = float(valor_limpo)
+                            else:
+                                valor_total_para_parcelas = float(valor_total)
+                        except:
+                            valor_total_para_parcelas = 0
+                    
+                    # Gerar dados das parcelas automaticamente
+                    data_envio = datetime.now()  # Usar data atual como base
+                    parcelas_data = gerar_parcelas_beneficio(beneficio_id, valor_total_para_parcelas, num_parcelas, data_envio)
+                    
+                    # Atualizar DataFrame
+                    if "df_editado_beneficios" not in st.session_state:
+                        st.session_state.df_editado_beneficios = df.copy()
+                    
+                    idx = st.session_state.df_editado_beneficios[st.session_state.df_editado_beneficios["ID"] == beneficio_id].index[0]
+                    for campo, valor in parcelas_data.items():
+                        st.session_state.df_editado_beneficios.loc[idx, campo] = valor
+                    
+                    # Salvar no GitHub
+                    novo_sha = save_data_to_github_seguro(
+                        st.session_state.df_editado_beneficios,
+                        "lista_beneficios.csv",
+                        st.session_state.get("file_sha_beneficios", None)
+                    )
+                    
+                    if novo_sha:
+                        st.session_state.file_sha_beneficios = novo_sha
+                        st.success("✅ Parcelas configuradas automaticamente!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Erro ao salvar as parcelas.")
+                        return
+                        
+                except Exception as e:
+                    st.error(f"❌ Erro ao configurar parcelas: {e}")
+                    return
+            
+            
+            # Converter valor_total para número se necessário
+            valor_total_numerico = 0
+            if valor_total and valor_total != "A definir":
+                try:
+                    if "R$" in str(valor_total):
+                        # Para valores como "R$ 8.000,00" -> remover R$, trocar . por vazio e , por .
+                        valor_limpo = str(valor_total).replace("R$", "").strip()
+                        if "," in valor_limpo:
+                            # Formato brasileiro: R$ 8.000,00
+                            valor_limpo = valor_limpo.replace(".", "").replace(",", ".")
+                        valor_total_numerico = float(valor_limpo)
+                    else:
+                        valor_total_numerico = float(valor_total)
+                except:
+                    valor_total_numerico = 0
+            
+            # Aviso se valor não está definido
+            if valor_total_numerico == 0:
+                st.warning("⚠️ **Valor Total dos Honorários não foi definido no cadastro.** As parcelas serão exibidas, mas os valores serão R$ 0,00. Atualize o cadastro para definir o valor total.")
+            
+            # Calcular estatísticas
+            parcelas_pagas, todas_pagas = calcular_status_parcelas(linha_beneficio, num_parcelas)
+            valor_parcela_individual = valor_total_numerico / num_parcelas if num_parcelas > 0 else 0
+            
+            # Sistema de tabs para as parcelas
+            if num_parcelas > 1:
+                # Criar tabs para cada parcela
+                tab_names = []
+                for i in range(1, num_parcelas + 1):
+                    status_parcela = linha_beneficio.get(f"Parcela_{i}_Status", "Pendente")
+                    if status_parcela == "Paga":
+                        tab_names.append(f"✅ Parcela {i}")
+                    else:
+                        data_vencimento = linha_beneficio.get(f"Parcela_{i}_Data_Vencimento", "")
+                        if data_vencimento:
+                            try:
+                                venc_date = datetime.strptime(data_vencimento, "%d/%m/%Y")
+                                hoje = datetime.now()
+                                dias_venc = (venc_date - hoje).days
+                                
+                                if dias_venc < 0:
+                                    tab_names.append(f"🔴 Parcela {i}")
+                                elif dias_venc == 0:
+                                    tab_names.append(f"🟡 Parcela {i}")
+                                elif dias_venc <= 7:
+                                    tab_names.append(f"� Parcela {i}")
+                                else:
+                                    tab_names.append(f"� Parcela {i}")
+                            except:
+                                tab_names.append(f"🔵 Parcela {i}")
+                        else:
+                            tab_names.append(f"� Parcela {i}")
+                
+                # Criar as tabs
+                tabs = st.tabs(tab_names)
+                
+                # Renderizar cada parcela em sua tab
+                for i, tab in enumerate(tabs, 1):
+                    with tab:
+                        render_parcela_individual(linha_beneficio, i, valor_parcela_individual, beneficio_id, df)
             else:
-                st.warning(f"⚠️ Aguardando pagamento de {num_parcelas - parcelas_pagas} parcela(s) restante(s)")
-
+                # Se só há uma parcela, mostrar diretamente
+                render_parcela_individual(linha_beneficio, 1, valor_parcela_individual, beneficio_id, df)
+            
+            # Status final
+            if todas_pagas:
+                st.success("🎉 **TODAS AS PARCELAS FORAM PAGAS!** O benefício será finalizado automaticamente.")
+                
+                if st.button("🎯 Finalizar Benefício Agora", type="primary", use_container_width=True):
+                    atualizar_status_beneficio(beneficio_id, "Finalizado", df)
+            
+            else:
+                restantes = num_parcelas - parcelas_pagas
     # BENEFÍCIO FINALIZADO - Apenas visualização
     elif status_atual == "Finalizado":
         st.markdown("#### 🎉 Benefício Finalizado")
@@ -1684,42 +2232,71 @@ def atualizar_status_beneficio(beneficio_id, novo_status, df, **kwargs):
     else:
         st.error("Falha ao salvar a atualização.")
 
-def atualizar_pagamento_parcela(beneficio_id, numero_parcela, df, url_comprovante="", pago_dinheiro=False):
+def atualizar_pagamento_parcela(beneficio_id, numero_parcela, df, url_comprovante="", 
+                              data_pagamento_customizada=None, observacoes="", pago_dinheiro=False):
     """Atualiza o status de pagamento de uma parcela específica"""
     try:
-        idx = df[df["ID"] == beneficio_id].index[0]
+        if "df_editado_beneficios" not in st.session_state:
+            st.session_state.df_editado_beneficios = df.copy()
+        
+        idx = st.session_state.df_editado_beneficios[st.session_state.df_editado_beneficios["ID"] == beneficio_id].index[0]
         
         # Atualizar campos da parcela
         st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{numero_parcela}_Status"] = "Paga"
-        st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{numero_parcela}_Data_Pagamento"] = datetime.now().strftime("%d/%m/%Y")
         
+        # Usar data customizada se fornecida, senão usar data atual
+        data_pagamento = data_pagamento_customizada if data_pagamento_customizada else datetime.now().strftime("%d/%m/%Y")
+        st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{numero_parcela}_Data_Pagamento"] = data_pagamento
+        
+        # Salvar comprovante
         if pago_dinheiro:
-            st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{numero_parcela}_Comprovante"] = "Pago em dinheiro"
+            comprovante_texto = "Dinheiro"
+            if observacoes:
+                comprovante_texto += f" - {observacoes}"
+            st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{numero_parcela}_Comprovante"] = comprovante_texto
         else:
-            st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{numero_parcela}_Comprovante"] = url_comprovante
+            comprovante_texto = url_comprovante
+            if observacoes:
+                comprovante_texto += f" - Obs: {observacoes}"
+            st.session_state.df_editado_beneficios.loc[idx, f"Parcela_{numero_parcela}_Comprovante"] = comprovante_texto
         
         # Verificar se todas as parcelas foram pagas
         linha_beneficio = st.session_state.df_editado_beneficios.loc[idx]
-        num_parcelas = int(linha_beneficio.get("Numero Parcelas", 1))
+        num_parcelas = safe_get_int_value_beneficio(linha_beneficio, "Numero Parcelas", 1)
         parcelas_pagas, todas_pagas = calcular_status_parcelas(linha_beneficio, num_parcelas)
         
-        # Atualizar status geral
+        # Atualizar status geral das parcelas
+        st.session_state.df_editado_beneficios.loc[idx, "Todas_Parcelas_Pagas"] = "Sim" if todas_pagas else "Não"
+        
+        # Se todas as parcelas foram pagas, finalizar automaticamente o benefício
         if todas_pagas:
-            st.session_state.df_editado_beneficios.loc[idx, "Todas_Parcelas_Pagas"] = "Sim"
+            usuario_atual = st.session_state.get("usuario", "Sistema")
+            data_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
+            
+            st.session_state.df_editado_beneficios.loc[idx, "Status"] = "Finalizado"
+            st.session_state.df_editado_beneficios.loc[idx, "Data Finalização"] = data_atual
+            st.session_state.df_editado_beneficios.loc[idx, "Finalizado Por"] = f"{usuario_atual} (Auto - Parcelas Completas)"
         
         # Salvar no GitHub
         novo_sha = save_data_to_github_seguro(
             st.session_state.df_editado_beneficios,
             "lista_beneficios.csv",
-            "file_sha_beneficios"
+            st.session_state.get("file_sha_beneficios", None)
         )
         
         if novo_sha:
             st.session_state.file_sha_beneficios = novo_sha
-            st.success(f"✅ Parcela {numero_parcela} marcada como paga!")
+            if todas_pagas:
+                st.success(f"✅ Parcela {numero_parcela} paga! 🎉 TODAS AS PARCELAS FORAM QUITADAS - Benefício finalizado automaticamente!")
+                st.balloons()
+            else:
+                st.success(f"✅ Parcela {numero_parcela} marcada como paga!")
+            
+            # Fechar diálogo e atualizar interface
+            limpar_estados_dialogo_beneficio()
             st.rerun()
         else:
-            st.error("❌ Erro ao salvar. Tente novamente.")
+            st.error("❌ Erro ao salvar a atualização da parcela.")
             
     except Exception as e:
         st.error(f"❌ Erro ao atualizar parcela: {e}")

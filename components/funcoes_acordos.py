@@ -84,7 +84,7 @@ def interface_cadastro_acordo(df, perfil_usuario):
     """Interface para cadastro de novos acordos"""
     
     # Verificar permissões
-    perfis_permitidos = ["Admin", "Cadastrador"]
+    perfis_permitidos = ["Desenvolvedor", "Cadastrador"]
     if perfil_usuario not in perfis_permitidos:
         st.warning("⚠️ Você não tem permissão para cadastrar acordos.")
         return
@@ -202,7 +202,7 @@ def interface_cadastro_acordo(df, perfil_usuario):
                 "Num_Parcelas": num_parcelas,
                 "Data_Primeiro_Pagamento": data_primeiro_pagamento.strftime("%Y-%m-%d"),
                 "Status": "Aguardando Pagamento",
-                "Cadastrado_Por": st.session_state.get("usuario", "admin"),
+                "Cadastrado_Por": st.session_state.get("usuario", "dev"),
                 "Data_Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                 "Comprovante_Pago": "",
                 "Honorarios_Contratuais": 0.0,
@@ -217,7 +217,7 @@ def interface_cadastro_acordo(df, perfil_usuario):
                 "Novo_Valor_Parcela": 0.0,
                 "Acordo_Nao_Cumprido": False,
                 "Data_Ultimo_Update": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                "Usuario_Ultimo_Update": st.session_state.get("usuario", "admin")
+                "Usuario_Ultimo_Update": st.session_state.get("usuario", "dev")
             }
             
             # Adicionar ao DataFrame
@@ -345,7 +345,7 @@ def interface_lista_acordos(df, perfil_usuario):
         with col_btn2:
             if st.button("✏️ Editar", key=f"editar_acordo_{acordo_id}"):
                 # Verificar permissões para edição
-                perfis_edicao = ["Admin", "Cadastrador", "Financeiro"]
+                perfis_edicao = ["Desenvolvedor", "Cadastrador", "Financeiro"]
                 if perfil_usuario in perfis_edicao:
                     request_id = f"dialogo_acordo_request_{datetime.now().timestamp()}"
                     st.session_state[request_id] = {
@@ -359,11 +359,11 @@ def interface_lista_acordos(df, perfil_usuario):
         with col_btn3:
             if st.button("🗑️ Excluir", key=f"excluir_acordo_{acordo_id}"):
                 # Verificar permissões para exclusão
-                if perfil_usuario == "Admin":
+                if perfil_usuario == "Desenvolvedor":
                     st.session_state[f"confirmar_exclusao_acordo_{acordo_id}"] = True
                     st.rerun()
                 else:
-                    st.warning("⚠️ Apenas administradores podem excluir acordos.")
+                    st.warning("⚠️ Apenas desenvolvedores podem excluir acordos.")
         
         # Confirmar exclusão
         if st.session_state.get(f"confirmar_exclusao_acordo_{acordo_id}", False):
@@ -425,8 +425,8 @@ def interface_edicao_acordo(df, acordo_id, perfil_usuario):
         interface_cadastrador_acordo(df, acordo_data, acordo_id)
     elif perfil_usuario == "Financeiro":
         interface_financeiro_acordo(df, acordo_data, acordo_id)
-    elif perfil_usuario == "Admin":
-        # Admin pode acessar todas as interfaces
+    elif perfil_usuario == "Desenvolvedor":
+        # Desenvolvedor pode acessar todas as interfaces
         tab_cad, tab_fin = st.tabs(["👤 Visão Cadastrador", "💰 Visão Financeiro"])
         
         with tab_cad:
@@ -463,7 +463,7 @@ def interface_cadastrador_acordo(df, acordo_data, acordo_id):
             df.loc[idx, "Status"] = "Enviado para Financeiro"
             df.loc[idx, "Comprovante_Pago"] = comprovante.name
             df.loc[idx, "Data_Ultimo_Update"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            df.loc[idx, "Usuario_Ultimo_Update"] = st.session_state.get("usuario", "admin")
+            df.loc[idx, "Usuario_Ultimo_Update"] = st.session_state.get("usuario", "dev")
             
             # Salvar
             success = save_data_to_github_seguro(df, "lista_acordos.csv", "file_sha_acordos")
@@ -550,7 +550,7 @@ def interface_financeiro_acordo(df, acordo_data, acordo_id):
                 df.loc[idx, "Outros_Valores"] = outros_valores
                 df.loc[idx, "Observacoes"] = observacoes_financeiro
                 df.loc[idx, "Data_Ultimo_Update"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                df.loc[idx, "Usuario_Ultimo_Update"] = st.session_state.get("usuario", "admin")
+                df.loc[idx, "Usuario_Ultimo_Update"] = st.session_state.get("usuario", "dev")
                 
                 # Determinar próximo status baseado no tipo de pagamento
                 if a_vista or num_parcelas <= 1:
@@ -678,7 +678,7 @@ def interface_renegociacao_acordo(df, acordo_data, acordo_id):
                 df.loc[idx, "Observacoes"] = f"{safe_get_value_acordo(acordo_data, 'Observacoes', '')} | RENEGOCIAÇÃO: {observacoes_renegociacao}"
                 df.loc[idx, "Status"] = "Renegociado" if houve_renegociacao else "Não Cumprido"
                 df.loc[idx, "Data_Ultimo_Update"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                df.loc[idx, "Usuario_Ultimo_Update"] = st.session_state.get("usuario", "admin")
+                df.loc[idx, "Usuario_Ultimo_Update"] = st.session_state.get("usuario", "dev")
                 
                 # Salvar
                 success = save_data_to_github_seguro(df, "lista_acordos.csv", "file_sha_acordos")
@@ -726,7 +726,7 @@ def interface_atualizacao_valor_acordo(df, acordo_data, acordo_id):
                 df.loc[idx, "Valor_Atualizado"] = valor_atualizado
                 df.loc[idx, "Observacoes"] = f"{safe_get_value_acordo(acordo_data, 'Observacoes', '')} | ATUALIZAÇÃO: {motivo_atualizacao}"
                 df.loc[idx, "Data_Ultimo_Update"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                df.loc[idx, "Usuario_Ultimo_Update"] = st.session_state.get("usuario", "admin")
+                df.loc[idx, "Usuario_Ultimo_Update"] = st.session_state.get("usuario", "dev")
                 
                 # Salvar
                 success = save_data_to_github_seguro(df, "lista_acordos.csv", "file_sha_acordos")

@@ -1,5 +1,5 @@
 """
-Interface para gerenciamento de dados de autocomplete (apenas admins)
+Interface para gerenciamento de dados de autocomplete (apenas desenvolvedores)
 """
 
 import streamlit as st
@@ -21,9 +21,9 @@ def interface_gerenciamento_autocomplete():
     st.title("🗂️ Gerenciamento de Autocomplete")
     st.markdown("---")
     
-    # Verificar se é admin
-    if not hasattr(st.session_state, 'perfil_usuario') or st.session_state.perfil_usuario != "Admin":
-        st.error("🚫 Acesso negado. Esta funcionalidade é apenas para administradores.")
+    # Verificar se é desenvolvedor
+    if not hasattr(st.session_state, 'perfil_usuario') or st.session_state.perfil_usuario != "Desenvolvedor":
+        st.error("🚫 Acesso negado. Esta funcionalidade é apenas para desenvolvedores.")
         return
     
     # Carregar dados atuais

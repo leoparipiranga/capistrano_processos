@@ -80,7 +80,7 @@ PERFIS_ALVARAS = {
     "Financeiro": ["Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"],
     "Administrativo": ["Cadastrado", "Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"],  # Pode visualizar tudo
     "SAC": ["Cadastrado", "Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"],  # Pode visualizar tudo
-    "Admin": ["Cadastrado", "Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"]  # Admin tem acesso total
+    "Desenvolvedor": ["Cadastrado", "Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"]  # Desenvolvedor tem acesso total
 }
 
 STATUS_ETAPAS_ALVARAS = {
@@ -397,16 +397,11 @@ def toggle_alvara_selection(alvara_id):
 
 def render_tab_anexos_alvara(processo, alvara_id, numero_processo):
     """Renderiza sistema de anexos dentro da tab de ações"""
-    
-    st.markdown("#### 📎 Anexar Documentos")
-    
-    # Checkbox para anexar múltiplos documentos
     anexar_multiplos = st.checkbox("Anexar múltiplos documentos", key=f"multiplos_tab_{alvara_id}")
     
     col_doc1, col_doc2 = st.columns(2)
     
     with col_doc1:
-        st.markdown("**📄 Comprovante da Conta**")
         if anexar_multiplos:
             comprovante_conta = st.file_uploader(
                 "Anexar comprovantes da conta:",
@@ -422,7 +417,6 @@ def render_tab_anexos_alvara(processo, alvara_id, numero_processo):
             )
                 
     with col_doc2:
-        st.markdown("**📄 PDF do Alvará**")
         if anexar_multiplos:
             pdf_alvara = st.file_uploader(
                 "Anexar PDFs do alvará:",
@@ -475,7 +469,7 @@ def render_tab_info_alvara(processo, alvara_id):
         st.info(processo.get('Observacoes Financeiras'))
 
 def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuario):
-    """Renderiza a tab de ações do alvará - inclui edição completa para Cadastradores e Admins"""
+    """Renderiza a tab de ações do alvará - inclui edição completa para Cadastradores e Desenvolvedores"""
     
     # Usar a função original de edição, mas sem o cabeçalho
     linha_processo_df = df[df["ID"].astype(str) == str(alvara_id)]
@@ -487,8 +481,8 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
     linha_processo = linha_processo_df.iloc[0]
     numero_processo = linha_processo.get("Processo", "N/A")
     
-    # NOVA SEÇÃO: EDIÇÃO COMPLETA PARA CADASTRADORES E ADMINS
-    if perfil_usuario in ["Cadastrador", "Admin"]:
+    # NOVA SEÇÃO: EDIÇÃO COMPLETA PARA CADASTRADORES E DESENVOLVEDORES
+    if perfil_usuario in ["Cadastrador", "Desenvolvedor"]:
         with st.expander("✏️ Editar Dados do Cadastro", expanded=False):
             with st.form(f"form_edicao_completa_alvara_{alvara_id}"):
                 col_edit1, col_edit2 = st.columns(2)
@@ -600,7 +594,7 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
         st.markdown("---")
     
     # Renderizar ações baseadas no status - usando a lógica original
-    if status_atual == "Cadastrado" and perfil_usuario in ["Cadastrador", "Admin"]:
+    if status_atual == "Cadastrado" and perfil_usuario in ["Cadastrador", "Desenvolvedor"]:
         # Usar função auxiliar para anexos
         comprovante_conta, pdf_alvara, anexar_multiplos = render_tab_anexos_alvara(processo, alvara_id, numero_processo)
         
@@ -691,13 +685,13 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
             st.info("📋 Anexe o comprovante da conta e o PDF do alvará")
     
     elif status_atual == "Enviado para o Financeiro":
-        # Apenas Financeiro e Admin podem preencher valores financeiros
-        if perfil_usuario in ["Financeiro", "Admin"]:
+        # Apenas Financeiro e Desenvolvedor podem preencher valores financeiros
+        if perfil_usuario in ["Financeiro", "Desenvolvedor"]:
             render_tab_acoes_financeiro_alvara(df, linha_processo, alvara_id)
         else:
-            st.warning("⚠️ Apenas usuários Financeiro e Admin podem gerenciar valores financeiros.")
+            st.warning("⚠️ Apenas usuários Financeiro e Desenvolvedor podem gerenciar valores financeiros.")
     
-    elif status_atual == "Financeiro - Enviado para Rodrigo" and perfil_usuario in ["Financeiro", "Admin"]:
+    elif status_atual == "Financeiro - Enviado para Rodrigo" and perfil_usuario in ["Financeiro", "Desenvolvedor"]:
         render_tab_acoes_rodrigo_alvara(df, linha_processo, alvara_id)
     
     elif status_atual == "Finalizado":
@@ -717,7 +711,7 @@ def render_tab_acoes_alvara(df, processo, alvara_id, status_atual, perfil_usuari
     
     else:
         # Status não reconhecido ou sem permissão
-        if perfil_usuario == "Admin":
+        if perfil_usuario == "Desenvolvedor":
             st.warning("⚠️ Status não reconhecido ou não implementado.")
             st.info(f"Status atual: {status_atual}")
         else:
@@ -1312,8 +1306,8 @@ def interface_cadastro_alvara(df, perfil_usuario):
     if st.session_state.get("processo_aberto_id") is not None:
         st.session_state.processo_aberto_id = None
     
-    if perfil_usuario not in ["Cadastrador", "Admin"]:
-        st.warning("⚠️ Apenas Cadastradores e Administradores podem criar novos alvarás")
+    if perfil_usuario not in ["Cadastrador", "Desenvolvedor"]:
+        st.warning("⚠️ Apenas Cadastradores e Desenvolvedores podem criar novos alvarás")
         return
     
     # INICIALIZAR CONTADOR PARA RESET DO FORM
@@ -1381,7 +1375,7 @@ def interface_cadastro_alvara(df, perfil_usuario):
     
     # DEFINIR COLUNAS PARA CADA LADO DO FORMULÁRIO
     colunas_esquerda = ["Processo", "Parte", "CPF", "Órgão Judicial"]
-    colunas_direita = ["Pagamento", "Conta", "Agência", "Observação pagamento", "Honorários Sucumbenciais", "Observação Honorários"]
+    colunas_direita = ["Pagamento", "Conta", "Agência", "Banco", "Observação pagamento", "Honorários Sucumbenciais", "Observação Honorários"]
 
     col_form_1, col_form_2 = st.columns(2)
 
@@ -1460,20 +1454,28 @@ def interface_cadastro_alvara(df, perfil_usuario):
 
             elif col == "Conta":
                 valor = st.text_input(
-                    f"{col}",
+                    f"{col} *",
                     key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
                     max_chars=20,
-                    help="Número da conta bancária",
+                    help="Número da conta bancária (Campo obrigatório)",
                     placeholder="00000-0"
                 )
 
             elif col == "Agência":
                 valor = st.text_input(
-                    f"{col}",
+                    f"{col} *",
                     key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
                     max_chars=10,
-                    help="Número da agência bancária",
+                    help="Número da agência bancária (Campo obrigatório)",
                     placeholder="0000"
+                )
+
+            elif col == "Banco":
+                valor = st.selectbox(
+                    f"{col} *",
+                    options=["CEF", "BB"],
+                    key=f"input_alvaras_{col}_{st.session_state.form_reset_counter_alvaras}",
+                    help="Selecione o banco (Campo obrigatório)"
                 )
 
             elif col == "Observação pagamento":
@@ -1544,6 +1546,12 @@ def interface_cadastro_alvara(df, perfil_usuario):
             campos_vazios.append("Pagamento")
         if not nova_linha.get("Órgão Judicial", "").strip():
             campos_vazios.append("Órgão Judicial")
+        if not nova_linha.get("Conta", "").strip():
+            campos_vazios.append("Conta")
+        if not nova_linha.get("Agência", "").strip():
+            campos_vazios.append("Agência")
+        if not nova_linha.get("Banco", "").strip():
+            campos_vazios.append("Banco")
         
         # Se há campos vazios, exibir erro detalhado
         if campos_vazios:
@@ -2258,7 +2266,7 @@ def interface_lista_alvaras(df, perfil_usuario):
     # Botões de exclusão em massa
     usuario_atual = st.session_state.get("usuario", "")
     perfil_atual = st.session_state.get("perfil_usuario", "")
-    pode_excluir = (perfil_atual in ["Admin", "Cadastrador"] or usuario_atual == "admin")
+    pode_excluir = (perfil_atual in ["Desenvolvedor", "Cadastrador"] or usuario_atual == "dev")
     
     # Inicializar variáveis de estado se não existirem
     if "modo_exclusao_alvaras" not in st.session_state:

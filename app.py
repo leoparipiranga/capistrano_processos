@@ -4,142 +4,162 @@ import uuid
 from datetime import datetime
 
 # Funções para dados de teste
-def criar_dados_teste():
-    """Cria dados de exemplo para todos os tipos de processo e status"""
+def criar_dados_teste(quantidade_por_tipo=2, incluir_multiplos_status=True):
+    """
+    Cria dados de exemplo para todos os tipos de processo e status
+    
+    Args:
+        quantidade_por_tipo (int): Quantidade de processos por tipo (padrão: 2)
+        incluir_multiplos_status (bool): Se deve incluir processos com status variados (padrão: True)
+    """
     try:
         # Importar as funções necessárias
-        from components.functions_controle import save_data_to_github_seguro
+        from components.functions_controle import save_data_to_github_seguro, load_data_from_github
+        
+        # Verificar se já existem dados de teste
+        try:
+            df_rpv_existente, _ = load_data_from_github("lista_rpv.csv")
+            df_alvaras_existente, _ = load_data_from_github("lista_alvaras.csv")
+            df_beneficios_existente, _ = load_data_from_github("lista_beneficios.csv")
+            df_acordos_existente, _ = load_data_from_github("lista_acordos.csv")
+            
+            # Contar quantos dados de teste já existem
+            teste_rpv = len(df_rpv_existente[df_rpv_existente["Beneficiário"].str.contains("Teste", na=False)]) if not df_rpv_existente.empty else 0
+            teste_alvaras = len(df_alvaras_existente[df_alvaras_existente["Parte"].str.contains("Teste", na=False)]) if not df_alvaras_existente.empty else 0
+            teste_beneficios = len(df_beneficios_existente[df_beneficios_existente["PARTE"].str.contains("Teste", na=False)]) if not df_beneficios_existente.empty else 0
+            teste_acordos = len(df_acordos_existente[df_acordos_existente["Nome_Cliente"].str.contains("Teste", na=False) | 
+                                                    df_acordos_existente["Nome_Reu"].str.contains("Teste", na=False)]) if not df_acordos_existente.empty else 0
+            
+            if teste_rpv > 0 or teste_alvaras > 0 or teste_beneficios > 0 or teste_acordos > 0:
+                st.warning(f"""
+                ⚠️ **Dados de teste já existem no sistema:**
+                - RPV: {teste_rpv} processos
+                - Alvarás: {teste_alvaras} processos
+                - Benefícios: {teste_beneficios} processos
+                - Acordos: {teste_acordos} processos
+                
+                Para evitar duplicação, remova os dados existentes antes de criar novos.
+                """)
+                return
+                
+        except Exception:
+            # Se não conseguir verificar, continuar
+            pass
+        
+        # Lista de status variados para testar diferentes fluxos
+        if incluir_multiplos_status:
+            status_rpv = ["Cadastro", "SAC - aguardando documentação", "Enviado para Rodrigo", "finalizado"]
+            status_alvaras = ["Cadastrado", "Enviado para o Financeiro", "Financeiro - Enviado para Rodrigo", "Finalizado"]
+            status_beneficios = ["Cadastro", "Aguardando Documentos", "Implantado", "Finalizado"]
+            status_acordos = ["Aguardando Pagamento", "Enviado para Financeiro", "Recebido", "Finalizado"]
+        else:
+            status_rpv = ["Cadastro"]
+            status_alvaras = ["Cadastrado"] 
+            status_beneficios = ["Cadastro"]
+            status_acordos = ["Aguardando Pagamento"]
+        
+        # Nomes de teste variados
+        nomes_teste = [
+            "João da Silva Teste", "Maria dos Santos Teste", "Pedro Oliveira Teste",
+            "Ana Costa Teste", "Carlos Mendes Teste", "Lucia Santos Teste",
+            "Roberto Silva Teste", "Sandra Costa Teste", "Fernando Lima Teste",
+            "Patricia Souza Teste"
+        ]
+        
+        # CPFs de teste válidos
+        cpfs_teste = [
+            "123.456.789-01", "987.654.321-09", "456.789.123-45", "789.123.456-78",
+            "321.654.987-12", "654.987.321-65", "111.222.333-44", "555.666.777-88",
+            "999.888.777-66", "333.444.555-22"
+        ]
         
         # ===== DADOS DE TESTE RPV =====
-        dados_rpv_teste = [
-            {
+        dados_rpv_teste = []
+        
+        for i in range(min(quantidade_por_tipo, len(nomes_teste))):
+            dados_rpv_teste.append({
                 "ID": str(uuid.uuid4()),
-                "Processo": "0001234-56.2024.5.02.0001",
-                "Beneficiário": "João da Silva Teste",
-                "CPF": "123.456.789-01",
-                "Descricao RPV": "Diferenças salariais - teste",
-                "Assunto": "Trabalhista",
-                "Orgao Judicial": "TRT 2ª Região",
-                "Vara": "1ª Vara do Trabalho",
-                "Banco": "CEF",
-                "Agência": "1234",
-                "Conta": "56789-0",
-                "Mês Competência": "09/2024",
-                "Solicitar Certidão": "Sim",
-                "Observações": "Processo de teste - RPV",
-                "Status": "Cadastro",
+                "Processo": f"000{1000+i}-{56+i}.2024.5.02.000{1+i}",
+                "Beneficiário": nomes_teste[i],
+                "CPF": cpfs_teste[i],
+                "Descricao RPV": f"Processo trabalhista - teste {i+1}",
+                "Assunto": "TRABALHISTA" if i % 2 == 0 else "PREVIDENCIARIO",
+                "Orgao Judicial": "TRT 2ª Região" if i % 2 == 0 else "TRF 5ª Região",
+                "Vara": f"{i+1}ª Vara do Trabalho",
+                "Banco": "CEF" if i % 2 == 0 else "BB",
+                "Agência": f"{1234+i}",
+                "Conta": f"{56789+i}-{i}",
+                "Mês Competência": f"{9+i:02d}/2024",
+                "Solicitar Certidão": "Sim" if i % 2 == 0 else "Não",
+                "Observações": f"Processo de teste {i+1} - RPV",
+                "Status": status_rpv[i % len(status_rpv)],
                 "Cadastrado por": "admin",
                 "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                "Observações Honorários": "Teste de observações contratuais"
-            },
-            {
-                "ID": str(uuid.uuid4()),
-                "Processo": "0002345-67.2024.5.02.0002",
-                "Beneficiário": "Maria dos Santos Teste",
-                "CPF": "987.654.321-09",
-                "Descricao RPV": "Horas extras - teste",
-                "Assunto": "Trabalhista",
-                "Orgao Judicial": "TRT 2ª Região",
-                "Vara": "2ª Vara do Trabalho",
-                "Banco": "BB",
-                "Agência": "5678",
-                "Conta": "12345-6",
-                "Mês Competência": "10/2024",
-                "Solicitar Certidão": "Não",
-                "Observações": "Processo de teste - Enviado SAC",
-                "Status": "Enviado SAC",
-                "Cadastrado por": "admin",
-                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                "Observações Honorários": ""
-            }
-        ]
+                "Observações Honorários": f"Observações de teste {i+1}",
+                "Valor Cliente": float(1000 + (i * 500)),
+                "Honorarios Contratuais": float(300 + (i * 100)),
+                "Valor Saque": float(1500 + (i * 600))
+            })
         
         # ===== DADOS DE TESTE ALVARÁS =====
-        dados_alvaras_teste = [
-            {
+        dados_alvaras_teste = []
+        
+        for i in range(min(quantidade_por_tipo, len(nomes_teste))):
+            dados_alvaras_teste.append({
                 "ID": str(uuid.uuid4()),
-                "Processo": "0003456-78.2024.8.26.0001",
-                "Parte": "Pedro Oliveira Teste",
-                "CPF": "456.789.123-45",
-                "Advogado": "Dr. Carlos Silva",
-                "Descricao Alvara": "Liberação de valores - teste",
-                "Valor": "R$ 15.000,00",
-                "Banco": "CEF",
-                "Agência": "9999",
-                "Conta": "88888-8",
-                "Obs Gerais": "Alvará de teste - Cadastro",
-                "Status": "Cadastro",
+                "Processo": f"000{3000+i}-{78+i}.2024.8.26.000{1+i}",
+                "Parte": nomes_teste[i],
+                "CPF": cpfs_teste[i],
+                "Advogado": f"Dr. Advogado {i+1}",
+                "Descricao Alvara": f"Alvará judicial - teste {i+1}",
+                "Valor": f"R$ {15000 + (i * 5000):.2f}",
+                "Banco": "CEF" if i % 2 == 0 else "BB",
+                "Agência": f"{9000+i}",
+                "Conta": f"{80000+i}-{i}",
+                "Obs Gerais": f"Alvará de teste {i+1}",
+                "Status": status_alvaras[i % len(status_alvaras)],
                 "Cadastrado por": "admin",
                 "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            },
-            {
-                "ID": str(uuid.uuid4()),
-                "Processo": "0004567-89.2024.8.26.0002",
-                "Parte": "Ana Costa Teste",
-                "CPF": "789.123.456-78",
-                "Advogado": "Dra. Fernanda Lima",
-                "Descricao Alvara": "Herança - teste",
-                "Valor": "R$ 50.000,00",
-                "Banco": "BB",
-                "Agência": "7777",
-                "Conta": "66666-6",
-                "Obs Gerais": "Alvará de teste - Enviado Rodrigo",
-                "Status": "Enviado Rodrigo",
-                "Cadastrado por": "admin",
-                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            }
-        ]
+            })
         
         # ===== DADOS DE TESTE BENEFÍCIOS =====
-        dados_beneficios_teste = [
-            {
+        dados_beneficios_teste = []
+        
+        for i in range(min(quantidade_por_tipo, len(nomes_teste))):
+            dados_beneficios_teste.append({
                 "ID": str(uuid.uuid4()),
-                "Nº DO PROCESSO": "0005678-90.2024.8.26.0003",
-                "PARTE": "Carlos Mendes Teste",
-                "CPF": "321.654.987-12",
-                "DETALHE PROCESSO": "Auxílio-doença - teste",
-                "DATA DA CONCESSÃO DA LIMINAR": "15/09/2024",
-                "VALOR MENSAL": "R$ 1.412,00",
-                "VALOR RETROATIVO": "R$ 8.472,00",
-                "TOTAL GERAL": "R$ 9.884,00",
-                "VALOR DE HONORÁRIOS": "R$ 2.471,00",
-                "STATUS": "Cadastro",
+                "Nº DO PROCESSO": f"000{5000+i}-{90+i}.2024.8.26.000{3+i}",
+                "PARTE": nomes_teste[i],
+                "CPF": cpfs_teste[i],
+                "DETALHE PROCESSO": f"Benefício previdenciário - teste {i+1}",
+                "DATA DA CONCESSÃO DA LIMINAR": f"{15+i}/09/2024",
+                "VALOR MENSAL": f"R$ {1412 + (i * 200):.2f}",
+                "VALOR RETROATIVO": f"R$ {8472 + (i * 1000):.2f}",
+                "TOTAL GERAL": f"R$ {9884 + (i * 1200):.2f}",
+                "VALOR DE HONORÁRIOS": f"R$ {2471 + (i * 300):.2f}",
+                "STATUS": status_beneficios[i % len(status_beneficios)],
                 "Cadastrado por": "admin",
                 "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            },
-            {
-                "ID": str(uuid.uuid4()),
-                "Nº DO PROCESSO": "0006789-01.2024.8.26.0004",
-                "PARTE": "Lucia Santos Teste",
-                "CPF": "654.987.321-65",
-                "DETALHE PROCESSO": "Aposentadoria - teste",
-                "DATA DA CONCESSÃO DA LIMINAR": "20/09/2024",
-                "VALOR MENSAL": "R$ 2.500,00",
-                "VALOR RETROATIVO": "R$ 15.000,00",
-                "TOTAL GERAL": "R$ 17.500,00",
-                "VALOR DE HONORÁRIOS": "R$ 4.375,00",
-                "STATUS": "Implantado",
-                "Cadastrado por": "admin",
-                "Data de Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            }
-        ]
+            })
         
         # ===== DADOS DE TESTE ACORDOS =====
-        dados_acordos_teste = [
-            {
+        dados_acordos_teste = []
+        
+        for i in range(min(quantidade_por_tipo, len(nomes_teste))):
+            dados_acordos_teste.append({
                 "ID": str(uuid.uuid4()),
-                "Processo": "0007890-12.2024.8.26.0005",
-                "Nome_Reu": "Empresa XYZ Ltda Teste",
-                "CPF_Reu": "12.345.678/0001-90",
-                "Nome_Cliente": "Roberto Silva Teste",
-                "CPF_Cliente": "111.222.333-44",
-                "Banco": "CEF",
-                "Valor_Total": 25000.00,
-                "Forma_Acordo": "Judicial",
-                "A_Vista": False,
-                "Num_Parcelas": 6,
-                "Data_Primeiro_Pagamento": "2024-10-15",
-                "Status": "Aguardando Pagamento",
+                "Processo": f"000{7000+i}-{12+i}.2024.8.26.000{5+i}",
+                "Nome_Reu": f"Empresa {i+1} Ltda Teste",
+                "CPF_Reu": f"{12+i:02d}.{345+i:03d}.{678+i:03d}/0001-{90+i:02d}",
+                "Nome_Cliente": nomes_teste[i],
+                "CPF_Cliente": cpfs_teste[i],
+                "Banco": "CEF" if i % 2 == 0 else "BB",
+                "Valor_Total": float(25000 + (i * 10000)),
+                "Forma_Acordo": "Judicial" if i % 2 == 0 else "Extrajudicial",
+                "A_Vista": i % 3 == 0,  # Alguns à vista
+                "Num_Parcelas": 1 if i % 3 == 0 else (i + 3),  # Varia as parcelas
+                "Data_Primeiro_Pagamento": f"2024-{10+i:02d}-15",
+                "Status": status_acordos[i % len(status_acordos)],
                 "Cadastrado_Por": "admin",
                 "Data_Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                 "Comprovante_Pago": "",
@@ -148,7 +168,7 @@ def criar_dados_teste():
                 "H_Sucumbenciais": 0.0,
                 "Valor_Parceiro": 0.0,
                 "Outros_Valores": 0.0,
-                "Observacoes": "Acordo trabalhista de teste - 6 parcelas mensais",
+                "Observacoes": f"Acordo de teste {i+1}",
                 "Valor_Atualizado": 0.0,
                 "Houve_Renegociacao": False,
                 "Nova_Num_Parcelas": 0,
@@ -156,39 +176,7 @@ def criar_dados_teste():
                 "Acordo_Nao_Cumprido": False,
                 "Data_Ultimo_Update": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                 "Usuario_Ultimo_Update": "admin"
-            },
-            {
-                "ID": str(uuid.uuid4()),
-                "Processo": "0008901-23.2024.8.26.0006",
-                "Nome_Reu": "Seguradora ABC S.A. Teste",
-                "CPF_Reu": "98.765.432/0001-10",
-                "Nome_Cliente": "Sandra Costa Teste",
-                "CPF_Cliente": "555.666.777-88",
-                "Banco": "BB",
-                "Valor_Total": 40000.00,
-                "Forma_Acordo": "Extrajudicial",
-                "A_Vista": True,
-                "Num_Parcelas": 1,
-                "Data_Primeiro_Pagamento": "2024-09-30",
-                "Status": "Enviado para Financeiro",
-                "Cadastrado_Por": "admin",
-                "Data_Cadastro": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                "Comprovante_Pago": "comprovante_teste.pdf",
-                "Honorarios_Contratuais": 0.0,
-                "Valor_Cliente": 0.0,
-                "H_Sucumbenciais": 0.0,
-                "Valor_Parceiro": 0.0,
-                "Outros_Valores": 0.0,
-                "Observacoes": "Acordo de indenização à vista - teste",
-                "Valor_Atualizado": 0.0,
-                "Houve_Renegociacao": False,
-                "Nova_Num_Parcelas": 0,
-                "Novo_Valor_Parcela": 0.0,
-                "Acordo_Nao_Cumprido": False,
-                "Data_Ultimo_Update": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                "Usuario_Ultimo_Update": "admin"
-            }
-        ]
+            })
         
         # Salvar dados nos respectivos arquivos
         df_rpv = pd.DataFrame(dados_rpv_teste)
@@ -196,17 +184,14 @@ def criar_dados_teste():
         df_beneficios = pd.DataFrame(dados_beneficios_teste)
         df_acordos = pd.DataFrame(dados_acordos_teste)
         
-        # Verificar se já existem dados e adicionar aos existentes
+        # Carregar dados existentes e concatenar
         try:
-            # Tentar carregar dados existentes
-            from components.functions_controle import load_data_from_github
-            
             df_rpv_existente, _ = load_data_from_github("lista_rpv.csv")
             df_alvaras_existente, _ = load_data_from_github("lista_alvaras.csv")
             df_beneficios_existente, _ = load_data_from_github("lista_beneficios.csv")
             df_acordos_existente, _ = load_data_from_github("lista_acordos.csv")
             
-            # Concatenar com dados existentes
+            # Concatenar com dados existentes (se houver)
             if not df_rpv_existente.empty:
                 df_rpv = pd.concat([df_rpv_existente, df_rpv], ignore_index=True)
             if not df_alvaras_existente.empty:
@@ -232,21 +217,39 @@ def criar_dados_teste():
         save_data_to_github_seguro(df_acordos, "lista_acordos.csv", "file_sha_acordos")
         
         st.success("✅ Dados de teste criados com sucesso!")
-        st.info(f"""
-        **Dados criados:**
-        - 📄 **RPV**: 2 processos (Cadastro, Enviado SAC)
-        - 🏛️ **Alvarás**: 2 processos (Cadastro, Enviado Rodrigo)
-        - 🎯 **Benefícios**: 2 processos (Cadastro, Implantado)
-        - 🤝 **Acordos**: 2 processos (Aguardando Pagamento, Enviado para Financeiro) - **✅ IMPLEMENTADO!**
         
-        **Novo:** Módulo de Acordos agora está totalmente funcional!
-        """)
+        # Mensagem personalizada baseada na quantidade
+        if quantidade_por_tipo <= 2:
+            st.info(f"""
+            **📊 Resumo dos dados criados (BÁSICO):**
+            - 📄 **RPV**: {quantidade_por_tipo} processos com status variados
+            - 🏛️ **Alvarás**: {quantidade_por_tipo} processos em diferentes etapas
+            - 🎯 **Benefícios**: {quantidade_por_tipo} processos previdenciários 
+            - 🤝 **Acordos**: {quantidade_por_tipo} acordos com diferentes formas de pagamento
+            
+            **✨ Melhorias implementadas:**
+            - ✅ Evita criação duplicada
+            - ✅ Status variados para teste completo
+            - ✅ Dados mais realistas
+            - ✅ Campo Banco corrigido em Alvarás (dropdown BB/CEF)
+            """)
+        else:
+            st.info(f"""
+            **📊 Resumo dos dados criados (AMPLIADO):**
+            - 📄 **RPV**: {quantidade_por_tipo} processos com status: {', '.join(status_rpv)}
+            - 🏛️ **Alvarás**: {quantidade_por_tipo} processos com status: {', '.join(status_alvaras)}
+            - 🎯 **Benefícios**: {quantidade_por_tipo} processos com status: {', '.join(status_beneficios)}
+            - 🤝 **Acordos**: {quantidade_por_tipo} acordos com status: {', '.join(status_acordos)}
+            
+            **✨ Ideal para testar fluxos complexos!**
+            """)
         
         # Recarregar a página para mostrar os novos dados
         st.rerun()
         
     except Exception as e:
         st.error(f"❌ Erro ao criar dados de teste: {str(e)}")
+        st.info("💡 Tente reduzir a quantidade ou verificar se há conflitos nos dados existentes.")
 
 def remover_dados_teste():
     """Remove todos os dados de teste do sistema"""
@@ -456,7 +459,7 @@ def mostrar_guia_utilizacao():
             st.metric(
                 label="👥 Perfis de Usuário", 
                 value="5",
-                help="Admin, Cadastrador, Administrativo, Financeiro, SAC"
+                help="Desenvolvedor, Cadastrador, Administrativo, Financeiro, SAC"
             )
         with col3:
             st.metric(
@@ -471,8 +474,8 @@ def mostrar_guia_utilizacao():
         # Conteúdo dos perfis aqui...
         st.markdown("### Perfis Disponíveis")
         
-        # Admin
-        st.markdown("#### 🔧 **Admin**")
+        # Desenvolvedor
+        st.markdown("#### 🔧 **Desenvolvedor**")
         st.success("**Acesso Total** - Pode fazer tudo em todos os processos")
         
         # Outros perfis
@@ -606,8 +609,8 @@ def mostrar_guia_utilizacao():
             {
                 "pergunta": "❓ Como acessar dados de teste?",
                 "resposta": """
-                **Apenas para Administradores:**
-                1. Acesse "Configurações" na barra lateral (apenas Admin vê)
+                **Apenas para Desenvolvedores:**
+                1. Acesse "Configurações" na barra lateral (apenas Desenvolvedor vê)
                 2. Clique em "🧪 Dados de Teste"
                 3. Use "Criar Dados de Teste" para gerar exemplos
                 4. Use "Remover Dados de Teste" para limpar
@@ -767,12 +770,12 @@ else:
             st.session_state.pagina_atual = "guia_utilizacao"
             st.rerun()
     
-    # CONFIGURAÇÕES - APENAS PARA ADMIN
+    # CONFIGURAÇÕES - APENAS PARA DESENVOLVEDOR
     perfil_usuario = st.session_state.get("perfil_usuario", "N/A")
     usuario_atual = st.session_state.get("usuario", "")
     
-    # Verificar se é Admin
-    is_admin = (perfil_usuario == "Admin" or usuario_atual == "admin")
+    # Verificar se é Desenvolvedor
+    is_admin = (perfil_usuario == "Desenvolvedor" or usuario_atual == "dev")
     
     if is_admin:
         with st.sidebar.expander("⚙️ Configurações", expanded=False):
@@ -823,23 +826,75 @@ else:
         from components.gerenciar_autocomplete import interface_gerenciamento_autocomplete
         interface_gerenciamento_autocomplete()
     elif st.session_state.pagina_atual == "dados_teste":
-        # Página de dados de teste (apenas para Admin)
-        st.header("🧪 Dados de Teste")
+        # Página de dados de teste (apenas para Desenvolvedor)
+        st.header("🧪 Dados de Teste - VERSÃO MELHORADA")
 
         st.warning("⚠️ Esta seção é destinada para testes e desenvolvimento. Use com cuidado!")
         
+        # Seção de configuração de testes
+        st.subheader("⚙️ Configurações de Teste")
+        
+        col_config1, col_config2 = st.columns(2)
+        
+        with col_config1:
+            quantidade = st.slider(
+                "📊 Quantidade de processos por tipo:",
+                min_value=1, 
+                max_value=10, 
+                value=3,
+                help="Quantidade de processos de cada tipo que será criada"
+            )
+            
+        with col_config2:
+            incluir_multiplos = st.checkbox(
+                "🔄 Incluir múltiplos status",
+                value=True,
+                help="Se marcado, cria processos com status variados para testar diferentes fluxos"
+            )
+        
+        st.markdown("---")
+        
+        # Botões de ação
         col1, col2 = st.columns(2)
         
         with col1:
             if st.button("➕ Criar Dados de Teste", type="primary", key="criar_teste_admin"):
-                criar_dados_teste()
+                criar_dados_teste(quantidade_por_tipo=quantidade, incluir_multiplos_status=incluir_multiplos)
             
         with col2:
             if st.button("🗑️ Remover Dados de Teste", type="secondary", key="remover_teste_admin"):
                 remover_dados_teste()
         
+        # Informações sobre as melhorias
+        with st.expander("✨ Novidades nesta versão", expanded=False):
+            st.markdown("""
+            **🎯 Melhorias Implementadas:**
+            
+            **1. Campo Banco corrigido em Alvarás:**
+            - ✅ Agora usa dropdown com opções BB e CEF (igual ao RPV)
+            - ❌ Antes: campo de texto livre
+            
+            **2. Funcionalidade de teste melhorada:**
+            - ✅ Controle de quantidade personalizável (1-10 processos)
+            - ✅ Opção de incluir status variados para teste completo
+            - ✅ Validação para evitar criação duplicada
+            - ✅ Dados mais realistas e variados
+            - ✅ Mensagens de feedback aprimoradas
+            - ✅ Melhor tratamento de erros
+            
+            **3. Variedade de dados de teste:**
+            - 📄 **RPV**: Status desde Cadastro até Finalizado
+            - 🏛️ **Alvarás**: Fluxo completo Cadastrado → Finalizado  
+            - 🎯 **Benefícios**: Diferentes estágios previdenciários
+            - 🤝 **Acordos**: Várias formas de pagamento e parcelamento
+            """)
+        
         st.markdown("""
-        ⚠️ Dados de teste são identificados pela palavra "Teste" no nome/parte.
+        ---
+        **💡 Dica:** Dados de teste são identificados pela palavra "**Teste**" no nome/parte e podem ser removidos com segurança.
+        
+        **⚠️ Atenção:** O sistema previne criação duplicada - remova os dados existentes antes de criar novos.
         """)
+        
     elif st.session_state.pagina_atual == "guia_utilizacao":
         mostrar_guia_utilizacao()

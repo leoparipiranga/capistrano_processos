@@ -61,12 +61,50 @@ def gerar_timestamp_unico():
     """Gera um timestamp único de 4 dígitos para usar em chaves de componentes"""
     return int(time.time() * 1000) % 10000
 
+def obter_index_rpv_seguro(df, rpv_id):
+    """Obtém o índice de um RPV de forma segura, retornando None se não encontrado"""
+    try:
+        # CORREÇÃO: Garantir comparação segura convertendo ambos para string
+        rpv_id_str = str(rpv_id)
+        rpv_match = df[df["ID"].astype(str) == rpv_id_str]
+        if len(rpv_match) == 0:
+            return None
+        return rpv_match.index[0]
+    except Exception as e:
+        # Log opcional para debug
+        # st.error(f"Erro ao buscar índice do RPV {rpv_id}: {str(e)}")
+        return None
+
 def limpar_estados_dialog_rpv():
     """Limpa estados de diálogo e cards expandidos para RPV"""
     if st.session_state.get("show_rpv_dialog", False):
         st.session_state.show_rpv_dialog = False
     if st.session_state.get("rpv_aberto_id") is not None:
         st.session_state.rpv_aberto_id = None
+
+def limpar_estados_cadastro_rpv():
+    """Limpa estados antigos de cadastro de RPVs que possam causar chaves duplicadas"""
+    # Limpar dados de cadastros anteriores
+    keys_to_remove = []
+    for key in st.session_state.keys():
+        if (key.startswith("rpvs_data_") or 
+            key.startswith("cadastro_timestamp_") or
+            key.startswith("descricao_rpv_") or
+            key.startswith("destaque_honorarios_rpv_") or
+            key.startswith("valor_saque_rpv_") or
+            key.startswith("honorarios_contratuais_rpv_") or
+            key.startswith("h_sucumbenciais_rpv_") or
+            key.startswith("valor_cliente_rpv_") or
+            key.startswith("valor_parceiro_rpv_") or
+            key.startswith("outros_valores_rpv_") or
+            key.startswith("forma_pagamento_rpv_") or
+            key.startswith("observacoes_valores_rpv_") or
+            key.startswith("observacoes_hc_rpv_") or
+            key.startswith("pdf_rpv_")):
+            keys_to_remove.append(key)
+    
+    for key in keys_to_remove:
+        del st.session_state[key]
 
 def aplicar_css_cards_rpv():
     """Aplica CSS padrão para cards RPV"""
@@ -172,6 +210,156 @@ def validar_campos_obrigatorios_rpv(campos):
     
     return campos_vazios
 
+def validar_rpv_multiplo(rpv_data, index_rpv=None):
+    """
+    FUNÇÃO TEMPORARIAMENTE DESABILITADA
+    Era usada para validar dados específicos de um RPV múltiplo
+    TODO: Remover ou adaptar se RPVs múltiplos forem reimplementados
+    """
+    return []  # Retorna lista vazia (sem erros)
+
+def verificar_processos_duplicados_rpv(df, processo_principal, rpvs_data):
+    """
+    FUNÇÃO SIMPLIFICADA - não precisa mais verificar múltiplos RPVs
+    Verifica se há processo RPV duplicado (apenas processo único)
+    """
+    duplicados = []
+    
+    # Verificar se já existe no DataFrame (processo único)
+    if "Processo" in df.columns:
+        processos_existentes = df["Processo"].astype(str).tolist()
+        if processo_principal in processos_existentes:
+            duplicados.append(processo_principal)
+    
+    return duplicados
+
+def testar_integridade_rpvs_multiplos(df):
+    """
+    FUNÇÃO RENOMEADA: testa_integridade_rpvs (não mais específica para múltiplos)
+    Testa a integridade geral dos RPVs. 
+    Retorna um relatório detalhado com estatísticas e possíveis problemas.
+    """
+    relatorio = {
+        'total_rpvs': 0,
+        'beneficiarios_unicos': 0,
+        'processos_base': {},
+        'erros_encontrados': [],
+        'avisos': []
+    }
+    
+    if df.empty:
+        relatorio['avisos'].append("DataFrame está vazio")
+        return relatorio
+    
+    relatorio['total_rpvs'] = len(df)
+    
+    # Verificar se as colunas necessárias existem
+    colunas_necessarias = ['Beneficiário']
+    colunas_existentes = [col for col in colunas_necessarias if col in df.columns]
+    
+    if len(colunas_existentes) < len(colunas_necessarias):
+        colunas_faltando = [col for col in colunas_necessarias if col not in df.columns]
+        relatorio['erros_encontrados'].append(f"Colunas faltando: {', '.join(colunas_faltando)}")
+        return relatorio
+    
+    try:
+        # Contar beneficiários únicos
+        if 'Beneficiário' in df.columns:
+            # Remover valores vazios ou NaN
+            df_limpo = df[df['Beneficiário'].notna() & (df['Beneficiário'] != '')]
+            
+            # Contar beneficiários únicos
+            beneficiarios_unicos = df_limpo['Beneficiário'].nunique()
+            relatorio['beneficiarios_unicos'] = beneficiarios_unicos
+            
+            # Verificações de integridade
+            # 1. Verificar se há beneficiários com nomes muito similares (possíveis duplicatas)
+            beneficiarios_list = df_limpo['Beneficiário'].str.upper().str.strip().unique()
+            for i, ben1 in enumerate(beneficiarios_list):
+                for ben2 in beneficiarios_list[i+1:]:
+                    if len(ben1) > 5 and len(ben2) > 5:  # Só comparar nomes com mais de 5 caracteres
+                        # Verificação simples de similaridade (primeiras 3 palavras)
+                        palavras1 = ben1.split()[:3]
+                        palavras2 = ben2.split()[:3]
+                        if len(set(palavras1) & set(palavras2)) >= 2:  # Pelo menos 2 palavras em comum
+                            relatorio['avisos'].append(f"Possível duplicata: '{ben1}' e '{ben2}'")
+            
+    except Exception as e:
+        relatorio['erros_encontrados'].append(f"Erro durante análise: {str(e)}")
+    
+    return relatorio
+
+
+def diagnosticar_sistema_rpv():
+    """
+    Função de diagnóstico para verificar a integridade do sistema de RPVs
+    Pode ser chamada para debug ou verificação preventiva
+    """
+    if "df_editado_rpv" not in st.session_state:
+        st.warning("⚠️ DataFrame de RPVs não encontrado no session_state")
+        return
+    
+    df = st.session_state.df_editado_rpv
+    
+    with st.expander("🔍 Diagnóstico do Sistema de RPVs", expanded=False):
+        st.markdown("### 📊 Relatório de Integridade")
+        
+        relatorio = testar_integridade_rpvs_multiplos(df)
+        
+        col_diag1, col_diag2, col_diag3 = st.columns(3)
+        
+        with col_diag1:
+            st.metric("Total de RPVs", relatorio['total_rpvs'])
+            st.metric("Beneficiários únicos", relatorio.get('beneficiarios_unicos', 0))
+        
+        with col_diag2:
+            st.metric("Erros Encontrados", len(relatorio['erros_encontrados']))
+            st.metric("Avisos", len(relatorio['avisos']))
+        
+        with col_diag3:
+            # Estatísticas de finalizados
+            if not df.empty and "Status" in df.columns:
+                finalizados = len(df[df["Status"] == "finalizado"]) 
+                st.metric("Finalizados", finalizados)
+            
+        # Mostrar erros se houver
+        if relatorio['erros_encontrados']:
+            st.markdown("### ❌ Erros Encontrados")
+            for erro in relatorio['erros_encontrados']:
+                st.error(erro)
+        
+        # Mostrar avisos se houver
+        if relatorio['avisos']:
+            st.markdown("### ⚠️ Avisos")
+            for aviso in relatorio['avisos']:
+                st.warning(aviso)
+        
+        # Estado dos cards expandidos
+        st.markdown("### 🎴 Estado dos Cards")
+        if hasattr(st.session_state, 'rpv_expanded_cards'):
+            cards_expandidos = len(st.session_state.rpv_expanded_cards)
+            st.info(f"Cards expandidos: {cards_expandidos}")
+            if cards_expandidos > 0 and cards_expandidos <= 10:  # Mostrar apenas se não for muitos
+                st.write("IDs expandidos:", list(st.session_state.rpv_expanded_cards))
+        else:
+            st.warning("Estado de cards expandidos não inicializado")
+        
+        # Verificar consistência de IDs
+        if not df.empty and "ID" in df.columns:
+            ids_unicos = df["ID"].nunique()
+            total_linhas = len(df)
+            
+            st.markdown("### 🆔 Consistência de IDs")
+            if ids_unicos == total_linhas:
+                st.success(f"✅ Todos os {total_linhas} RPVs têm IDs únicos")
+            else:
+                st.error(f"❌ Problema de IDs: {total_linhas} linhas mas apenas {ids_unicos} IDs únicos")
+                
+                # Mostrar IDs duplicados se houver
+                ids_duplicados = df[df["ID"].duplicated()]["ID"].unique()
+                if len(ids_duplicados) > 0:
+                    st.write("IDs duplicados:", list(ids_duplicados))
+
 # =====================================
 # CONFIGURAÇÕES DE PERFIS - RPV
 # =====================================
@@ -200,7 +388,7 @@ PERFIS_RPV = {
     "Financeiro": ["Enviado para Rodrigo", "aguardando pagamento"], # Financeiro atua nos estágios finais
     "Administrativo": ["SAC - aguardando documentação", "Administrativo - aguardando documentação", "SAC - documentação pronta", "Administrativo - documentação pronta"], # Perfil administrativo
     "SAC": ["SAC - aguardando documentação", "Administrativo - aguardando documentação", "SAC - documentação pronta", "Administrativo - documentação pronta"], # Perfil SAC
-    "Admin": list(STATUS_ETAPAS_RPV.values())  # Admin tem acesso total
+    "Desenvolvedor": list(STATUS_ETAPAS_RPV.values())  # Desenvolvedor tem acesso total
 }
 
 # c) Lista de Assuntos Comuns para RPV
@@ -216,20 +404,6 @@ ASSUNTOS_RPV = [
     "REVISAO DE BENEFICIO",
     "DIFERENCAS DE APOSENTADORIA",
     "RENDA MENSAL VITALICIA",
-    "OUTROS"
-]
-
-# d) Lista de Órgãos Judiciais Comuns para RPV
-ORGAOS_JUDICIAIS_RPV = [
-    "TRF1 - TRIBUNAL REGIONAL FEDERAL DA 1A REGIAO",
-    "TRF2 - TRIBUNAL REGIONAL FEDERAL DA 2A REGIAO",
-    "TRF3 - TRIBUNAL REGIONAL FEDERAL DA 3A REGIAO",
-    "TRF4 - TRIBUNAL REGIONAL FEDERAL DA 4A REGIAO",
-    "TRF5 - TRIBUNAL REGIONAL FEDERAL DA 5A REGIAO",
-    "TRF6 - TRIBUNAL REGIONAL FEDERAL DA 6A REGIAO",
-    "STJ - SUPERIOR TRIBUNAL DE JUSTICA",
-    "STF - SUPREMO TRIBUNAL FEDERAL",
-    "TST - TRIBUNAL SUPERIOR DO TRABALHO",
     "OUTROS"
 ]
 
@@ -296,7 +470,7 @@ def obter_orgaos_rpv():
     dados_salvos = carregar_dados_autocomplete()
     orgaos_salvos = dados_salvos.get("orgaos_rpv", [])
     
-    return sorted(list(set(ORGAOS_JUDICIAIS_RPV + orgaos_salvos)))
+    return sorted(list(set(orgaos_salvos)))
 
 # =====================================
 # FUNÇÕES DE PERFIL E CONTROLE - RPV
@@ -434,17 +608,39 @@ def obter_status_simultaneo_ativo(linha_rpv):
 
 def iniciar_status_simultaneo(df, rpv_id, status_principal, status_secundario):
     """Inicia status simultâneo para um RPV"""
-    idx = df[df["ID"] == rpv_id].index[0]
-    df.loc[idx, "Status"] = status_principal
-    df.loc[idx, "Status Secundario"] = status_secundario
-    return df
+    # Usar sempre o DataFrame em memória
+    df_trabalho = st.session_state.df_editado_rpv
+    idx = obter_index_rpv_seguro(df_trabalho, rpv_id)
+    if idx is None:
+        st.error(f"❌ Erro: RPV com ID {rpv_id} não encontrado.")
+        return df
+    
+    # CORREÇÃO: Verificar se o índice ainda é válido após possíveis modificações
+    if idx >= len(st.session_state.df_editado_rpv):
+        st.error(f"❌ Erro: Índice {idx} fora do range do DataFrame.")
+        return df
+    
+    st.session_state.df_editado_rpv.loc[idx, "Status"] = status_principal
+    st.session_state.df_editado_rpv.loc[idx, "Status Secundario"] = status_secundario
+    return st.session_state.df_editado_rpv
 
 def finalizar_status_simultaneo(df, rpv_id, novo_status):
     """Finaliza status simultâneo e define status único"""
-    idx = df[df["ID"] == rpv_id].index[0]
-    df.loc[idx, "Status"] = novo_status
-    df.loc[idx, "Status Secundario"] = ""  # Limpa status secundário
-    return df
+    # Usar sempre o DataFrame em memória
+    df_trabalho = st.session_state.df_editado_rpv
+    idx = obter_index_rpv_seguro(df_trabalho, rpv_id)
+    if idx is None:
+        st.error(f"❌ Erro: RPV com ID {rpv_id} não encontrado.")
+        return df
+    
+    # CORREÇÃO: Verificar se o índice ainda é válido após possíveis modificações
+    if idx >= len(st.session_state.df_editado_rpv):
+        st.error(f"❌ Erro: Índice {idx} fora do range do DataFrame.")
+        return df
+    
+    st.session_state.df_editado_rpv.loc[idx, "Status"] = novo_status
+    st.session_state.df_editado_rpv.loc[idx, "Status Secundario"] = ""  # Limpa status secundário
+    return st.session_state.df_editado_rpv
 
 def pode_editar_qualquer_status_simultaneo(linha_rpv, perfil_usuario):
     """Verifica se o usuário pode editar pelo menos um dos status simultâneos"""
@@ -513,14 +709,22 @@ def confirmar_exclusao_massa_rpv(df, processos_selecionados):
         # Mostrar processos que serão excluídos
         st.markdown(f"### Você está prestes a excluir **{len(processos_selecionados)}** RPV(s):")
         
-        # Converter IDs para string para garantir comparação correta
+        # CORREÇÃO: Garantir que os IDs sejam tratados de forma consistente
         processos_selecionados_str = [str(pid) for pid in processos_selecionados]
+        
+        # Buscar processos usando comparação segura de IDs
         processos_para_excluir = df[df["ID"].astype(str).isin(processos_selecionados_str)]
         
         for _, processo in processos_para_excluir.iterrows():
             processo_num = safe_get_value(processo, 'Processo', 'N/A')
             beneficiario = safe_get_value(processo, 'Beneficiário', 'N/A')
-            st.markdown(f"- **{processo_num}** - {beneficiario}")
+            descricao_rpv = safe_get_value(processo, 'Descricao RPV', '')
+            
+            # Mostrar informação mais detalhada para múltiplos RPVs
+            if descricao_rpv and descricao_rpv != 'N/A':
+                st.markdown(f"- **{processo_num}** - {beneficiario} *(Descrição: {descricao_rpv})*")
+            else:
+                st.markdown(f"- **{processo_num}** - {beneficiario}")
         
         st.markdown("---")
         
@@ -536,7 +740,7 @@ def confirmar_exclusao_massa_rpv(df, processos_selecionados):
                 # Registrar cada exclusão no log
                 for _, processo in processos_para_excluir.iterrows():
                     registrar_exclusao(
-                        id_processo=processo.get('ID', 'N/A'),
+                        id_processo=str(processo.get('ID', 'N/A')),  # Garantir string
                         tipo_processo="RPV",
                         processo=safe_get_value(processo, 'Processo', 'N/A'),
                         beneficiario=safe_get_value(processo, 'Beneficiário', 'N/A'),
@@ -544,10 +748,7 @@ def confirmar_exclusao_massa_rpv(df, processos_selecionados):
                         usuario=usuario_atual
                     )
                 
-                # Converter IDs para o mesmo tipo para garantir comparação
-                processos_selecionados_str = [str(pid) for pid in processos_selecionados]
-                
-                # Remover processos do DataFrame
+                # CORREÇÃO: Remover processos do DataFrame com comparação segura de IDs
                 st.session_state.df_editado_rpv = st.session_state.df_editado_rpv[
                     ~st.session_state.df_editado_rpv["ID"].astype(str).isin(processos_selecionados_str)
                 ].reset_index(drop=True)
@@ -555,9 +756,13 @@ def confirmar_exclusao_massa_rpv(df, processos_selecionados):
                 # Salvar arquivo
                 salvar_arquivo(st.session_state.df_editado_rpv, "lista_rpv.csv")
                 
-                # Limpar seleções
+                # Limpar seleções e cards expandidos relacionados
                 st.session_state.modo_exclusao_rpv = False
                 st.session_state.processos_selecionados_rpv = []
+                
+                # CORREÇÃO: Limpar cards expandidos dos RPVs excluídos
+                for rpv_id_excluido in processos_selecionados_str:
+                    st.session_state.rpv_expanded_cards.discard(rpv_id_excluido)
                 
                 st.success(f"✅ {len(processos_selecionados)} RPV(s) excluído(s) com sucesso!")
                 st.rerun()
@@ -581,6 +786,14 @@ def interface_lista_rpv(df, perfil_usuario):
     elif not isinstance(st.session_state.rpv_expanded_cards, set):
         # Converter para set se não for (por segurança)
         st.session_state.rpv_expanded_cards = set(st.session_state.rpv_expanded_cards)
+    
+    # DEBUG: Garantir que não há IDs problemáticos no set
+    if hasattr(st.session_state, 'rpv_expanded_cards'):
+        # Limpar qualquer valor None ou inválido
+        st.session_state.rpv_expanded_cards = {
+            str(item) for item in st.session_state.rpv_expanded_cards 
+            if item is not None and str(item) != 'None' and str(item) != '' and str(item) != 'N/A'
+        }
     
     # Remover conversão automática para evitar problemas de comparação
     # st.session_state.rpv_expanded_cards = {str(id_) for id_ in st.session_state.rpv_expanded_cards}
@@ -658,7 +871,7 @@ def interface_lista_rpv(df, perfil_usuario):
     # Botões de exclusão em massa
     usuario_atual = st.session_state.get("usuario", "")
     perfil_atual = st.session_state.get("perfil_usuario", "")
-    pode_excluir = (perfil_atual in ["Admin", "Cadastrador"] or usuario_atual == "admin")
+    pode_excluir = (perfil_atual in ["Desenvolvedor", "Cadastrador"] or usuario_atual == "dev")
     
     # Inicializar variáveis de estado se não existirem
     if "modo_exclusao_rpv" not in st.session_state:
@@ -693,12 +906,13 @@ def interface_lista_rpv(df, perfil_usuario):
         
         with col_exp1:
             if st.button("🔽 Abrir Todos", key="abrir_todos_rpv"):
-                # Adicionar todos os IDs dos RPVs filtrados ao set de expandidos
+                # CORREÇÃO: Usar conversão padronizada de ID
                 for _, processo in df_filtrado.iterrows():
                     rpv_id = processo.get("ID", "N/A")
                     if rpv_id != "N/A" and rpv_id is not None and rpv_id != "":
-                        # Converter para string para consistência
-                        st.session_state.rpv_expanded_cards.add(str(rpv_id))
+                        # Converter para string para consistência (igual à lógica individual)
+                        rpv_id_str = str(rpv_id)
+                        st.session_state.rpv_expanded_cards.add(rpv_id_str)
                 st.rerun()
         
         with col_exp2:
@@ -749,12 +963,13 @@ def interface_lista_rpv(df, perfil_usuario):
             # Converter ID para string para garantir consistência
             rpv_id = str(rpv_id)
             
-            # Criar chave única para this specific card instance (incluindo página e posição)
+            # CORREÇÃO SIMPLIFICADA: Usar apenas rpv_id para expanded cards (funciona bem)
+            # Única correção necessária é para chaves dos botões/elementos Streamlit
             pagina_atual = st.session_state.get("current_page_rpvs", 1)
-            card_key = f"{rpv_id}_{pagina_atual}_{idx}"
+            unique_suffix = f"{pagina_atual}_{idx}"
             
-            # Usar o ID único do RPV ao invés de agrupar por processo
-            is_expanded = card_key in st.session_state.rpv_expanded_cards
+            # Para expanded cards, usar apenas o ID do RPV (mantém consistência entre páginas)
+            is_expanded = rpv_id in st.session_state.rpv_expanded_cards
             
             card_class = "rpv-card expanded" if is_expanded else "rpv-card"
             
@@ -764,8 +979,8 @@ def interface_lista_rpv(df, perfil_usuario):
                     col_check, col_expand, col_info = st.columns([0.3, 0.7, 9])
                     
                     with col_check:
-                        # Usar chave única que inclui página e índice para evitar duplicatas
-                        checkbox_key = f"rpv_select_{rpv_id}_{pagina_atual}_{idx}"
+                        # CORREÇÃO: Usar chave única para checkbox
+                        checkbox_key = f"rpv_select_{rpv_id}_{unique_suffix}"
                         if st.checkbox("", key=checkbox_key, label_visibility="collapsed"):
                             if rpv_id not in st.session_state.processos_selecionados_rpv:
                                 st.session_state.processos_selecionados_rpv.append(rpv_id)
@@ -776,16 +991,16 @@ def interface_lista_rpv(df, perfil_usuario):
                 
                 with col_expand if not st.session_state.modo_exclusao_rpv else col_expand:
                     expand_text = "▼ Fechar" if is_expanded else "▶ Abrir"
-                    # Usar chave única baseada no card_key
-                    button_key = f"expand_rpv_{card_key}"
+                    # CORREÇÃO: Usar chave única para botão expandir
+                    button_key = f"expand_rpv_{rpv_id}_{unique_suffix}"
                     
                     if st.button(expand_text, key=button_key):
                         if is_expanded:
-                            # Remover apenas este card específico
-                            st.session_state.rpv_expanded_cards.discard(card_key)
+                            # Remover apenas este card específico (usar apenas rpv_id)
+                            st.session_state.rpv_expanded_cards.discard(rpv_id)
                         else:
-                            # Adicionar apenas este card específico
-                            st.session_state.rpv_expanded_cards.add(card_key)
+                            # Adicionar apenas este card específico (usar apenas rpv_id)
+                            st.session_state.rpv_expanded_cards.add(rpv_id)
                         st.rerun()
                 
                 with col_info:
@@ -797,27 +1012,13 @@ def interface_lista_rpv(df, perfil_usuario):
                     processo_titulo = safe_get_value(rpv, 'Processo', 'Não informado')
                     descricao_rpv = safe_get_value(rpv, 'Descricao RPV', '')
                     
-                    # Verificar se é um RPV múltiplo (processo contém "-1", "-2", etc.)
-                    processo_base = processo_titulo.split('-')[0] if '-' in processo_titulo else processo_titulo
-                    is_multiplo = '-' in processo_titulo and len(processo_titulo.split('-')) >= 2
-                    
-                    if is_multiplo:
-                        partes_processo = processo_titulo.split('-')
-                        numero_rpv = partes_processo[-1] if len(partes_processo) > 1 else "?"
-                    
+                    # Verificar se é um RPV com descrição (antes era múltiplo)
                     if descricao_rpv and descricao_rpv != 'Não informado':
                         st.markdown("---")
-                        if is_multiplo:
-                            st.markdown(f"📄 **Processo:** {processo_base} - **RPV #{numero_rpv}**")
-                            st.markdown(f"**📝 Descrição:** {descricao_rpv}")
-                        else:
-                            st.markdown(f"📄 **Processo:** {processo_titulo}")
-                            st.markdown(f"**📝 Descrição:** {descricao_rpv}")
+                        st.markdown(f"📄 **Processo:** {processo_titulo}")
+                        st.markdown(f"**📝 Descrição:** {descricao_rpv}")
                     else:
-                        if is_multiplo:
-                            st.markdown(f"📄 **Processo:** {processo_base} - **RPV #{numero_rpv}**")
-                        else:
-                            st.markdown(f"📄 **Processo:** {processo_titulo}")
+                        st.markdown(f"📄 **Processo:** {processo_titulo}")
 
                     st.markdown(f"""
                     <div class="rpv-info-grid">
@@ -855,19 +1056,12 @@ def interface_lista_rpv(df, perfil_usuario):
                     descricao_rpv = safe_get_value(rpv, 'Descricao RPV', '')
                     titulo_processo = safe_get_value(rpv, 'Processo', 'Não informado')
                     
-                    # Verificar se é RPV múltiplo e mostrar informação adequada
-                    is_multiplo = '-' in titulo_processo and len(titulo_processo.split('-')) >= 2
-                    
-                    if is_multiplo:
-                        processo_base = titulo_processo.split('-')[0]
-                        numero_rpv = titulo_processo.split('-')[-1]
-                        st.markdown(f" 📄 {processo_base} - 🔢 RPV {numero_rpv}")
+                    # Mostrar processo com descrição se houver
+                    if descricao_rpv and descricao_rpv != 'Não informado':
+                        st.markdown(f"📄 {titulo_processo}")
+                        st.markdown(f"**📝 Descrição:** {descricao_rpv}")
                     else:
-                        if descricao_rpv and descricao_rpv != 'Não informado':
-                            st.markdown(f" 📄 {titulo_processo}")
-                            st.markdown(f"**📝 Descrição:** {descricao_rpv}")
-                        else:
-                            st.markdown(f" 📄 {titulo_processo}")
+                        st.markdown(f"📄 {titulo_processo}")
                     
                     # Tabs
                     tab_info, tab_acoes, tab_historico = st.tabs(["📋 Informações", "⚙️ Ações", "📜 Histórico"])
@@ -879,7 +1073,8 @@ def interface_lista_rpv(df, perfil_usuario):
                         render_tab_info_rpv(rpv, rpv_id)
                     
                     with tab_acoes:
-                        render_tab_acoes_rpv(df_filtrado, rpv, rpv_id, status_atual, perfil_usuario)
+                        # Usar o DataFrame editado em memória que contém os RPVs recém-criados
+                        render_tab_acoes_rpv(st.session_state.df_editado_rpv, rpv, rpv_id, status_atual, perfil_usuario)
                     
                     with tab_historico:
                         render_tab_historico_rpv(rpv, rpv_id)
@@ -975,13 +1170,16 @@ def render_tab_info_rpv(processo, rpv_id):
         st.info(safe_get_value(processo, 'Observações'))
 
 def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
-    """Renderiza a tab de ações do RPV - inclui edição completa para Cadastradores e Admins"""
+    """Renderiza a tab de ações do RPV - inclui edição completa para Cadastradores e Desenvolvedores"""
     
     # Import necessário para salvamento
     from components.functions_controle import save_data_to_github_seguro
     
+    # Usar sempre o DataFrame em memória para garantir que RPVs recém-criados sejam encontrados
+    df_trabalho = st.session_state.df_editado_rpv
+    
     # Usar a função original de edição, mas sem o cabeçalho
-    linha_processo_df = df[df["ID"].astype(str) == str(rpv_id)]
+    linha_processo_df = df_trabalho[df_trabalho["ID"].astype(str) == str(rpv_id)]
     
     if len(linha_processo_df) == 0:
         st.error(f"❌ RPV com ID {rpv_id} não encontrado")
@@ -990,13 +1188,12 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
     linha_processo = linha_processo_df.iloc[0]
     numero_processo = linha_processo.get("Processo", "N/A")
     
-    # NOVA SEÇÃO: EDIÇÃO COMPLETA PARA CADASTRADORES E ADMINS
-    if perfil_usuario in ["Cadastrador", "Admin"]:
+    # NOVA SEÇÃO: EDIÇÃO COMPLETA PARA CADASTRADORES E DESENVOLVEDORES
+    if perfil_usuario in ["Cadastrador", "Desenvolvedor"]:
         with st.expander("✏️ Editar Dados do Cadastro", expanded=False):
-            # Adicionar página atual e timestamp para garantir chave única
-            pagina_atual = st.session_state.get("current_page_rpvs", 1)
+            # CORREÇÃO: Usar rpv_id para gerar chaves únicas para cada RPV
             timestamp = gerar_timestamp_unico()
-            form_key = f"form_edicao_completa_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+            form_key = f"form_edicao_completa_rpv_{rpv_id}_{timestamp}"
             with st.form(form_key):
                 col_edit1, col_edit2 = st.columns(2)
             
@@ -1007,49 +1204,49 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                     processo_editado = st.text_input(
                         "Número do Processo:",
                         value=safe_get_value(linha_processo, "Processo", ""),
-                        key=f"edit_processo_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_processo_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para beneficiário
                     beneficiario_editado = st.text_input(
                         "Beneficiário:",
                         value=safe_get_value(linha_processo, "Beneficiário", ""),
-                        key=f"edit_beneficiario_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_beneficiario_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para CPF
                     cpf_editado = st.text_input(
                         "CPF:",
                         value=safe_get_value(linha_processo, "CPF", ""),
-                        key=f"edit_cpf_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_cpf_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para descrição do RPV
                     descricao_editada = st.text_input(
                         "Descrição do RPV:",
                         value=safe_get_value(linha_processo, "Descricao RPV", ""),
-                        key=f"edit_descricao_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_descricao_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para assunto
                     assunto_editado = st.text_input(
                         "Assunto:",
                         value=safe_get_value(linha_processo, "Assunto", ""),
-                        key=f"edit_assunto_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_assunto_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para órgão judicial
                     orgao_editado = st.text_input(
                         "Órgão Judicial:",
                         value=safe_get_value(linha_processo, "Orgao Judicial", ""),
-                        key=f"edit_orgao_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_orgao_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para vara
                     vara_editada = st.text_input(
                         "Vara:",
                         value=safe_get_value(linha_processo, "Vara", ""),
-                        key=f"edit_vara_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_vara_rpv_{rpv_id}_{timestamp}"
                     )
                 
                 with col_edit2:
@@ -1060,28 +1257,28 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                         "Banco:",
                         options=["CEF", "BB"],
                         index=0 if safe_get_value(linha_processo, "Banco", "CEF") == "CEF" else 1,
-                        key=f"edit_banco_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_banco_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para agência
                     agencia_editada = st.text_input(
                         "Agência:",
                         value=safe_get_value(linha_processo, "Agência", ""),
-                        key=f"edit_agencia_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_agencia_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para conta
                     conta_editada = st.text_input(
                         "Conta:",
                         value=safe_get_value(linha_processo, "Conta", ""),
-                        key=f"edit_conta_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_conta_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para mês competência
                     mes_competencia_editado = st.text_input(
                         "Mês Competência (mm/yyyy):",
                         value=safe_get_value(linha_processo, "Mês Competência", ""),
-                        key=f"edit_mes_competencia_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_mes_competencia_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para solicitar certidão
@@ -1089,7 +1286,7 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                         "Solicitar Certidão:",
                         options=["Sim", "Não"],
                         index=0 if safe_get_value(linha_processo, "Solicitar Certidão", "Não") == "Sim" else 1,
-                        key=f"edit_certidao_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_certidao_rpv_{rpv_id}_{timestamp}"
                     )
                     
                     # Campo editável para observações gerais
@@ -1097,7 +1294,7 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                         "Observações:",
                         value=safe_get_value(linha_processo, "Observações", ""),
                         height=100,
-                        key=f"edit_observacoes_rpv_{rpv_id}_{pagina_atual}_{timestamp}"
+                        key=f"edit_observacoes_rpv_{rpv_id}_{timestamp}"
                     )
                 
                 # Botão para salvar edições
@@ -1105,7 +1302,10 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                 
                 if salvar_edicao:
                     try:
-                        idx = df[df["ID"] == rpv_id].index[0]
+                        idx = obter_index_rpv_seguro(df_trabalho, rpv_id)
+                        if idx is None:
+                            st.error(f"❌ Erro: RPV com ID {rpv_id} não encontrado.")
+                            return
                         
                         # Atualizar todos os campos editados
                         st.session_state.df_editado_rpv.loc[idx, "Processo"] = processo_editado
@@ -1126,7 +1326,7 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                         save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
                         
                         st.success("✅ Dados editados e salvos automaticamente!")
-                        st.rerun()
+                        # Não usar st.rerun() aqui - deixar o Streamlit atualizar naturalmente
                         
                     except Exception as e:
                         st.error(f"❌ Erro ao salvar edições: {str(e)}")
@@ -1134,15 +1334,15 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
         st.markdown("---")
     
     # Renderizar ações baseadas no status - usando a lógica original da interface_edicao_rpv
-    if status_atual == "Cadastro" and perfil_usuario in ["Cadastrador", "Admin"]:
-        st.info("Após finalizar o cadastro, este RPV será enviado para os perfis SAC e Administrativo.")
-        
-        # Usar timestamp para chave única
-        timestamp = gerar_timestamp_unico()
-        pagina_atual = st.session_state.get("current_page_rpvs", 1)
-        
-        if st.button("✅ Finalizar Cadastro e Enviar", type="primary", key=f"finalizar_cadastro_tab_{rpv_id}_{pagina_atual}_{timestamp}"):
-            idx = df[df["ID"] == rpv_id].index[0]
+    if status_atual == "Cadastro" and perfil_usuario in ["Cadastrador", "Desenvolvedor"]:
+        st.info("Após finalizar o cadastro, este RPV será enviado simultaneamente para **SAC** e **Administrativo**.")        
+        unique_key = f"finalizar_cadastro_tab_{rpv_id}_{gerar_timestamp_unico()}"
+        if st.button("✅ Finalizar Cadastro e Enviar", type="primary", key=unique_key):
+            # Verificar se o RPV ainda existe no DataFrame de trabalho
+            idx = obter_index_rpv_seguro(df_trabalho, rpv_id)
+            if idx is None:
+                st.error(f"❌ Erro: RPV com ID {rpv_id} não encontrado no DataFrame.")
+                return
             
             # Iniciar status simultâneo
             st.session_state.df_editado_rpv = iniciar_status_simultaneo(
@@ -1167,12 +1367,13 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                 st.session_state.file_sha_rpv = novo_sha
                 st.session_state.rpv_expanded_cards.discard(rpv_id)
                 st.success("✅ RPV enviado simultaneamente para SAC e Administrativo e salvo automaticamente!")
-                st.rerun()
+                # Não usar st.rerun() aqui - deixar o Streamlit atualizar naturalmente
             else:
                 st.error("❌ Erro ao salvar. Tente novamente.")
     
-    elif (perfil_usuario in ["SAC", "Admin"]) and ("SAC - aguardando documentação" in obter_status_simultaneo_ativo(linha_processo)):
-        st.info("Marque quando a documentação SAC estiver pronta.")
+    elif (perfil_usuario in ["SAC", "Desenvolvedor"]) and ("SAC - aguardando documentação" in obter_status_simultaneo_ativo(linha_processo)):
+        st.info("📋 **Sua parte do processo:** Marque quando a documentação SAC estiver pronta.")
+        st.warning("Este RPV também está sendo processado pelo perfil Administrativo simultaneamente.")
         
         # Verificar se já está marcado
         sac_doc_pronta = linha_processo.get("SAC Documentacao Pronta", "") == "Sim"
@@ -1196,12 +1397,14 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                     save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
                     st.session_state.rpv_expanded_cards.discard(rpv_id)
                     st.success("✅ Status SAC atualizado e salvo automaticamente!")
-                    st.rerun()
+                    # Não usar st.rerun() aqui - deixar o Streamlit atualizar naturalmente
         else:
             st.success(f"✅ SAC já marcou documentação como pronta em {linha_processo.get('Data SAC Documentacao', 'N/A')}")
+            st.info("ℹ️ Esta etapa já foi concluída. Aguardando conclusão da documentação Administrativa para prosseguir.")
     
-    elif (perfil_usuario in ["Administrativo", "Admin"]) and ("Administrativo - aguardando documentação" in obter_status_simultaneo_ativo(linha_processo)):
-        st.info("Marque quando a documentação Administrativa estiver pronta.")
+    elif (perfil_usuario in ["Administrativo", "Desenvolvedor"]) and ("Administrativo - aguardando documentação" in obter_status_simultaneo_ativo(linha_processo)):       
+        st.info("🏢 **Sua parte do processo:** Marque quando a documentação Administrativa estiver pronta.")
+        st.warning("Este RPV também está sendo processado pelo perfil SAC simultaneamente.")
         
         # Verificar se já está marcado
         admin_doc_pronta = linha_processo.get("Admin Documentacao Pronta", "") == "Sim"
@@ -1225,12 +1428,13 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                     save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
                     st.session_state.rpv_expanded_cards.discard(rpv_id)
                     st.success("✅ Status Administrativo atualizado e salvo automaticamente!")
-                    st.rerun()
+                    # Não usar st.rerun() aqui - deixar o Streamlit atualizar naturalmente
         else:
             st.success(f"✅ Administrativo já marcou documentação como pronta em {linha_processo.get('Data Admin Documentacao', 'N/A')}")
+            st.info("ℹ️ Esta etapa já foi concluída. Aguardando conclusão da documentação SAC para prosseguir.")
     
-    # SEÇÃO DE VALORES FINANCEIROS - Disponível para Financeiro e Admin
-    if perfil_usuario in ["Financeiro", "Admin"]:
+    # SEÇÃO DE VALORES FINANCEIROS - Disponível para Financeiro e Desenvolvedor
+    if perfil_usuario in ["Financeiro", "Desenvolvedor"]:
         st.markdown("---")
         st.markdown("### 💰 Valores Financeiros")
         
@@ -1402,16 +1606,42 @@ def render_tab_acoes_rpv(df, processo, rpv_id, status_atual, perfil_usuario):
                     total_honorarios_outros = honorarios_contratuais + h_sucumbenciais + outros_valores
                     total_pago_cliente = valor_saque - total_honorarios_outros
                     st.success(f"✅ Valores financeiros salvos automaticamente! Total pago ao cliente: R$ {total_pago_cliente:,.2f}")
-                    st.rerun()
+                    # Não usar st.rerun() aqui - deixar o Streamlit atualizar naturalmente
                     
                 except Exception as e:
                     st.error(f"❌ Erro ao salvar valores: {str(e)}")
     
     # Outros status e ações...
-    if status_atual not in ["Cadastro"] and not pode_editar_status_rpv(status_atual, perfil_usuario):
-        st.info(f"Status Atual: {status_atual}")
-        if perfil_usuario != "Admin":
-            st.warning(f"⚠️ Seu perfil ({perfil_usuario}) não pode editar este status.")
+    # Verificar permissões considerando status simultâneos
+    tem_simultaneo = tem_status_simultaneo(processo)
+    pode_editar = False
+    
+    if status_atual == "Cadastro":
+        pode_editar = True  # Cadastro sempre pode ser editado se chegou até aqui
+    elif tem_simultaneo:
+        pode_editar = pode_editar_qualquer_status_simultaneo(processo, perfil_usuario)
+    else:
+        pode_editar = pode_editar_status_rpv(status_atual, perfil_usuario)
+    
+    if status_atual not in ["Cadastro"] and not pode_editar:
+        # Mostrar status atual e secundário se existir
+        if tem_simultaneo:
+            status_ativos = obter_status_simultaneo_ativo(processo)
+            status_display = " + ".join(status_ativos) if len(status_ativos) > 1 else status_atual
+            st.info(f"Status Atual: {status_display}")
+        else:
+            st.info(f"Status Atual: {status_atual}")
+        
+        if perfil_usuario != "Desenvolvedor":
+            # Mensagem específica para status duplo SAC/Administrativo
+            if tem_simultaneo and ("aguardando documentação" in status_atual or "documentação pronta" in status_atual):
+                st.warning(f"Este RPV precisa da aprovação de **ambos** os perfis SAC e Administrativo.")
+                st.info(f"💡 Seu perfil ({perfil_usuario}) não tem permissão para editar nenhum dos status ativos. Verifique se você é o perfil correto para esta etapa.")
+            elif "aguardando documentação" in status_atual or "documentação pronta" in status_atual:
+                st.warning(f"Este RPV precisa da aprovação de **ambos** os perfis SAC e Administrativo.")
+                st.info(f"💡 Seu perfil ({perfil_usuario}) não tem permissão para este status específico. Contate o perfil responsável ou aguarde a conclusão das duas etapas.")
+            else:
+                st.warning(f"⚠️ Seu perfil ({perfil_usuario}) não pode editar este status.")
 
 def render_tab_historico_rpv(processo, rpv_id):
     """Renderiza a tab de histórico do RPV"""
@@ -1948,7 +2178,15 @@ def exibir_info_estilo_horizontal(linha_rpv):
 def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
     """Interface de edição completamente redesenhada para o NOVO FLUXO DE TRABALHO RPV."""
     
-    linha_rpv = df[df["ID"] == rpv_id].iloc[0]
+    # Usar sempre o DataFrame em memória para garantir que RPVs recém-criados sejam encontrados
+    df_trabalho = st.session_state.df_editado_rpv
+    linha_rpv_match = df_trabalho[df_trabalho["ID"] == rpv_id]
+    
+    if len(linha_rpv_match) == 0:
+        st.error(f"❌ RPV com ID {rpv_id} não encontrado.")
+        return
+    
+    linha_rpv = linha_rpv_match.iloc[0]
     numero_processo = linha_rpv.get("Processo", "Não informado")
     
     # Exibir informações básicas do processo com layout compacto
@@ -1958,11 +2196,18 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
     tem_simultaneo = tem_status_simultaneo(linha_rpv)
     status_secundario = linha_rpv.get("Status Secundario", "")
     status_ativos = obter_status_simultaneo_ativo(linha_rpv)
-    if status_atual == "Cadastro" and perfil_usuario in ["Cadastrador", "Admin"]:
-        st.info("Após finalizar o cadastro, este RPV será enviado para os perfis SAC e Administrativo.")
+    if status_atual == "Cadastro" and perfil_usuario in ["Cadastrador", "Desenvolvedor"]:
+        st.info("Após finalizar o cadastro, este RPV será enviado simultaneamente para **SAC** e **Administrativo**.")
         
-        if st.button("✅ Finalizar Cadastro e Enviar", type="primary"):
-            idx = df[df["ID"] == rpv_id].index[0]
+        # Gerar chave única para o botão
+        unique_key = f"finalizar_cadastro_{rpv_id}_{gerar_timestamp_unico()}"
+        
+        if st.button("✅ Finalizar Cadastro e Enviar", type="primary", key=unique_key):
+            # Verificar se o RPV ainda existe no DataFrame de trabalho
+            idx = obter_index_rpv_seguro(df_trabalho, rpv_id)
+            if idx is None:
+                st.error(f"❌ Erro: RPV com ID {rpv_id} não encontrado no DataFrame.")
+                return
             
             # Iniciar status simultâneo
             st.session_state.df_editado_rpv = iniciar_status_simultaneo(
@@ -1991,15 +2236,20 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
             else:
                 st.error("❌ Erro ao salvar. Tente novamente.")
     
-    elif (perfil_usuario in ["SAC", "Admin"]) and ("SAC - aguardando documentação" in status_ativos):
-        st.info("Marque quando a documentação SAC estiver pronta.")
+    elif (perfil_usuario in ["SAC", "Desenvolvedor"]) and ("SAC - aguardando documentação" in status_ativos):
+        st.info("📋 **Sua parte do processo:** Marque quando a documentação SAC estiver pronta.")
+        st.warning("Este RPV também está sendo processado pelo perfil Administrativo simultaneamente.")
         
         # Verificar se já está marcado
         sac_doc_pronta = linha_rpv.get("SAC Documentacao Pronta", "") == "Sim"
         
         if not sac_doc_pronta:
-            if st.checkbox("✅ Documentação SAC pronta", key=f"sac_doc_{rpv_id}"):
-                if st.button("🔄 Marcar SAC como Pronto", type="primary"):
+            unique_key_sac = f"sac_doc_{rpv_id}_{gerar_timestamp_unico()}"
+            sac_doc_checkbox = st.checkbox("✅ Documentação SAC pronta", key=unique_key_sac)
+            
+            if sac_doc_checkbox:
+                unique_key_btn_sac = f"btn_sac_pronto_{rpv_id}_{gerar_timestamp_unico()}"
+                if st.button("🔄 Marcar SAC como Pronto", type="primary", key=unique_key_btn_sac):
                     idx = df[df["ID"] == rpv_id].index[0]
                     
                     # Atualizar status SAC (sempre no status principal)
@@ -2015,15 +2265,21 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                     st.rerun()
         else:
             st.success(f"✅ SAC já marcou documentação como pronta em {linha_rpv.get('Data SAC Documentacao', 'N/A')}")
-    elif (perfil_usuario in ["Administrativo", "Admin"]) and ("Administrativo - aguardando documentação" in status_ativos):
-        st.info("Marque quando a documentação Administrativa estiver pronta.")
+            st.info("ℹ️ Esta etapa já foi concluída. Aguardando conclusão da documentação Administrativa para prosseguir.")
+    elif (perfil_usuario in ["Administrativo", "Desenvolvedor"]) and ("Administrativo - aguardando documentação" in status_ativos):
+        st.info("🏢 **Sua parte do processo:** Marque quando a documentação Administrativa estiver pronta.")
+        st.warning("Este RPV também está sendo processado pelo perfil SAC simultaneamente.")
         
         # Verificar se já está marcado
         admin_doc_pronta = linha_rpv.get("Admin Documentacao Pronta", "") == "Sim"
         
         if not admin_doc_pronta:
-            if st.checkbox("✅ Documentação Administrativa pronta", key=f"admin_doc_{rpv_id}"):
-                if st.button("🔄 Marcar Administrativo como Pronto", type="primary"):
+            unique_key_admin = f"admin_doc_{rpv_id}_{gerar_timestamp_unico()}"
+            admin_doc_checkbox = st.checkbox("✅ Documentação Administrativa pronta", key=unique_key_admin)
+            
+            if admin_doc_checkbox:
+                unique_key_btn_admin = f"btn_admin_pronto_{rpv_id}_{gerar_timestamp_unico()}"
+                if st.button("🔄 Marcar Administrativo como Pronto", type="primary", key=unique_key_btn_admin):
                     idx = df[df["ID"] == rpv_id].index[0]
                     
                     # Atualizar status Administrativo (sempre no status secundário)
@@ -2039,9 +2295,10 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                     st.rerun()
         else:
             st.success(f"✅ Administrativo já marcou documentação como pronta em {linha_rpv.get('Data Admin Documentacao', 'N/A')}")
+            st.info("ℹ️ Esta etapa já foi concluída. Aguardando conclusão da documentação SAC para prosseguir.")
 
-    # ADMIN: INTERFACE ESPECIAL PARA STATUS SIMULTÂNEOS (APENAS QUANDO AINDA AGUARDANDO)
-    elif (perfil_usuario == "Admin" and len(status_ativos) > 1 and
+    # DESENVOLVEDOR: INTERFACE ESPECIAL PARA STATUS SIMULTÂNEOS (APENAS QUANDO AINDA AGUARDANDO)
+    elif (perfil_usuario == "Desenvolvedor" and len(status_ativos) > 1 and
           ("SAC - aguardando documentação" in status_ativos or "Administrativo - aguardando documentação" in status_ativos)):
         col1, col2 = st.columns(2)
         
@@ -2059,7 +2316,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                         st.session_state.df_editado_rpv.loc[idx, "Status"] = "SAC - documentação pronta"
                         st.session_state.df_editado_rpv.loc[idx, "SAC Documentacao Pronta"] = "Sim"
                         st.session_state.df_editado_rpv.loc[idx, "Data SAC Documentacao"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
-                        st.session_state.df_editado_rpv.loc[idx, "SAC Responsavel"] = str(st.session_state.get("usuario", "Admin"))
+                        st.session_state.df_editado_rpv.loc[idx, "SAC Responsavel"] = str(st.session_state.get("usuario", "Desenvolvedor"))
                         
                         save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
                         st.rerun()
@@ -2082,7 +2339,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                         st.session_state.df_editado_rpv.loc[idx, "Status Secundario"] = "Administrativo - documentação pronta"
                         st.session_state.df_editado_rpv.loc[idx, "Admin Documentacao Pronta"] = "Sim"
                         st.session_state.df_editado_rpv.loc[idx, "Data Admin Documentacao"] = str(datetime.now().strftime("%d/%m/%Y %H:%M"))
-                        st.session_state.df_editado_rpv.loc[idx, "Admin Responsavel"] = str(st.session_state.get("usuario", "Admin"))
+                        st.session_state.df_editado_rpv.loc[idx, "Admin Responsavel"] = str(st.session_state.get("usuario", "Desenvolvedor"))
                         
                         save_data_to_github_seguro(st.session_state.df_editado_rpv, "lista_rpv.csv", "file_sha_rpv")
                         st.rerun()
@@ -2091,7 +2348,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
             else:
                 st.info("ℹ️ Administrativo não está ativo")
     
-    elif perfil_usuario in ["Financeiro", "Admin"]:
+    elif perfil_usuario in ["Financeiro", "Desenvolvedor"]:
         # Verificar se ambos SAC e Administrativo finalizaram (independente do status atual)
         sac_finalizado = linha_rpv.get("SAC Documentacao Pronta", "") == "Sim"
         admin_finalizado = linha_rpv.get("Admin Documentacao Pronta", "") == "Sim"
@@ -2138,6 +2395,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
         elif not (sac_finalizado and admin_finalizado) and status_atual not in ["Enviado para Rodrigo", "aguardando pagamento", "finalizado"]:
             # Mostrar status de progresso para Financeiro
             st.markdown("#### 💰 Aguardando Conclusão das Etapas Anteriores")
+            st.info("Este RPV está sendo processado simultaneamente por SAC e Administrativo.")
             
             col1, col2 = st.columns(2)
             with col1:
@@ -2152,9 +2410,9 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                 else:
                     st.info("⏳ Administrativo - Aguardando documentação")
             
-            st.info("💡 Quando ambas as etapas estiverem completas, você poderá validar e enviar para Rodrigo.")
+            st.info("💡 **Importante:** Quando **AMBAS** as etapas estiverem completas, você poderá validar e enviar para Rodrigo.")
     
-    elif status_atual == "Enviado para Rodrigo" and perfil_usuario in ["Financeiro", "Admin"]:
+    elif status_atual == "Enviado para Rodrigo" and perfil_usuario in ["Financeiro", "Desenvolvedor"]:
         st.info("Anexe o comprovante de recebimento para prosseguir para o pagamento.")
         
         # Mostrar informações da validação
@@ -2205,7 +2463,7 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
                 st.success("✅ RPV avançado para aguardando pagamento!")
                 st.rerun()
     
-    elif status_atual == "aguardando pagamento" and perfil_usuario in ["Financeiro", "Admin"]:
+    elif status_atual == "aguardando pagamento" and perfil_usuario in ["Financeiro", "Desenvolvedor"]:
         st.info("Anexe o comprovante de pagamento para finalizar o RPV.")
         
         # Mostrar info do recebimento
@@ -2329,8 +2587,8 @@ def interface_edicao_rpv(df, rpv_id, status_atual, perfil_usuario):
         st.markdown("---")
         st.markdown(f"🏁 **Finalizado em:** {linha_rpv.get('Data Finalizacao', 'N/A')}")
     
-    # SEÇÃO DE HONORÁRIOS CONTRATUAIS - Disponível para Financeiro e Admin
-    if perfil_usuario in ["Financeiro", "Admin"]:
+    # SEÇÃO DE HONORÁRIOS CONTRATUAIS - Disponível para Financeiro e Desenvolvedor
+    if perfil_usuario in ["Financeiro", "Desenvolvedor"]:
         st.markdown("---")
         st.markdown("### 💼 Honorários Contratuais")
         
@@ -2474,6 +2732,9 @@ def interface_visualizar_dados_rpv(df):
         else:
             hoje_count = 0
         st.metric("📅 Cadastrados Hoje", hoje_count)
+
+    # Adicionar função de diagnóstico
+    diagnosticar_sistema_rpv()
 
     st.markdown("---")
 
@@ -2674,8 +2935,15 @@ def interface_cadastro_rpv(df, perfil_usuario):
     # LIMPAR ESTADOS DE DIÁLOGO ao entrar na aba de cadastro
     limpar_estados_dialog_rpv()
     
-    if perfil_usuario not in ["Cadastrador", "Admin"]:
-        st.warning("⚠️ Apenas Cadastradores e Administradores podem criar novos RPVs")
+    # Botão de emergência para limpar estados conflitantes
+    with st.sidebar:
+        if st.button("🔄 Limpar Estados de Cadastro", help="Use se estiver com problemas de chaves duplicadas"):
+            limpar_estados_cadastro_rpv()
+            st.success("Estados de cadastro limpos!")
+            st.rerun()
+    
+    if perfil_usuario not in ["Cadastrador", "Desenvolvedor"]:
+        st.warning("⚠️ Apenas Cadastradores e Desenvolvedores podem criar novos RPVs")
         return
 
     # Mostrar linhas temporárias primeiro (se existirem)
@@ -2716,25 +2984,14 @@ def interface_cadastro_rpv(df, perfil_usuario):
         
         st.markdown("---")
 
-    # Checkbox para múltiplos RPVs
-    multiplos_rpvs = st.checkbox(
-        "📋 Cadastrar múltiplos RPVs com mesmo beneficiário",
-        value=False,
-        help="Marque para cadastrar vários RPVs para o mesmo beneficiário com valores diferentes",
-        key="multiplos_rpvs_checkbox"
-    )
+    # FUNCIONALIDADE DE RPVs MÚLTIPLOS TEMPORARIAMENTE DESABILITADA
+    # Motivo: Problemas estruturais com chaves duplicadas e gerenciamento de estado
+    # TODO: Reimplementar com arquitetura mais robusta no futuro
     
-    # Número de RPVs se múltiplos estiver marcado
-    num_rpvs = 1
-    if multiplos_rpvs:
-        num_rpvs = st.number_input(
-            "Quantos RPVs deseja cadastrar?",
-            min_value=2,
-            max_value=10,
-            value=2,
-            step=1,
-            key="num_rpvs_input"
-        )
+    multiplos_rpvs = False  # Forçar sempre False
+    num_rpvs = 1  # Forçar sempre 1 RPV por vez
+    
+    # Aviso para o usuário
     
     col1, col2 = st.columns(2)
     
@@ -2792,6 +3049,23 @@ def interface_cadastro_rpv(df, perfil_usuario):
             key="new_rpv_banco"
         )
         
+        # Campos obrigatórios de dados bancários
+        agencia_rpv = st.text_input(
+            "Agência: *",
+            value="",
+            help="Digite o número da agência",
+            placeholder="Ex: 1234",
+            key="new_rpv_agencia"
+        )
+        
+        conta_rpv = st.text_input(
+            "Conta: *",
+            value="",
+            help="Digite o número da conta",
+            placeholder="Ex: 12345-6",
+            key="new_rpv_conta"
+        )
+        
         # Novo campo: Mês de Competência
         mes_competencia_raw = st.text_input(
             "Mês de Competência: *",
@@ -2829,357 +3103,181 @@ def interface_cadastro_rpv(df, perfil_usuario):
         observacoes = st.text_area("Observações gerais:", height=68, key=obs_key)
     
     with col2:
-        # Mostrar campos específicos para cada RPV
-        st.markdown(f"**💰 Dados Específicos dos RPVs ({num_rpvs} RPV{'s' if num_rpvs > 1 else ''}):**")
+        # Mostrar campos para RPV único (sempre, já que múltiplos foi desabilitado)
+        st.markdown(f"**💰 Dados Específicos do RPV:**")
+        
+        # Gerar identificador único para esta sessão de cadastro
+        if f"cadastro_timestamp_{num_rpvs}" not in st.session_state:
+            st.session_state[f"cadastro_timestamp_{num_rpvs}"] = gerar_timestamp_unico()
+        
+        cadastro_id = st.session_state[f"cadastro_timestamp_{num_rpvs}"]
         
         # Inicializar dicionário para armazenar dados de cada RPV
-        if f"rpvs_data_{num_rpvs}" not in st.session_state:
-            st.session_state[f"rpvs_data_{num_rpvs}"] = {}
+        if f"rpvs_data_{num_rpvs}_{cadastro_id}" not in st.session_state:
+            st.session_state[f"rpvs_data_{num_rpvs}_{cadastro_id}"] = {}
         
-        rpvs_data = st.session_state[f"rpvs_data_{num_rpvs}"]
+        rpvs_data = st.session_state[f"rpvs_data_{num_rpvs}_{cadastro_id}"]
         
-        # Criar tabs para cada RPV se múltiplos
-        if multiplos_rpvs and num_rpvs > 1:
-            rpv_tabs = st.tabs([f"RPV {i+1}" for i in range(num_rpvs)])
-            
-            for i, tab in enumerate(rpv_tabs):
-                with tab:
-                    rpv_key = f"rpv_{i+1}"
-                    if rpv_key not in rpvs_data:
-                        rpvs_data[rpv_key] = {}
-                    
-                    # Descrição específica do RPV
-                    rpvs_data[rpv_key]['descricao'] = st.text_input(
-                        f"Descrição do RPV {i+1}: *",
-                        key=f"descricao_rpv_{i+1}",
-                        help="Descreva especificamente este RPV"
-                    )
-                    
-                    # Valores financeiros específicos
-                    col2_1, col2_2 = st.columns(2)
-                    
-                    with col2_1:
-                        # Houve destaque de honorários (checkbox)
-                        rpvs_data[rpv_key]['houve_destaque_honorarios'] = st.checkbox(
-                            "✅ Houve destaque de honorários",
-                            value=False,
-                            help="Marque se houve destaque de honorários",
-                            key=f"destaque_honorarios_rpv_{i+1}"
-                        )
-                        
-                        # Valor do saque
-                        rpvs_data[rpv_key]['valor_saque'] = st.number_input(
-                            "Valor do saque (R$): *",
-                            min_value=0.0,
-                            step=0.01,
-                            format="%.2f",
-                            help="Valor total do saque do RPV",
-                            key=f"valor_saque_rpv_{i+1}"
-                        )
-                        
-                        # Honorários contratuais
-                        rpvs_data[rpv_key]['honorarios_contratuais'] = st.number_input(
-                            "Honorários contratuais (R$):",
-                            min_value=0.0,
-                            step=0.01,
-                            format="%.2f",
-                            help="Valor dos honorários contratuais",
-                            key=f"honorarios_contratuais_rpv_{i+1}"
-                        )
-                        
-                        # Honorários sucumbenciais
-                        rpvs_data[rpv_key]['h_sucumbenciais'] = st.number_input(
-                            "H. Sucumbenciais (R$):",
-                            min_value=0.0,
-                            step=0.01,
-                            format="%.2f",
-                            help="Valor dos honorários sucumbenciais",
-                            key=f"h_sucumbenciais_rpv_{i+1}"
-                        )
-                        
-                        # Valor cliente
-                        rpvs_data[rpv_key]['valor_cliente'] = st.number_input(
-                            "Valor cliente (R$): *",
-                            min_value=0.0,
-                            step=0.01,
-                            format="%.2f",
-                            help="Valor destinado ao cliente",
-                            key=f"valor_cliente_rpv_{i+1}"
-                        )
-                    
-                    with col2_2:
-                        # Valor de honorário sucumbencial (removido pois já existe H. Sucumbenciais)
-                        # rpvs_data[rpv_key]['valor_honorario_sucumbencial'] = st.number_input(
-                        
-                        # Valor parceiro/prospector
-                        rpvs_data[rpv_key]['valor_parceiro_prospector'] = st.number_input(
-                            "Valor parceiro/prospector (R$):",
-                            min_value=0.0,
-                            step=0.01,
-                            format="%.2f",
-                            help="Valor destinado ao parceiro/prospector",
-                            key=f"valor_parceiro_rpv_{i+1}"
-                        )
-                        
-                        # Outros valores
-                        rpvs_data[rpv_key]['outros_valores'] = st.number_input(
-                            "Outros valores (R$):",
-                            min_value=0.0,
-                            step=0.01,
-                            format="%.2f",
-                            help="Outros valores relacionados",
-                            key=f"outros_valores_rpv_{i+1}"
-                        )
-                        
-                        # Forma de pagamento
-                        rpvs_data[rpv_key]['forma_pagamento'] = st.selectbox(
-                            "Forma de pagamento ao cliente:",
-                            options=["PIX", "Transferência", "Dinheiro"],
-                            help="Forma como o pagamento será feito ao cliente",
-                            key=f"forma_pagamento_rpv_{i+1}"
-                        )
-                    
-                        # Observações sobre valores
-                        rpvs_data[rpv_key]['observacoes_valores'] = st.text_area(
-                            "Observações sobre valores:",
-                            height=68,
-                            help="Detalhes ou observações sobre os valores",
-                            key=f"observacoes_valores_rpv_{i+1}"
-                        )
-                        
-                        # Nova seção: Observações específicas para honorários contratuais
-                        rpvs_data[rpv_key]['observacoes_hc'] = st.text_area(
-                            "Observações honorários contratuais:",
-                            height=68,
-                            help="Observações específicas sobre honorários contratuais (consideradas antes do envio para Rodrigo)",
-                            key=f"observacoes_hc_rpv_{i+1}"
-                        )                    # Upload de PDF específico
-                    rpvs_data[rpv_key]['pdf_rpv'] = st.file_uploader(
-                        f"PDF do RPV {i+1}: *",
-                        type=["pdf"],
-                        key=f"pdf_rpv_{i+1}"
-                    )
-        else:
-            # Caso seja apenas um RPV
-            rpv_key = "rpv_1"
-            if rpv_key not in rpvs_data:
-                rpvs_data[rpv_key] = {}
-            
-            # Descrição do RPV (opcional para RPV único)
-            rpvs_data[rpv_key]['descricao'] = st.text_input(
-                "Descrição do RPV:",
-                key="descricao_rpv_unico",
-                help="Descrição específica deste RPV (opcional)"
+        # Forçar apenas um RPV (múltiplos desabilitados)
+        rpv_key = "rpv_1"
+        if rpv_key not in rpvs_data:
+            rpvs_data[rpv_key] = {}
+        
+        # Descrição do RPV (opcional para RPV único)
+        rpvs_data[rpv_key]['descricao'] = st.text_input(
+            "Descrição do RPV:",
+            key="descricao_rpv_unico",
+            help="Descrição específica deste RPV (opcional)"
+        )
+        
+        # Seção de Valores Financeiros
+        col2_1, col2_2 = st.columns(2)
+        
+        with col2_1:
+            # Houve destaque de honorários (checkbox)
+            rpvs_data[rpv_key]['houve_destaque_honorarios'] = st.checkbox(
+                "✅ Houve destaque de honorários",
+                value=False,
+                help="Marque se houve destaque de honorários",
+                key="new_rpv_destaque_honorarios"
             )
             
-            # Seção de Valores Financeiros
-            col2_1, col2_2 = st.columns(2)
-            
-            with col2_1:
-                # Houve destaque de honorários (checkbox)
-                rpvs_data[rpv_key]['houve_destaque_honorarios'] = st.checkbox(
-                    "✅ Houve destaque de honorários",
-                    value=False,
-                    help="Marque se houve destaque de honorários",
-                    key="new_rpv_destaque_honorarios"
-                )
-                
-                # Valor do saque
-                rpvs_data[rpv_key]['valor_saque'] = st.number_input(
-                    "Valor do saque (R$): *",
-                    min_value=0.0,
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor total do saque do RPV",
-                    key="new_rpv_valor_saque"
-                )
-                
-                # Honorários contratuais
-                rpvs_data[rpv_key]['honorarios_contratuais'] = st.number_input(
-                    "Honorários contratuais (R$):",
-                    min_value=0.0,
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor dos honorários contratuais",
-                    key="new_rpv_honorarios_contratuais"
-                )
-                
-                # Honorários sucumbenciais
-                rpvs_data[rpv_key]['h_sucumbenciais'] = st.number_input(
-                    "H. Sucumbenciais (R$):",
-                    min_value=0.0,
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor dos honorários sucumbenciais",
-                    key="new_rpv_h_sucumbenciais"
-                )
-                
-                # Valor cliente
-                rpvs_data[rpv_key]['valor_cliente'] = st.number_input(
-                    "Valor cliente (R$): *",
-                    min_value=0.0,
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor destinado ao cliente",
-                    key="new_rpv_valor_cliente"
-                )
-            
-            with col2_2:
-                # Valor parceiro/prospector
-                rpvs_data[rpv_key]['valor_parceiro_prospector'] = st.number_input(
-                    "Valor parceiro/prospector (R$):",
-                    min_value=0.0,
-                    step=0.01,
-                    format="%.2f",
-                    help="Valor destinado ao parceiro/prospector",
-                    key="new_rpv_valor_parceiro"
-                )
-                
-                # Outros valores
-                rpvs_data[rpv_key]['outros_valores'] = st.number_input(
-                    "Outros valores (R$):",
-                    min_value=0.0,
-                    step=0.01,
-                    format="%.2f",
-                    help="Outros valores relacionados",
-                    key="new_rpv_outros_valores"
-                )
-                
-                # Forma de pagamento
-                rpvs_data[rpv_key]['forma_pagamento'] = st.selectbox(
-                    "Forma de pagamento ao cliente:",
-                    options=["PIX", "Transferência", "Dinheiro"],
-                    help="Forma como o pagamento será feito ao cliente",
-                    key="new_rpv_forma_pagamento"
-                )
-                
-                # Valor de honorário sucumbencial (removido pois já existe H. Sucumbenciais)
-                # rpvs_data[rpv_key]['valor_honorario_sucumbencial'] = st.number_input(
-            
-            # Observações sobre valores
-            rpvs_data[rpv_key]['observacoes_valores'] = st.text_area(
-                "Observações sobre valores:",
-                height=68,
-                help="Detalhes ou observações sobre os valores",
-                key="new_rpv_observacoes_valores"
+            # Valor do saque
+            rpvs_data[rpv_key]['valor_saque'] = st.number_input(
+                "Valor do saque (R$): *",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Valor total do saque do RPV",
+                key="new_rpv_valor_saque"
             )
             
-            # Nova seção: Observações específicas para honorários contratuais
-            rpvs_data[rpv_key]['observacoes_hc'] = st.text_area(
-                "Observações honorários contratuais:",
-                height=68,
-                help="Observações específicas sobre honorários contratuais (consideradas antes do envio para Rodrigo)",
-                key="new_rpv_observacoes_hc"
+            # Honorários contratuais
+            rpvs_data[rpv_key]['honorarios_contratuais'] = st.number_input(
+                "Honorários contratuais (R$):",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Valor dos honorários contratuais",
+                key="new_rpv_honorarios_contratuais"
             )
             
-            # Checkbox para anexar múltiplos PDFs
-            anexar_multiplos_pdf = st.checkbox("Anexar múltiplos PDFs", key=multiplos_key)
+            # Honorários sucumbenciais
+            rpvs_data[rpv_key]['h_sucumbenciais'] = st.number_input(
+                "H. Sucumbenciais (R$):",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Valor dos honorários sucumbenciais",
+                key="new_rpv_h_sucumbenciais"
+            )
             
-            # Usar keys diferentes para múltiplos vs único para evitar conflitos
-            if anexar_multiplos_pdf:
-                rpvs_data[rpv_key]['pdf_rpv'] = st.file_uploader(
-                    "PDFs do RPV: *",
-                    type=["pdf"],
-                    accept_multiple_files=True,
-                    key="pdf_rpv_multiplos"
-                )
-                rpvs_data[rpv_key]['multiplos_pdfs'] = True
-            else:
-                rpvs_data[rpv_key]['pdf_rpv'] = st.file_uploader(
-                    "PDF do RPV: *",
-                    type=["pdf"],
-                    key="pdf_rpv_unico"
-                )
-                rpvs_data[rpv_key]['multiplos_pdfs'] = False
+            # Valor cliente
+            rpvs_data[rpv_key]['valor_cliente'] = st.number_input(
+                "Valor cliente (R$): *",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Valor destinado ao cliente",
+                key="new_rpv_valor_cliente"
+            )
+        
+        with col2_2:
+            # Valor parceiro/prospector
+            rpvs_data[rpv_key]['valor_parceiro_prospector'] = st.number_input(
+                "Valor parceiro/prospector (R$):",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Valor destinado ao parceiro/prospector",
+                key="new_rpv_valor_parceiro"
+            )
+            
+            # Outros valores
+            rpvs_data[rpv_key]['outros_valores'] = st.number_input(
+                "Outros valores (R$):",
+                min_value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Outros valores relacionados",
+                key="new_rpv_outros_valores"
+            )
+            
+            # Forma de pagamento
+            rpvs_data[rpv_key]['forma_pagamento'] = st.selectbox(
+                "Forma de pagamento ao cliente:",
+                options=["PIX", "Transferência", "Dinheiro"],
+                help="Forma como o pagamento será feito ao cliente",
+                key="new_rpv_forma_pagamento"
+            )
+        
+        # Observações sobre valores
+        rpvs_data[rpv_key]['observacoes_valores'] = st.text_area(
+            "Observações sobre valores:",
+            height=68,
+            help="Detalhes ou observações sobre os valores",
+            key="new_rpv_observacoes_valores"
+        )
+        
+        # Nova seção: Observações específicas para honorários contratuais
+        rpvs_data[rpv_key]['observacoes_hc'] = st.text_area(
+            "Observações honorários contratuais:",
+            height=68,
+            help="Observações específicas sobre honorários contratuais (consideradas antes do envio para Rodrigo)",
+            key="new_rpv_observacoes_hc"
+        )
+        
+        # Upload de PDF (sempre único, múltiplos desabilitados)
+        rpvs_data[rpv_key]['pdf_rpv'] = st.file_uploader(
+            "PDF do RPV: *",
+            type=["pdf"],
+            key="pdf_rpv_unico"
+        )
+        rpvs_data[rpv_key]['multiplos_pdfs'] = False
 
-    # ===== SEÇÃO DE RESUMO FINANCEIRO =====
+    # ===== RESUMO FINANCEIRO (Simplificado para RPV único) =====
     st.markdown("---")
-    st.markdown("### 💰 Resumo Financeiro")
     
-    # Cálculos para cada RPV
-    resumo_total = {
-        'total_saque': 0.0,
-        'total_honorarios': 0.0,
-        'total_parceiro': 0.0,
-        'total_outros': 0.0,
-        'total_cliente': 0.0,
-        'total_escritorio': 0.0
-    }
-    
-    for i in range(num_rpvs):
-        rpv_key = f"rpv_{i+1}"
-        if rpv_key in rpvs_data:
-            dados_rpv = rpvs_data[rpv_key]
-            
-            # Obter valores (com fallback para 0.0 se não preenchido)
-            valor_saque = dados_rpv.get('valor_saque', 0.0) or 0.0
-            honorarios_contratuais = dados_rpv.get('honorarios_contratuais', 0.0) or 0.0
-            h_sucumbenciais = dados_rpv.get('h_sucumbenciais', 0.0) or 0.0
-            valor_parceiro = dados_rpv.get('valor_parceiro_prospector', 0.0) or 0.0
-            outros_valores = dados_rpv.get('outros_valores', 0.0) or 0.0
-            
-            # Cálculos por RPV
-            total_honorarios_rpv = honorarios_contratuais + h_sucumbenciais
-            total_deducoes_rpv = total_honorarios_rpv + outros_valores
-            total_cliente_rpv = valor_saque - total_deducoes_rpv
-            total_escritorio_rpv = total_honorarios_rpv + outros_valores - valor_parceiro
-            
-            # Acumular totais
-            resumo_total['total_saque'] += valor_saque
-            resumo_total['total_honorarios'] += total_honorarios_rpv
-            resumo_total['total_parceiro'] += valor_parceiro
-            resumo_total['total_outros'] += outros_valores
-            resumo_total['total_cliente'] += total_cliente_rpv
-            resumo_total['total_escritorio'] += total_escritorio_rpv
-            
-            # Mostrar resumo individual se múltiplos RPVs
-            if num_rpvs > 1:
-                with st.expander(f"📊 Resumo RPV {i+1}", expanded=False):
-                    col_res1, col_res2, col_res3 = st.columns(3)
-                    
-                    with col_res1:
-                        st.metric(
-                            "💰 Total pago ao cliente",
-                            f"R$ {total_cliente_rpv:,.2f}",
-                            help=f"Valor do saque (R$ {valor_saque:,.2f}) - Honorários e outros (R$ {total_deducoes_rpv:,.2f})"
-                        )
-                    
-                    with col_res2:
-                        st.metric(
-                            "🏢 Total recebido pelo escritório",
-                            f"R$ {total_escritorio_rpv:,.2f}",
-                            help=f"Honorários e outros (R$ {total_honorarios_rpv + outros_valores:,.2f}) - Parceiro/prospector (R$ {valor_parceiro:,.2f})"
-                        )
-                    
-                    with col_res3:
-                        st.metric(
-                            "🤝 Total pago a parceiro/prospector",
-                            f"R$ {valor_parceiro:,.2f}"
-                        )
-    
-    # Resumo consolidado
-    col_res1, col_res2, col_res3 = st.columns(3)
-    
-    with col_res1:
-        st.metric(
-            "💰 Total pago ao cliente",
-            f"R$ {resumo_total['total_cliente']:,.2f}",
-            help=f"Soma dos valores líquidos para todos os clientes"
-        )
-    
-    with col_res2:
-        st.metric(
-            "🏢 Total recebido pelo escritório",
-            f"R$ {resumo_total['total_escritorio']:,.2f}",
-            help=f"Soma dos valores líquidos para o escritório"
-        )
-    
-    with col_res3:
-        st.metric(
-            "🤝 Total pago a parceiro/prospector",
-            f"R$ {resumo_total['total_parceiro']:,.2f}",
-            help=f"Soma dos valores para parceiros/prospectores"
-        )
+    # Cálculos para o RPV único
+    rpv_key = "rpv_1"
+    if rpv_key in rpvs_data:
+        dados_rpv = rpvs_data[rpv_key]
+        
+        # Obter valores (com fallback para 0.0 se não preenchido)
+        valor_saque = dados_rpv.get('valor_saque', 0.0) or 0.0
+        honorarios_contratuais = dados_rpv.get('honorarios_contratuais', 0.0) or 0.0
+        h_sucumbenciais = dados_rpv.get('h_sucumbenciais', 0.0) or 0.0
+        valor_parceiro = dados_rpv.get('valor_parceiro_prospector', 0.0) or 0.0
+        outros_valores = dados_rpv.get('outros_valores', 0.0) or 0.0
+        valor_cliente = dados_rpv.get('valor_cliente', 0.0) or 0.0
+        
+        # Cálculos
+        total_honorarios = honorarios_contratuais + h_sucumbenciais
+        total_deducoes = total_honorarios + outros_valores
+        total_escritorio = total_honorarios + outros_valores - valor_parceiro
+        
+        # Resumo em colunas
+        col_res1, col_res2, col_res3 = st.columns(3)
+        
+        with col_res1:
+            st.metric(
+                "💰 Total pago ao cliente", 
+                f"R$ {valor_cliente:,.2f}",
+                help=f"Valor declarado como destinado ao cliente"
+            )
+        
+        with col_res2:
+            st.metric(
+                "🏢 Total recebido pelo escritório", 
+                f"R$ {total_escritorio:,.2f}",
+                help=f"Honorários e outros (R$ {total_honorarios + outros_valores:,.2f}) - Parceiro/prospector (R$ {valor_parceiro:,.2f})"
+            )
+        
+        with col_res3:
+            st.metric(
+                "🤝 Total pago a parceiro/prospector", 
+                f"R$ {valor_parceiro:,.2f}"
+            )
 
     # Botão de submissão fora do formulário
     if st.button("📝 Adicionar RPVs", type="primary", use_container_width=True):
@@ -3236,6 +3334,18 @@ def interface_cadastro_rpv(df, perfil_usuario):
         else:
             banco_rpv = st.session_state.new_rpv_banco
         
+        # Validar agência (obrigatório)
+        if "new_rpv_agencia" not in st.session_state or not st.session_state.new_rpv_agencia or st.session_state.new_rpv_agencia.strip() == "":
+            campos_vazios.append("Agência")
+        else:
+            agencia_rpv = st.session_state.new_rpv_agencia.strip()
+        
+        # Validar conta (obrigatório)
+        if "new_rpv_conta" not in st.session_state or not st.session_state.new_rpv_conta or st.session_state.new_rpv_conta.strip() == "":
+            campos_vazios.append("Conta")
+        else:
+            conta_rpv = st.session_state.new_rpv_conta.strip()
+        
         # Validar mês de competência
         if not mes_competencia:
             campos_vazios.append("Mês de Competência")
@@ -3255,28 +3365,17 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 rpv_data = rpvs_data[rpv_key]
                 rpv_errors = []
                 
-                # Validar descrição para múltiplos RPVs
-                if multiplos_rpvs and (not rpv_data.get('descricao') or rpv_data.get('descricao', '').strip() == ''):
-                    rpv_errors.append(f"Descrição do RPV {i+1}")
+                # Validar descrição - não obrigatório para RPV único
+                # (A validação de múltiplos foi removida)
                 
                 # Validar valor cliente obrigatório
                 if rpv_data.get('valor_cliente', 0) <= 0.0:
-                    rpv_errors.append(f"Valor cliente do RPV {i+1}")
+                    rpv_errors.append(f"Valor cliente do RPV")
                 
-                # Validar PDF
+                # Validar PDF (sempre único agora)
                 pdf_rpv = rpv_data.get('pdf_rpv')
-                if multiplos_rpvs:
-                    if not pdf_rpv:
-                        rpv_errors.append(f"PDF do RPV {i+1}")
-                else:
-                    # Para RPV único, verificar se há múltiplos PDFs ou único
-                    multiplos_pdfs = rpv_data.get('multiplos_pdfs', False)
-                    if multiplos_pdfs:
-                        if not pdf_rpv or len(pdf_rpv) == 0:
-                            rpv_errors.append("PDFs do RPV")
-                    else:
-                        if not pdf_rpv:
-                            rpv_errors.append("PDF do RPV")
+                if not pdf_rpv:
+                    rpv_errors.append("PDF do RPV")
                 
                 if rpv_errors:
                     campos_vazios.extend(rpv_errors)
@@ -3313,24 +3412,12 @@ def interface_cadastro_rpv(df, perfil_usuario):
                     # NOVO FLUXO: Status inicial é Cadastro, que depois se transforma nos dois status simultâneos
                     status_inicial = "Cadastro"
                     
-                    # Criar número do processo específico para cada RPV
-                    if multiplos_rpvs and len(rpvs_validos) > 1:
-                        processo_especifico = f"{processo_formatado}-{rpv_index + 1}"
-                    else:
-                        processo_especifico = processo_formatado
+                    # Usar sempre o processo formatado único (múltiplos desabilitados)
+                    processo_especifico = processo_formatado
                     
-                    # Salvar PDF(s)
+                    # Salvar PDF único
                     pdf_rpv = rpv_data.get('pdf_rpv')
-                    if multiplos_rpvs or not rpv_data.get('multiplos_pdfs', False):
-                        # Salvar arquivo único
-                        pdf_url = salvar_arquivo(pdf_rpv, processo_especifico, f"rpv")
-                    else:
-                        # Salvar múltiplos arquivos (apenas para RPV único com múltiplos PDFs)
-                        pdf_urls = []
-                        for i, arquivo in enumerate(pdf_rpv):
-                            url = salvar_arquivo(arquivo, processo_especifico, f"rpv_{i+1}")
-                            pdf_urls.append(url)
-                        pdf_url = "; ".join(pdf_urls)
+                    pdf_url = salvar_arquivo(pdf_rpv, processo_especifico, f"rpv")
                     
                     # Criar nova linha
                     nova_linha = {
@@ -3355,6 +3442,8 @@ def interface_cadastro_rpv(df, perfil_usuario):
                         "Observacoes Honorarios Contratuais": rpv_data.get('observacoes_hc', ''),
                         
                         "Banco": banco_rpv,
+                        "Agência": agencia_rpv,
+                        "Conta": conta_rpv,
                         "Assunto": assunto_final,
                         "Orgao Judicial": orgao_final,
                         "Vara": vara_final if vara_final else "",
@@ -3404,7 +3493,7 @@ def interface_cadastro_rpv(df, perfil_usuario):
 
                 # Limpar campos após submissão bem-sucedida
                 keys_to_clear = [processo_key, beneficiario_key, cpf_key, obs_key, competencia_key,
-                               certidao_key, multiplos_key, "new_rpv_banco", "multiplos_rpvs_checkbox", "num_rpvs_input",
+                               certidao_key, "new_rpv_banco", "new_rpv_agencia", "new_rpv_conta",
                                "descricao_rpv_unico", "new_rpv_destaque_honorarios", 
                                "new_rpv_valor_saque", "new_rpv_honorarios_contratuais", "new_rpv_h_sucumbenciais",
                                "new_rpv_valor_cliente", "new_rpv_valor_parceiro", "new_rpv_outros_valores",
@@ -3412,24 +3501,11 @@ def interface_cadastro_rpv(df, perfil_usuario):
                                "select_new_rpv_assunto", "input_novo_new_rpv_assunto",
                                "select_new_rpv_orgao", "input_novo_new_rpv_orgao",
                                "select_new_rpv_vara", "input_nova_new_rpv_vara",
-                               "pdf_rpv_unico", "pdf_rpv_multiplos"]
+                               "pdf_rpv_unico"]
                 
-                # Limpar campos específicos dos RPVs múltiplos
-                for i in range(10):  # Limpar até 10 RPVs
-                    keys_to_clear.extend([
-                        f"descricao_rpv_{i+1}",
-                        f"destaque_honorarios_rpv_{i+1}",
-                        f"valor_saque_rpv_{i+1}",
-                        f"honorarios_contratuais_rpv_{i+1}",
-                        f"h_sucumbenciais_rpv_{i+1}",
-                        f"valor_cliente_rpv_{i+1}",
-                        f"valor_parceiro_rpv_{i+1}",
-                        f"outros_valores_rpv_{i+1}",
-                        f"forma_pagamento_rpv_{i+1}",
-                        f"observacoes_valores_rpv_{i+1}",
-                        f"observacoes_hc_rpv_{i+1}",
-                        f"pdf_rpv_{i+1}"
-                    ])
+                # Remover limpeza de campos múltiplos (não existem mais)
+                # for i in range(10):  # Limpar até 10 RPVs
+                #     keys_to_clear.extend([...
                 
                 # Limpar session state
                 for key in keys_to_clear:
@@ -3441,11 +3517,17 @@ def interface_cadastro_rpv(df, perfil_usuario):
                 for key in keys_to_remove:
                     del st.session_state[key]
                 
+                # Limpar campos adicionais que podem persistir
+                additional_keys_to_clear = [
+                    "selected_process_rpv", "selected_beneficiary_rpv", "selected_cpf_rpv",
+                    "input_nova_observacao_rpv", "input_nova_competencia_rpv", "input_nova_certidao_rpv"
+                ]
+                for key in additional_keys_to_clear:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                
                 num_linhas_adicionadas = len(novas_linhas)
-                if num_linhas_adicionadas == 1:
-                    st.success("✅ RPV adicionado! Salve para persistir os dados.")
-                else:
-                    st.success(f"✅ {num_linhas_adicionadas} RPVs adicionados! Salve para persistir os dados.")
+                st.success("✅ RPV adicionado! Campos limpos para novo cadastro. Salve para persistir os dados.")
                 st.rerun()
 
 def confirmar_exclusao_massa_rpv(df, processos_selecionados):
